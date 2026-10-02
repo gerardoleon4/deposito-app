@@ -1,6 +1,19 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- La caja sirve la API y las terminales se conectan a ella por la Wi-Fi.
+         Sin INTERNET en el manifiesto principal, las builds de release no
+         pueden abrir sockets (solo debug y profile lo traían). -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <!-- El escáner (mobile_scanner) pide la cámara en tiempo de ejecución. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false"/>
+
+    <!-- usesCleartextTraffic: la API viaja por HTTP dentro de la red local del
+         depósito (http://192.168.x.x:8080). Android 9+ lo bloquea por omisión
+         y la IP de la caja no se conoce de antemano para listarla. -->
     <application
-        android:label="deposito_app"
+        android:label="Anaquel"
+        android:usesCleartextTraffic="true"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
