@@ -47,7 +47,7 @@ deposito-app/
 ├── backend/    Paquete Dart: API, WebSocket, SQLite y reglas de negocio
 ├── app/        App Flutter: pantallas de caja y terminal
 ├── docs/       Contrato de la API, plan de trabajo y prototipo HTML
-└── .github/    CI y CODEOWNERS
+└── .github/    CI y plantilla de PR
 ```
 
 ## Tecnologías
@@ -107,6 +107,8 @@ cd app && flutter test
 | [`docs/API.md`](docs/API.md) | Contrato de la API: endpoints, ejemplos y eventos del WebSocket |
 | [`docs/PLAN_DE_TRABAJO.md`](docs/PLAN_DE_TRABAJO.md) | Cómo trabaja el equipo, sprints y reglas de Git |
 | [`docs/SETUP.md`](docs/SETUP.md) | Instalación paso a paso en Linux, Windows y macOS |
+| [`docs/ESTANDARES.md`](docs/ESTANDARES.md) | Reglas obligatorias de dinero, fechas, datos, capas y código |
+| [`AGENTS.md`](AGENTS.md) | Guía rápida para el equipo y sus asistentes de IA |
 | [`docs/prototipo/`](docs/prototipo/) | Prototipo HTML navegable con todas las pantallas |
 | [`CHANGELOG.md`](CHANGELOG.md) | Cambios por versión |
 

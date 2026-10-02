@@ -1,23 +1,48 @@
 name: CI
+
 on:
+  push:
+    branches: [develop]
   pull_request:
     branches: [develop, main]
+
+# Un push nuevo al mismo PR cancela la corrida anterior.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
+    name: Backend (formato, análisis y pruebas)
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: backend } }
     steps:
       - uses: actions/checkout@v4
       - uses: dart-lang/setup-dart@v1
+        with: { sdk: 3.13.4 }
       - run: dart pub get
-      - run: dart analyze
-      - run: dart test
+      - name: Formato
+        run: dart format --output=none --set-exit-if-changed .
+      - name: Análisis
+        run: dart analyze --fatal-infos
+      - name: Pruebas (incluye migraciones y e2e)
+        run: dart test --reporter=expanded
+
   app:
+    name: App (formato, análisis y pruebas)
     runs-on: ubuntu-latest
     defaults: { run: { working-directory: app } }
     steps:
       - uses: actions/checkout@v4
       - uses: subosito/flutter-action@v2
-        with: { channel: stable }
+        with:
+          channel: stable
+          flutter-version: 3.47.5
+          cache: true
       - run: flutter pub get
-      - run: flutter analyze
+      - name: Formato
+        run: dart format --output=none --set-exit-if-changed lib test
+      - name: Análisis
+        run: flutter analyze --fatal-infos
+      - name: Pruebas
+        run: flutter test
