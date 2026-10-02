@@ -108,13 +108,16 @@ class _Tablero extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 20),
-            GridView.count(
-              crossAxisCount: columnasKpi,
+            GridView(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              crossAxisSpacing: 14,
-              mainAxisSpacing: 14,
-              childAspectRatio: columnasKpi == 4 ? 2.3 : 2.6,
+              // Alto fijo: con proporción, una ventana angosta las aplasta.
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columnasKpi,
+                crossAxisSpacing: 14,
+                mainAxisSpacing: 14,
+                mainAxisExtent: 112,
+              ),
               children: [
                 _Kpi(
                   icono: Icons.inventory_2_outlined,
