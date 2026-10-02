@@ -10,12 +10,14 @@ class RepositorioProductos {
 
   final Database _db;
 
+  // backend/lib/src/db/repositorio_productos.dart
+
   List<Producto> listar({String? busqueda, String? categoria}) {
     final condiciones = ['eliminado = 0'];
     final parametros = <Object?>[];
     if (busqueda != null && busqueda.isNotEmpty) {
       condiciones.add(
-        "(nombre_busqueda LIKE ? ESCAPE '\\' OR codigo LIKE ? ESCAPE '\\')",
+        "(nombre_busqueda LIKE ? ESCAPE '^' OR codigo LIKE ? ESCAPE '^')",
       );
       final patron = '%${_escaparLike(normalizarBusqueda(busqueda))}%';
       parametros.addAll([patron, patron]);
@@ -112,10 +114,8 @@ class RepositorioProductos {
               .first['n']
           as int;
 
-  static String _escaparLike(String texto) => texto
-      .replaceAll(r'\', r'\\')
-      .replaceAll('%', r'\%')
-      .replaceAll('_', r'\_');
+  static String _escaparLike(String texto) =>
+      texto.replaceAll('^', '^^').replaceAll('%', '^%').replaceAll('_', '^_');
 
   static Producto _desdeFila(Row f) => Producto(
     id: f['id'] as String,

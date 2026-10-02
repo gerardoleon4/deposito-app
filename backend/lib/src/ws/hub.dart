@@ -79,8 +79,12 @@ class Hub {
   void _enviarTexto(WebSocketChannel canal, String texto) {
     try {
       canal.sink.add(texto);
-    } on StateError {
+    } catch (e) {
+      // Si el socket falló o se cerró del lado del cliente, desconectarlo de inmediato
       _quitar(canal);
+      try {
+        canal.sink.close();
+      } catch (_) {}
     }
   }
 

@@ -2,6 +2,9 @@
 abstract final class TiposEvento {
   static const conexionLista = 'conexion.lista';
   static const productoActualizado = 'producto.actualizado';
+  static const pedidoCreado = 'pedido.creado';
+  static const pedidoAtendido = 'pedido.atendido';
+  static const balanceEnvasesActualizado = 'envases.actualizado';
 }
 
 /// Mensaje del servidor: `{ "tipo", "datos", "fecha" }`.

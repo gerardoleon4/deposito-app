@@ -138,23 +138,32 @@ backend/
       db/
         migraciones/
           m001_inicial.dart
+          m002_ventas_pedidos_envases.dart
         base_datos.dart
         migraciones.dart
         repositorio_ajustes.dart
+        repositorio_envases.dart
         repositorio_productos.dart
         repositorio_terminales.dart
+        repositorio_ventas.dart
       modelos/
         evento.dart
         producto.dart
         terminal.dart
       rutas/
+        rutas_envases.dart
+        rutas_pedidos.dart
         rutas_productos.dart
         rutas_terminales.dart
+        rutas_ventas.dart
       seed/
         datos_ejemplo.dart
       servicios/
+        servicio_envases.dart
+        servicio_pedidos.dart
         servicio_productos.dart
         servicio_terminales.dart
+        servicio_ventas.dart
       ws/
         hub.dart
       servidor.dart
@@ -166,6 +175,7 @@ backend/
     fechas_test.dart
     migraciones_test.dart
     servicio_productos_test.dart
+    ventas_test.dart
   analysis_options.yaml
   pubspec.yaml
 docs/
@@ -183,6 +193,1053 @@ README.md
 ````
 
 # Files
+
+## File: backend/lib/src/db/migraciones/m002_ventas_pedidos_envases.dart
+````dart
+ 1: import '../migraciones.dart';
+ 2: 
+ 3: const m002VentasPedidosEnvases = Migracion(2, 'ventas_pedidos_envases', '''
+ 4: -- Balance y seguimiento de envases retornables
+ 5: CREATE TABLE balance_envases (
+ 6:   formato       TEXT PRIMARY KEY CHECK (formato IN ('mega', 'media', 'cuarto')),
+ 7:   bodega        INTEGER NOT NULL DEFAULT 0 CHECK (bodega >= 0),
+ 8:   prestados     INTEGER NOT NULL DEFAULT 0 CHECK (prestados >= 0),
+ 9:   precio        INTEGER NOT NULL CHECK (precio > 0)
+10: );
+11: 
+12: INSERT INTO balance_envases (formato, bodega, prestados, precio) VALUES
+13:   ('mega', 84, 36, 800),
+14:   ('media', 240, 48, 300),
+15:   ('cuarto', 168, 24, 300);
+16: 
+17: CREATE TABLE prestamos_envases (
+18:   id        TEXT PRIMARY KEY,
+19:   cliente   TEXT NOT NULL,
+20:   formato   TEXT NOT NULL CHECK (formato IN ('mega', 'media', 'cuarto')),
+21:   cantidad  INTEGER NOT NULL CHECK (cantidad > 0),
+22:   fecha     TEXT NOT NULL,
+23:   devuelto  INTEGER NOT NULL DEFAULT 0
+24: );
+25: CREATE INDEX idx_prestamos_cliente ON prestamos_envases (cliente, devuelto);
+26: 
+27: -- Ventas y Tickets
+28: CREATE TABLE ventas (
+29:   id          TEXT PRIMARY KEY,
+30:   folio       INTEGER NOT NULL UNIQUE,
+31:   fecha       TEXT NOT NULL,
+32:   dia_negocio TEXT NOT NULL,
+33:   total       INTEGER NOT NULL CHECK (total >= 0),
+34:   metodo      TEXT NOT NULL CHECK (metodo IN ('efectivo', 'tarjeta')),
+35:   tarjeta     TEXT,
+36:   recibido    INTEGER NOT NULL DEFAULT 0 CHECK (recibido >= 0),
+37:   cambio      INTEGER NOT NULL DEFAULT 0 CHECK (cambio >= 0),
+38:   env_modo    TEXT NOT NULL DEFAULT 'na' CHECK (env_modo IN ('na', 'cobrar', 'trae', 'prestamo')),
+39:   env_n       INTEGER NOT NULL DEFAULT 0 CHECK (env_n >= 0),
+40:   env_monto   INTEGER NOT NULL DEFAULT 0 CHECK (env_monto >= 0),
+41:   env_cliente TEXT,
+42:   origen      TEXT NOT NULL,
+43:   cancelada   INTEGER NOT NULL DEFAULT 0
+44: );
+45: CREATE INDEX idx_ventas_dia ON ventas (dia_negocio, cancelada);
+46: 
+47: CREATE TABLE venta_lineas (
+48:   id          INTEGER PRIMARY KEY AUTOINCREMENT,
+49:   venta_id    TEXT NOT NULL REFERENCES ventas (id),
+50:   producto_id TEXT NOT NULL REFERENCES productos (id),
+51:   nombre      TEXT NOT NULL,
+52:   unidad      TEXT NOT NULL CHECK (unidad IN ('pieza', 'caja')),
+53:   cantidad    INTEGER NOT NULL CHECK (cantidad > 0),
+54:   piezas      INTEGER NOT NULL CHECK (piezas > 0),
+55:   precio_unit INTEGER NOT NULL CHECK (precio_unit > 0),
+56:   subtotal    INTEGER NOT NULL CHECK (subtotal > 0)
+57: );
+58: CREATE INDEX idx_lineas_venta ON venta_lineas (venta_id);
+59: 
+60: -- Pedidos levantados por Terminales
+61: CREATE TABLE pedidos (
+62:   id        TEXT PRIMARY KEY,
+63:   origen    TEXT NOT NULL,
+64:   fecha     TEXT NOT NULL,
+65:   nota      TEXT,
+66:   atendido  INTEGER NOT NULL DEFAULT 0
+67: );
+68: 
+69: CREATE TABLE pedido_lineas (
+70:   id          INTEGER PRIMARY KEY AUTOINCREMENT,
+71:   pedido_id   TEXT NOT NULL REFERENCES pedidos (id),
+72:   producto_id TEXT NOT NULL REFERENCES productos (id),
+73:   unidad      TEXT NOT NULL CHECK (unidad IN ('pieza', 'caja')),
+74:   cantidad    INTEGER NOT NULL CHECK (cantidad > 0)
+75: );
+76: ''');
+````
+
+## File: backend/lib/src/db/repositorio_envases.dart
+````dart
+ 1: import 'package:sqlite3/sqlite3.dart';
+ 2: 
+ 3: class RepositorioEnvases {
+ 4:   RepositorioEnvases(this._db);
+ 5:   final Database _db;
+ 6: 
+ 7:   Map<String, Map<String, int>> obtenerBalance() {
+ 8:     final filas = _db.select(
+ 9:       'SELECT formato, bodega, prestados, precio FROM balance_envases',
+10:     );
+11:     return {
+12:       for (final f in filas)
+13:         f['formato'] as String: {
+14:           'bodega': f['bodega'] as int,
+15:           'prestados': f['prestados'] as int,
+16:           'precio': f['precio'] as int,
+17:         },
+18:     };
+19:   }
+20: 
+21:   void actualizarBodega(String formato, int delta) {
+22:     _db.execute(
+23:       'UPDATE balance_envases SET bodega = bodega + ? WHERE formato = ?',
+24:       [delta, formato],
+25:     );
+26:   }
+27: 
+28:   void actualizarPrestados(String formato, int delta) {
+29:     _db.execute(
+30:       'UPDATE balance_envases SET prestados = prestados + ? WHERE formato = ?',
+31:       [delta, formato],
+32:     );
+33:   }
+34: 
+35:   void registrarPrestamo({
+36:     required String id,
+37:     required String cliente,
+38:     required String formato,
+39:     required int cantidad,
+40:     required String fecha,
+41:   }) {
+42:     _db.execute(
+43:       'INSERT INTO prestamos_envases (id, cliente, formato, cantidad, fecha) VALUES (?, ?, ?, ?, ?)',
+44:       [id, cliente, formato, cantidad, fecha],
+45:     );
+46:   }
+47: 
+48:   List<Map<String, Object?>> listarPrestamosActivos() {
+49:     return _db
+50:         .select(
+51:           'SELECT * FROM prestamos_envases WHERE devuelto = 0 ORDER BY fecha DESC',
+52:         )
+53:         .map(
+54:           (f) => {
+55:             'id': f['id'],
+56:             'cliente': f['cliente'],
+57:             'formato': f['formato'],
+58:             'cantidad': f['cantidad'],
+59:             'fecha': f['fecha'],
+60:           },
+61:         )
+62:         .toList();
+63:   }
+64: 
+65:   bool devolverPrestamo(String id) {
+66:     _db.execute(
+67:       'UPDATE prestamos_envases SET devuelto = 1 WHERE id = ? AND devuelto = 0',
+68:       [id],
+69:     );
+70:     return _db.updatedRows > 0;
+71:   }
+72: 
+73:   Row? obtenerPrestamo(String id) {
+74:     final f = _db.select('SELECT * FROM prestamos_envases WHERE id = ?', [id]);
+75:     return f.isEmpty ? null : f.first;
+76:   }
+77: }
+````
+
+## File: backend/lib/src/db/repositorio_ventas.dart
+````dart
+  1: import 'package:sqlite3/sqlite3.dart';
+  2: 
+  3: class RepositorioVentas {
+  4:   RepositorioVentas(this._db);
+  5:   final Database _db;
+  6: 
+  7:   int siguienteFolio() {
+  8:     final r = _db.select(
+  9:       'SELECT COALESCE(MAX(folio), 1000) + 1 AS f FROM ventas',
+ 10:     );
+ 11:     return r.first['f'] as int;
+ 12:   }
+ 13: 
+ 14:   void insertarVenta({
+ 15:     required String id,
+ 16:     required int folio,
+ 17:     required String fecha,
+ 18:     required String diaNegocio,
+ 19:     required int total,
+ 20:     required String metodo,
+ 21:     String? tarjeta,
+ 22:     required int recibido,
+ 23:     required int cambio,
+ 24:     required String envModo,
+ 25:     required int envN,
+ 26:     required int envMonto,
+ 27:     String? envCliente,
+ 28:     required String origen,
+ 29:   }) {
+ 30:     _db.execute(
+ 31:       '''
+ 32:       INSERT INTO ventas (id, folio, fecha, dia_negocio, total, metodo, tarjeta, recibido,
+ 33:         cambio, env_modo, env_n, env_monto, env_cliente, origen)
+ 34:       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ 35:     ''',
+ 36:       [
+ 37:         id,
+ 38:         folio,
+ 39:         fecha,
+ 40:         diaNegocio,
+ 41:         total,
+ 42:         metodo,
+ 43:         tarjeta,
+ 44:         recibido,
+ 45:         cambio,
+ 46:         envModo,
+ 47:         envN,
+ 48:         envMonto,
+ 49:         envCliente,
+ 50:         origen,
+ 51:       ],
+ 52:     );
+ 53:   }
+ 54: 
+ 55:   void insertarLinea({
+ 56:     required String ventaId,
+ 57:     required String productoId,
+ 58:     required String nombre,
+ 59:     required String unidad,
+ 60:     required int cantidad,
+ 61:     required int piezas,
+ 62:     required int precioUnit,
+ 63:     required int subtotal,
+ 64:   }) {
+ 65:     _db.execute(
+ 66:       '''
+ 67:       INSERT INTO venta_lineas (venta_id, producto_id, nombre, unidad, cantidad, piezas, precio_unit, subtotal)
+ 68:       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ 69:     ''',
+ 70:       [
+ 71:         ventaId,
+ 72:         productoId,
+ 73:         nombre,
+ 74:         unidad,
+ 75:         cantidad,
+ 76:         piezas,
+ 77:         precioUnit,
+ 78:         subtotal,
+ 79:       ],
+ 80:     );
+ 81:   }
+ 82: 
+ 83:   Row? obtenerPorId(String id) {
+ 84:     final r = _db.select('SELECT * FROM ventas WHERE id = ?', [id]);
+ 85:     return r.isEmpty ? null : r.first;
+ 86:   }
+ 87: 
+ 88:   List<Row> obtenerLineas(String ventaId) {
+ 89:     return _db.select('SELECT * FROM venta_lineas WHERE venta_id = ?', [
+ 90:       ventaId,
+ 91:     ]);
+ 92:   }
+ 93: 
+ 94:   List<Row> listar({String? diaNegocio}) {
+ 95:     if (diaNegocio != null) {
+ 96:       return _db.select(
+ 97:         'SELECT * FROM ventas WHERE dia_negocio = ? ORDER BY folio DESC',
+ 98:         [diaNegocio],
+ 99:       );
+100:     }
+101:     return _db.select('SELECT * FROM ventas ORDER BY folio DESC LIMIT 100');
+102:   }
+103: 
+104:   void anularVenta(String id) {
+105:     _db.execute('UPDATE ventas SET cancelada = 1 WHERE id = ?', [id]);
+106:   }
+107: }
+````
+
+## File: backend/lib/src/rutas/rutas_envases.dart
+````dart
+ 1: import 'package:shelf/shelf.dart';
+ 2: import 'package:shelf_router/shelf_router.dart';
+ 3: import '../comun/json.dart';
+ 4: import '../servicios/servicio_envases.dart';
+ 5: 
+ 6: void montarRutasEnvases(Router r, ServicioEnvases envases) {
+ 7:   r.get('/api/v1/envases', (Request _) {
+ 8:     return respuestaJson({'balance': envases.balance()});
+ 9:   });
+10: 
+11:   r.get('/api/v1/envases/prestamos', (Request _) {
+12:     return respuestaJson({'prestamos': envases.prestamos()});
+13:   });
+14: 
+15:   r.post('/api/v1/envases/prestamos', (Request p) async {
+16:     final res = envases.registrarPrestamo(await leerObjetoJson(p));
+17:     return respuestaJson(res, estado: 201);
+18:   });
+19: 
+20:   r.post('/api/v1/envases/prestamos/<id>/devolver', (Request _, String id) {
+21:     envases.devolver(id);
+22:     return Response(204);
+23:   });
+24: }
+````
+
+## File: backend/lib/src/rutas/rutas_pedidos.dart
+````dart
+ 1: import 'package:shelf/shelf.dart';
+ 2: import 'package:shelf_router/shelf_router.dart';
+ 3: import '../comun/json.dart';
+ 4: import '../comun/sesion.dart';
+ 5: import '../servicios/servicio_pedidos.dart';
+ 6: 
+ 7: void montarRutasPedidos(Router r, ServicioPedidos pedidos) {
+ 8:   r.get('/api/v1/pedidos', (Request _) {
+ 9:     return respuestaJson({'pedidos': pedidos.listarPendientes()});
+10:   });
+11: 
+12:   r.post('/api/v1/pedidos', (Request p) async {
+13:     final sesion = sesionDe(p);
+14:     final res = pedidos.crear(await leerObjetoJson(p), origen: sesion.nombre);
+15:     return respuestaJson(res, estado: 201);
+16:   });
+17: 
+18:   r.delete('/api/v1/pedidos/<id>', (Request p, String id) {
+19:     exigirCaja(p);
+20:     pedidos.descartar(id);
+21:     return Response(204);
+22:   });
+23: }
+````
+
+## File: backend/lib/src/rutas/rutas_ventas.dart
+````dart
+ 1: import 'package:shelf/shelf.dart';
+ 2: import 'package:shelf_router/shelf_router.dart';
+ 3: import '../comun/json.dart';
+ 4: import '../comun/sesion.dart';
+ 5: import '../servicios/servicio_ventas.dart';
+ 6: 
+ 7: void montarRutasVentas(Router r, ServicioVentas ventas) {
+ 8:   r.get('/api/v1/ventas', (Request p) {
+ 9:     final q = p.url.queryParameters['dia'];
+10:     return respuestaJson({'ventas': ventas.listar(diaNegocio: q)});
+11:   });
+12: 
+13:   r.get('/api/v1/ventas/<id>', (Request _, String id) {
+14:     return respuestaJson(ventas.detalle(id));
+15:   });
+16: 
+17:   r.post('/api/v1/ventas', (Request p) async {
+18:     final sesion = exigirCaja(p);
+19:     final venta = ventas.registrar(
+20:       await leerObjetoJson(p),
+21:       origen: sesion.nombre,
+22:     );
+23:     return respuestaJson(venta, estado: 201);
+24:   });
+25: 
+26:   r.post('/api/v1/ventas/<id>/cancelar', (Request p, String id) {
+27:     final sesion = exigirCaja(p);
+28:     ventas.cancelar(id, origen: sesion.nombre);
+29:     return Response(204);
+30:   });
+31: }
+````
+
+## File: backend/lib/src/servicios/servicio_envases.dart
+````dart
+ 1: import 'package:sqlite3/sqlite3.dart';
+ 2: import '../comun/errores.dart';
+ 3: import '../comun/fechas.dart';
+ 4: import '../comun/json.dart';
+ 5: import '../comun/seguridad.dart';
+ 6: import '../db/base_datos.dart';
+ 7: import '../db/repositorio_envases.dart';
+ 8: import '../modelos/evento.dart';
+ 9: import '../ws/hub.dart';
+10: 
+11: class ServicioEnvases {
+12:   ServicioEnvases({
+13:     required Database db,
+14:     required RepositorioEnvases repositorio,
+15:     required Hub hub,
+16:     Reloj reloj = relojSistema,
+17:   }) : _db = db,
+18:        _repo = repositorio,
+19:        _hub = hub,
+20:        _reloj = reloj;
+21: 
+22:   final Database _db;
+23:   final RepositorioEnvases _repo;
+24:   final Hub _hub;
+25:   final Reloj _reloj;
+26: 
+27:   Map<String, Map<String, int>> balance() => _repo.obtenerBalance();
+28: 
+29:   List<Map<String, Object?>> prestamos() => _repo.listarPrestamosActivos();
+30: 
+31:   Map<String, Object?> registrarPrestamo(Map<String, Object?> datos) {
+32:     final v = Validador(datos);
+33:     final cliente = v.texto('cliente', max: 80);
+34:     final formato = v.opcion('formato', {'mega', 'media', 'cuarto'});
+35:     final cantidad = v.entero('cantidad', min: 1);
+36:     v.comprobar();
+37: 
+38:     final id = generarId('pre');
+39:     final fecha = instanteIso(_reloj());
+40: 
+41:     transaccion(_db, () {
+42:       _repo.actualizarPrestados(formato!, cantidad!);
+43:       _repo.registrarPrestamo(
+44:         id: id,
+45:         cliente: cliente!,
+46:         formato: formato,
+47:         cantidad: cantidad,
+48:         fecha: fecha,
+49:       );
+50:     });
+51: 
+52:     _emitirBalance();
+53:     return {
+54:       'id': id,
+55:       'cliente': cliente,
+56:       'formato': formato,
+57:       'cantidad': cantidad,
+58:       'fecha': fecha,
+59:     };
+60:   }
+61: 
+62:   void devolver(String prestamoId) {
+63:     transaccion(_db, () {
+64:       final p = _repo.obtenerPrestamo(prestamoId);
+65:       if (p == null || p['devuelto'] == 1) {
+66:         throw ErrorApi.noEncontrado('el préstamo');
+67:       }
+68:       final formato = p['formato'] as String;
+69:       final cantidad = p['cantidad'] as int;
+70: 
+71:       _repo.devolverPrestamo(prestamoId);
+72:       _repo.actualizarPrestados(formato, -cantidad);
+73:       _repo.actualizarBodega(formato, cantidad);
+74:     });
+75: 
+76:     _emitirBalance();
+77:   }
+78: 
+79:   void _emitirBalance() {
+80:     _hub.emitir(TiposEvento.balanceEnvasesActualizado, {'balance': balance()});
+81:   }
+82: }
+````
+
+## File: backend/lib/src/servicios/servicio_pedidos.dart
+````dart
+ 1: import 'package:sqlite3/sqlite3.dart';
+ 2: import '../comun/fechas.dart';
+ 3: import '../comun/json.dart';
+ 4: import '../comun/seguridad.dart';
+ 5: import '../db/base_datos.dart';
+ 6: import '../modelos/evento.dart';
+ 7: import '../ws/hub.dart';
+ 8: 
+ 9: class ServicioPedidos {
+10:   ServicioPedidos({
+11:     required Database db,
+12:     required Hub hub,
+13:     Reloj reloj = relojSistema,
+14:   }) : _db = db,
+15:        _hub = hub,
+16:        _reloj = reloj;
+17: 
+18:   final Database _db;
+19:   final Hub _hub;
+20:   final Reloj _reloj;
+21: 
+22:   Map<String, Object?> crear(
+23:     Map<String, Object?> datos, {
+24:     required String origen,
+25:   }) {
+26:     final v = Validador(datos);
+27:     final nota = v.texto('nota', requerido: false, max: 120);
+28:     final lineas = datos['lineas'];
+29:     if (lineas is! List || lineas.isEmpty) {
+30:       v.error('lineas', 'Debe contener productos');
+31:     }
+32:     v.comprobar();
+33: 
+34:     final pedidoId = generarId('ped');
+35:     final fecha = instanteIso(_reloj());
+36: 
+37:     transaccion(_db, () {
+38:       _db.execute(
+39:         'INSERT INTO pedidos (id, origen, fecha, nota) VALUES (?, ?, ?, ?)',
+40:         [pedidoId, origen, fecha, nota],
+41:       );
+42: 
+43:       for (final l in (lineas as List)) {
+44:         if (l is! Map) continue;
+45:         _db.execute(
+46:           'INSERT INTO pedido_lineas (pedido_id, producto_id, unidad, cantidad) VALUES (?, ?, ?, ?)',
+47:           [pedidoId, l['productoId'], l['unidad'], l['cantidad']],
+48:         );
+49:       }
+50:     });
+51: 
+52:     final payload = {
+53:       'id': pedidoId,
+54:       'origen': origen,
+55:       'fecha': fecha,
+56:       'nota': nota,
+57:       'lineas': lineas,
+58:     };
+59: 
+60:     _hub.emitir(TiposEvento.pedidoCreado, {'pedido': payload});
+61:     return payload;
+62:   }
+63: 
+64:   List<Map<String, Object?>> listarPendientes() {
+65:     final filas = _db.select(
+66:       'SELECT * FROM pedidos WHERE atendido = 0 ORDER BY fecha ASC',
+67:     );
+68:     return [
+69:       for (final f in filas)
+70:         {
+71:           'id': f['id'],
+72:           'origen': f['origen'],
+73:           'fecha': f['fecha'],
+74:           'nota': f['nota'],
+75:           'lineas': _db
+76:               .select(
+77:                 'SELECT producto_id, unidad, cantidad FROM pedido_lineas WHERE pedido_id = ?',
+78:                 [f['id']],
+79:               )
+80:               .map(
+81:                 (l) => {
+82:                   'productoId': l['producto_id'],
+83:                   'unidad': l['unidad'],
+84:                   'cantidad': l['cantidad'],
+85:                 },
+86:               )
+87:               .toList(),
+88:         },
+89:     ];
+90:   }
+91: 
+92:   void descartar(String id) {
+93:     _db.execute('UPDATE pedidos SET atendido = 1 WHERE id = ?', [id]);
+94:     _hub.emitir(TiposEvento.pedidoAtendido, {'id': id});
+95:   }
+96: }
+````
+
+## File: backend/lib/src/servicios/servicio_ventas.dart
+````dart
+  1: import 'package:sqlite3/sqlite3.dart';
+  2: import '../comun/errores.dart';
+  3: import '../comun/fechas.dart';
+  4: import '../comun/json.dart';
+  5: import '../comun/seguridad.dart';
+  6: import '../db/base_datos.dart';
+  7: import '../db/repositorio_ajustes.dart';
+  8: import '../db/repositorio_envases.dart';
+  9: import '../db/repositorio_productos.dart';
+ 10: import '../db/repositorio_ventas.dart';
+ 11: import '../modelos/evento.dart';
+ 12: import '../modelos/producto.dart';
+ 13: import '../ws/hub.dart';
+ 14: 
+ 15: class ServicioVentas {
+ 16:   ServicioVentas({
+ 17:     required Database db,
+ 18:     required RepositorioVentas repoVentas,
+ 19:     required RepositorioProductos repoProductos,
+ 20:     required RepositorioEnvases repoEnvases,
+ 21:     required RepositorioAjustes repoAjustes,
+ 22:     required Hub hub,
+ 23:     Reloj reloj = relojSistema,
+ 24:   }) : _db = db,
+ 25:        _repoVentas = repoVentas,
+ 26:        _repoProductos = repoProductos,
+ 27:        _repoEnvases = repoEnvases,
+ 28:        _repoAjustes = repoAjustes,
+ 29:        _hub = hub,
+ 30:        _reloj = reloj;
+ 31: 
+ 32:   final Database _db;
+ 33:   final RepositorioVentas _repoVentas;
+ 34:   final RepositorioProductos _repoProductos;
+ 35:   final RepositorioEnvases _repoEnvases;
+ 36:   final RepositorioAjustes _repoAjustes;
+ 37:   final Hub _hub;
+ 38:   final Reloj _reloj;
+ 39: 
+ 40:   // backend/lib/src/servicios/servicio_ventas.dart
+ 41: 
+ 42:   Map<String, Object?> registrar(
+ 43:     Map<String, Object?> datos, {
+ 44:     required String origen,
+ 45:   }) {
+ 46:     final v = Validador(datos);
+ 47:     final metodo = v.opcion('metodo', {'efectivo', 'tarjeta'});
+ 48:     final tarjeta = v.texto('tarjeta', requerido: false, max: 20);
+ 49:     final envModo =
+ 50:         v.opcion('envModo', {
+ 51:           'na',
+ 52:           'cobrar',
+ 53:           'trae',
+ 54:           'prestamo',
+ 55:         }, requerido: false) ??
+ 56:         'na';
+ 57:     final envCliente = v.texto('envCliente', requerido: false, max: 80);
+ 58:     final lineasRaw = datos['lineas'];
+ 59:     if (lineasRaw is! List || lineasRaw.isEmpty) {
+ 60:       v.error('lineas', 'Debe incluir al menos un producto');
+ 61:     }
+ 62:     v.comprobar();
+ 63: 
+ 64:     final ahora = _reloj();
+ 65:     final fecha = instanteIso(ahora);
+ 66:     final dia = diaNegocio(ahora, _repoAjustes.zonaHoraria);
+ 67:     final ventaId = generarId('v');
+ 68: 
+ 69:     final productosActualizados = <Producto>[];
+ 70:     var total = 0;
+ 71:     var envN = 0;
+ 72:     var envMonto = 0;
+ 73:     final envPorFormato = <String, int>{};
+ 74: 
+ 75:     final resultado = transaccion(_db, () {
+ 76:       final folio = _repoVentas.siguienteFolio();
+ 77:       final lineasProcesadas = <Map<String, Object?>>[];
+ 78: 
+ 79:       // PASO 1: Validar inventario y calcular totales (sin insertar líneas aún)
+ 80:       for (final item in (lineasRaw as List)) {
+ 81:         if (item is! Map) {
+ 82:           throw ErrorApi.datosInvalidos({'lineas': 'Estructura inválida'});
+ 83:         }
+ 84:         final pid = item['productoId'] as String?;
+ 85:         final unidad = item['unidad'] as String?;
+ 86:         final cantidad = item['cantidad'] as int?;
+ 87: 
+ 88:         if (pid == null ||
+ 89:             unidad == null ||
+ 90:             cantidad == null ||
+ 91:             cantidad <= 0) {
+ 92:           throw ErrorApi.datosInvalidos({
+ 93:             'lineas': 'Faltan datos obligatorios en línea',
+ 94:           });
+ 95:         }
+ 96: 
+ 97:         final p = _repoProductos.porId(pid);
+ 98:         if (p == null) throw ErrorApi.noEncontrado('el producto $pid');
+ 99: 
+100:         final piezas = unidad == 'caja'
+101:             ? (cantidad * (p.piezasPorCaja ?? 1))
+102:             : cantidad;
+103:         if (p.existenciaPiezas < piezas) {
+104:           throw ErrorApi.datosInvalidos({
+105:             'existencias':
+106:                 'Existencias insuficientes para ${p.nombre}. Disponibles: ${p.existenciaPiezas}',
+107:           });
+108:         }
+109: 
+110:         final precioUnit = unidad == 'caja'
+111:             ? (p.precioCaja ??
+112:                   (throw ErrorApi.datosInvalidos({
+113:                     'unidad': 'El producto no se vende por caja',
+114:                   })))
+115:             : p.precio;
+116: 
+117:         final subtotal = precioUnit * cantidad;
+118:         total += subtotal;
+119: 
+120:         if (p.envase != null) {
+121:           envN += piezas;
+122:           envPorFormato[p.envase!] = (envPorFormato[p.envase!] ?? 0) + piezas;
+123:         }
+124: 
+125:         lineasProcesadas.add({
+126:           'p': p,
+127:           'unidad': unidad,
+128:           'cantidad': cantidad,
+129:           'piezas': piezas,
+130:           'precioUnit': precioUnit,
+131:           'subtotal': subtotal,
+132:         });
+133:       }
+134: 
+135:       // PASO 2: Cálculo final de envases y validación de cobro
+136:       final balance = _repoEnvases.obtenerBalance();
+137:       if (envModo == 'cobrar') {
+138:         for (final entry in envPorFormato.entries) {
+139:           final precioEnv = balance[entry.key]?['precio'] ?? 0;
+140:           envMonto += entry.value * precioEnv;
+141:         }
+142:         total += envMonto;
+143:       }
+144: 
+145:       final recibido = (datos['recibido'] is int)
+146:           ? (datos['recibido'] as int)
+147:           : total;
+148:       if (metodo == 'efectivo' && recibido < total) {
+149:         throw ErrorApi.datosInvalidos({
+150:           'recibido':
+151:               'El monto recibido ($recibido) es menor al total ($total)',
+152:         });
+153:       }
+154:       final cambio = (metodo == 'efectivo') ? (recibido - total) : 0;
+155: 
+156:       // PASO 3: Insertar el registro maestro (ventas) PRIMERO
+157:       _repoVentas.insertarVenta(
+158:         id: ventaId,
+159:         folio: folio,
+160:         fecha: fecha,
+161:         diaNegocio: dia,
+162:         total: total,
+163:         metodo: metodo!,
+164:         tarjeta: tarjeta,
+165:         recibido: recibido,
+166:         cambio: cambio,
+167:         envModo: envModo,
+168:         envN: envN,
+169:         envMonto: envMonto,
+170:         envCliente: envCliente,
+171:         origen: origen,
+172:       );
+173: 
+174:       // PASO 4: Insertar líneas, actualizar inventario y registrar movimientos
+175:       for (final lp in lineasProcesadas) {
+176:         final p = lp['p'] as Producto;
+177:         final piezas = lp['piezas'] as int;
+178: 
+179:         _repoVentas.insertarLinea(
+180:           ventaId: ventaId,
+181:           productoId: p.id,
+182:           nombre: p.nombre,
+183:           unidad: lp['unidad'] as String,
+184:           cantidad: lp['cantidad'] as int,
+185:           piezas: piezas,
+186:           precioUnit: lp['precioUnit'] as int,
+187:           subtotal: lp['subtotal'] as int,
+188:         );
+189: 
+190:         final nuevaExistencia = p.existenciaPiezas - piezas;
+191:         _db.execute(
+192:           'UPDATE productos SET existencia_piezas = ?, actualizado = ? WHERE id = ?',
+193:           [nuevaExistencia, fecha, p.id],
+194:         );
+195: 
+196:         _repoProductos.registrarMovimiento(
+197:           productoId: p.id,
+198:           tipo: 'venta',
+199:           piezas: -piezas,
+200:           existenciaResultante: nuevaExistencia,
+201:           referencia: 'Folio $folio',
+202:           origen: origen,
+203:           fecha: fecha,
+204:         );
+205: 
+206:         final actualizado = _repoProductos.porId(p.id);
+207:         if (actualizado != null) {
+208:           productosActualizados.add(actualizado);
+209:         }
+210:       }
+211: 
+212:       // PASO 5: Actualizar bodega o préstamos de envases
+213:       if (envModo == 'trae') {
+214:         for (final entry in envPorFormato.entries) {
+215:           _repoEnvases.actualizarBodega(entry.key, entry.value);
+216:         }
+217:       } else if (envModo == 'prestamo') {
+218:         for (final entry in envPorFormato.entries) {
+219:           _repoEnvases.actualizarPrestados(entry.key, entry.value);
+220:           _repoEnvases.registrarPrestamo(
+221:             id: generarId('pre'),
+222:             cliente: envCliente ?? 'Cliente Mostrador',
+223:             formato: entry.key,
+224:             cantidad: entry.value,
+225:             fecha: fecha,
+226:           );
+227:         }
+228:       }
+229: 
+230:       return {
+231:         'id': ventaId,
+232:         'folio': folio,
+233:         'fecha': fecha,
+234:         'diaNegocio': dia,
+235:         'total': total,
+236:         'metodo': metodo,
+237:         'cambio': cambio,
+238:       };
+239:     });
+240: 
+241:     // Notificar por WebSocket fuera de la transacción para no enviar eventos si falla la BD
+242:     for (final prod in productosActualizados) {
+243:       _hub.emitir(TiposEvento.productoActualizado, {'producto': prod.toJson()});
+244:     }
+245:     if (envPorFormato.isNotEmpty) {
+246:       _hub.emitir(TiposEvento.balanceEnvasesActualizado, {
+247:         'balance': _repoEnvases.obtenerBalance(),
+248:       });
+249:     }
+250: 
+251:     return resultado;
+252:   }
+253: 
+254:   void cancelar(String id, {required String origen}) {
+255:     final prods = <Producto>[];
+256:     transaccion(_db, () {
+257:       final v = _repoVentas.obtenerPorId(id);
+258:       if (v == null) throw ErrorApi.noEncontrado('la venta');
+259:       if ((v['cancelada'] as int) == 1) {
+260:         throw ErrorApi.datosInvalidos({
+261:           'cancelada': 'La venta ya fue cancelada',
+262:         });
+263:       }
+264: 
+265:       final lineas = _repoVentas.obtenerLineas(id);
+266:       final fecha = instanteIso(_reloj());
+267:       final folio = v['folio'] as int;
+268: 
+269:       // Reversar existencias
+270:       for (final l in lineas) {
+271:         final pid = l['producto_id'] as String;
+272:         final piezas = l['piezas'] as int;
+273:         final p = _repoProductos.porId(pid);
+274:         if (p != null) {
+275:           final restock = p.existenciaPiezas + piezas;
+276:           _db.execute(
+277:             'UPDATE productos SET existencia_piezas = ?, actualizado = ? WHERE id = ?',
+278:             [restock, fecha, p.id],
+279:           );
+280:           _repoProductos.registrarMovimiento(
+281:             productoId: p.id,
+282:             tipo: 'cancelacion',
+283:             piezas: piezas,
+284:             existenciaResultante: restock,
+285:             referencia: 'Cancelación Folio $folio',
+286:             origen: origen,
+287:             fecha: fecha,
+288:           );
+289:           prods.add(_repoProductos.porId(p.id)!);
+290:         }
+291:       }
+292: 
+293:       // Reversar envases si se ingresaron a bodega
+294:       final modo = v['env_modo'] as String;
+295:       if (modo == 'trae') {
+296:         // Descontar los que se habían sumado
+297:         for (final l in lineas) {
+298:           final p = _repoProductos.porId(l['producto_id'] as String);
+299:           if (p?.envase != null) {
+300:             _repoEnvases.actualizarBodega(p!.envase!, -(l['piezas'] as int));
+301:           }
+302:         }
+303:       }
+304: 
+305:       _repoVentas.anularVenta(id);
+306:     });
+307: 
+308:     for (final prod in prods) {
+309:       _hub.emitir(TiposEvento.productoActualizado, {'producto': prod.toJson()});
+310:     }
+311:     _hub.emitir(TiposEvento.balanceEnvasesActualizado, {
+312:       'balance': _repoEnvases.obtenerBalance(),
+313:     });
+314:   }
+315: 
+316:   Map<String, Object?> detalle(String id) {
+317:     final v = _repoVentas.obtenerPorId(id);
+318:     if (v == null) throw ErrorApi.noEncontrado('la venta');
+319:     final lineas = _repoVentas.obtenerLineas(id);
+320:     return {
+321:       'id': v['id'],
+322:       'folio': v['folio'],
+323:       'fecha': v['fecha'],
+324:       'diaNegocio': v['dia_negocio'],
+325:       'total': v['total'],
+326:       'metodo': v['metodo'],
+327:       'tarjeta': v['tarjeta'],
+328:       'recibido': v['recibido'],
+329:       'cambio': v['cambio'],
+330:       'envModo': v['env_modo'],
+331:       'envN': v['env_n'],
+332:       'envMonto': v['env_monto'],
+333:       'origen': v['origen'],
+334:       'cancelada': (v['cancelada'] as int) == 1,
+335:       'lineas': [
+336:         for (final l in lineas)
+337:           {
+338:             'productoId': l['producto_id'],
+339:             'nombre': l['nombre'],
+340:             'unidad': l['unidad'],
+341:             'cantidad': l['cantidad'],
+342:             'piezas': l['piezas'],
+343:             'precioUnit': l['precio_unit'],
+344:             'subtotal': l['subtotal'],
+345:           },
+346:       ],
+347:     };
+348:   }
+349: 
+350:   List<Map<String, Object?>> listar({String? diaNegocio}) {
+351:     return _repoVentas
+352:         .listar(diaNegocio: diaNegocio)
+353:         .map(
+354:           (v) => {
+355:             'id': v['id'],
+356:             'folio': v['folio'],
+357:             'fecha': v['fecha'],
+358:             'total': v['total'],
+359:             'metodo': v['metodo'],
+360:             'origen': v['origen'],
+361:             'cancelada': (v['cancelada'] as int) == 1,
+362:           },
+363:         )
+364:         .toList();
+365:   }
+366: }
+````
+
+## File: backend/test/ventas_test.dart
+````dart
+  1: import 'package:test/test.dart';
+  2: import 'ayudantes/servidor_prueba.dart';
+  3: 
+  4: void main() {
+  5:   late ServidorPrueba s;
+  6: 
+  7:   setUp(() async => s = await crearServidorDePrueba());
+  8:   tearDown(() => s.cerrar());
+  9: 
+ 10:   group('Ventas y envases', () {
+ 11:     test(
+ 12:       'la caja registra una venta en efectivo y descuenta inventario',
+ 13:       () async {
+ 14:         // 1. Crear producto con 10 piezas
+ 15:         final prodRes = await s.post(
+ 16:           '/api/v1/productos',
+ 17:           productoValido({
+ 18:             'existenciaPiezas': 10,
+ 19:             'precio': 4200,
+ 20:             'precioCaja': 48000,
+ 21:             'piezasPorCaja': 12,
+ 22:           }),
+ 23:         );
+ 24:         final pid = json(prodRes)['id'] as String;
+ 25: 
+ 26:         // 2. Registrar cobro
+ 27:         final ventaRes = await s.post('/api/v1/ventas', {
+ 28:           'metodo': 'efectivo',
+ 29:           'recibido': 5000,
+ 30:           'envModo': 'trae',
+ 31:           'lineas': [
+ 32:             {'productoId': pid, 'unidad': 'pieza', 'cantidad': 1},
+ 33:           ],
+ 34:         });
+ 35: 
+ 36:         expect(ventaRes.statusCode, 201);
+ 37:         final venta = json(ventaRes);
+ 38:         expect(venta['folio'], 1001);
+ 39:         expect(venta['total'], 4200);
+ 40:         expect(venta['cambio'], 800);
+ 41: 
+ 42:         // 3. Verificar que descontó stock
+ 43:         final detalle = json(await s.get('/api/v1/productos/$pid'));
+ 44:         expect(detalle['existenciaPiezas'], 9);
+ 45:       },
+ 46:     );
+ 47: 
+ 48:     test('falla si no hay existencias suficientes', () async {
+ 49:       final prodRes = await s.post(
+ 50:         '/api/v1/productos',
+ 51:         productoValido({'existenciaPiezas': 2}),
+ 52:       );
+ 53:       final pid = json(prodRes)['id'] as String;
+ 54: 
+ 55:       final ventaRes = await s.post('/api/v1/ventas', {
+ 56:         'metodo': 'efectivo',
+ 57:         'recibido': 50000,
+ 58:         'lineas': [
+ 59:           {'productoId': pid, 'unidad': 'pieza', 'cantidad': 5},
+ 60:         ],
+ 61:       });
+ 62: 
+ 63:       expect(ventaRes.statusCode, 400);
+ 64:       expect(codigoError(ventaRes), 'datos_invalidos');
+ 65:     });
+ 66: 
+ 67:     test('una terminal no puede cobrar ventas directo (solo caja)', () async {
+ 68:       final claveTerminal = await s.registrarTerminal();
+ 69:       final ventaRes = await s.post('/api/v1/ventas', {
+ 70:         'metodo': 'efectivo',
+ 71:         'lineas': [],
+ 72:       }, clave: claveTerminal);
+ 73: 
+ 74:       expect(ventaRes.statusCode, 403);
+ 75:       expect(codigoError(ventaRes), 'solo_caja');
+ 76:     });
+ 77: 
+ 78:     test(
+ 79:       'una terminal puede levantar pedidos y la caja descartarlos',
+ 80:       () async {
+ 81:         final claveTerminal = await s.registrarTerminal();
+ 82:         final prodRes = await s.post('/api/v1/productos', productoValido());
+ 83:         final pid = json(prodRes)['id'] as String;
+ 84: 
+ 85:         // Terminal crea pedido
+ 86:         final pedRes = await s.post('/api/v1/pedidos', {
+ 87:           'nota': 'Mesa 3',
+ 88:           'lineas': [
+ 89:             {'productoId': pid, 'unidad': 'pieza', 'cantidad': 2},
+ 90:           ],
+ 91:         }, clave: claveTerminal);
+ 92:         expect(pedRes.statusCode, 201);
+ 93:         final idPedido = json(pedRes)['id'] as String;
+ 94: 
+ 95:         // Caja lista pedidos
+ 96:         final lista = json(await s.get('/api/v1/pedidos'))['pedidos'] as List;
+ 97:         expect(lista.any((p) => p['id'] == idPedido), isTrue);
+ 98: 
+ 99:         // Caja descarta pedido
+100:         final deleteRes = await s.delete('/api/v1/pedidos/$idPedido');
+101:         expect(deleteRes.statusCode, 204);
+102:       },
+103:     );
+104: 
+105:     test('balance de envases se consulta y actualiza con préstamos', () async {
+106:       final balRes = await s.get('/api/v1/envases');
+107:       expect(balRes.statusCode, 200);
+108:       expect(json(balRes)['balance'], contains('mega'));
+109: 
+110:       final prestamoRes = await s.post('/api/v1/envases/prestamos', {
+111:         'cliente': 'Don Pedro',
+112:         'formato': 'mega',
+113:         'cantidad': 10,
+114:       });
+115:       expect(prestamoRes.statusCode, 201);
+116:       final idPrestamo = json(prestamoRes)['id'] as String;
+117: 
+118:       final devRes = await s.post(
+119:         '/api/v1/envases/prestamos/$idPrestamo/devolver',
+120:         null,
+121:       );
+122:       expect(devRes.statusCode, 204);
+123:     });
+124:   });
+125: }
+````
 
 ## File: .github/pull_request_template.md
 ````markdown
@@ -6122,86 +7179,6 @@ README.md
 34: # https://dart.dev/guides/language/analysis-options
 ````
 
-## File: backend/lib/src/comun/bitacora.dart
-````dart
- 1: import 'dart:io';
- 2: 
- 3: import 'fechas.dart';
- 4: 
- 5: enum NivelLog { info, advertencia, error }
- 6: 
- 7: /// Log del servidor: una línea por evento, en consola y opcionalmente en un
- 8: /// archivo que rota al pasar de [tamanoMaximo] y conserva [archivosRotados]
- 9: /// copias (`anaquel.log.1`, `.2`...). El archivo se puede exportar desde la
-10: /// pantalla de Diagnóstico para dar soporte remoto.
-11: class Bitacora {
-12:   Bitacora({
-13:     this.rutaArchivo,
-14:     this.consola = true,
-15:     this.tamanoMaximo = 1024 * 1024,
-16:     this.archivosRotados = 3,
-17:     Reloj reloj = relojSistema,
-18:   }) : _reloj = reloj;
-19: 
-20:   /// Bitácora que no escribe nada (pruebas).
-21:   Bitacora.silenciosa() : this(consola: false);
-22: 
-23:   final String? rutaArchivo;
-24:   final bool consola;
-25:   final int tamanoMaximo;
-26:   final int archivosRotados;
-27:   final Reloj _reloj;
-28: 
-29:   /// Últimos errores en memoria, para la pantalla de Diagnóstico.
-30:   final ultimosErrores = <String>[];
-31: 
-32:   void info(String mensaje) => _escribir(NivelLog.info, mensaje);
-33: 
-34:   void advertencia(String mensaje) => _escribir(NivelLog.advertencia, mensaje);
-35: 
-36:   void error(String mensaje, [Object? error, StackTrace? pila]) {
-37:     final detalle = [mensaje, ?error?.toString(), ?pila?.toString()].join('\n');
-38:     _escribir(NivelLog.error, detalle);
-39:     ultimosErrores.add(
-40:       '${instanteIso(_reloj())} $mensaje${error == null ? '' : ': $error'}',
-41:     );
-42:     if (ultimosErrores.length > 50) ultimosErrores.removeAt(0);
-43:   }
-44: 
-45:   void _escribir(NivelLog nivel, String mensaje) {
-46:     final linea =
-47:         '${instanteIso(_reloj())} ${nivel.name.toUpperCase()} $mensaje';
-48:     if (consola) stdout.writeln(linea);
-49:     final ruta = rutaArchivo;
-50:     if (ruta == null) return;
-51:     try {
-52:       final archivo = File(ruta);
-53:       if (archivo.existsSync() && archivo.lengthSync() > tamanoMaximo) {
-54:         _rotar(ruta);
-55:       }
-56:       archivo.writeAsStringSync(
-57:         '$linea\n',
-58:         mode: FileMode.append,
-59:         flush: false,
-60:       );
-61:     } on FileSystemException catch (e) {
-62:       // Un log que falla no debe tumbar una venta.
-63:       if (consola) stderr.writeln('No se pudo escribir el log: $e');
-64:     }
-65:   }
-66: 
-67:   void _rotar(String ruta) {
-68:     for (var i = archivosRotados - 1; i >= 1; i--) {
-69:       final anterior = File('$ruta.$i');
-70:       if (anterior.existsSync()) anterior.renameSync('$ruta.${i + 1}');
-71:     }
-72:     File(ruta).renameSync('$ruta.1');
-73:     final sobrante = File('$ruta.${archivosRotados + 1}');
-74:     if (sobrante.existsSync()) sobrante.deleteSync();
-75:   }
-76: }
-````
-
 ## File: backend/lib/src/comun/errores.dart
 ````dart
  1: /// Error que la API devuelve al cliente con el formato del contrato.
@@ -6420,69 +7397,76 @@ README.md
  75:     return t;
  76:   }
  77: 
- 78:   int? entero(
- 79:     String campo, {
- 80:     bool requerido = true,
- 81:     int? min,
- 82:     String? mensaje,
- 83:   }) {
- 84:     final v = _datos[campo];
- 85:     if (v == null) {
- 86:       if (requerido) error(campo, 'Es obligatorio');
- 87:       return null;
- 88:     }
- 89:     if (v is! int || (min != null && v < min)) {
- 90:       error(
- 91:         campo,
- 92:         mensaje ??
- 93:             (min == null
- 94:                 ? 'Debe ser un entero'
- 95:                 : 'Debe ser un entero mayor o igual a $min'),
- 96:       );
- 97:       return null;
- 98:     }
- 99:     return v;
-100:   }
-101: 
-102:   /// Dinero en centavos: entero mayor que 0. `42.5` es error, no se redondea.
-103:   int? centavos(String campo, {bool requerido = true}) => entero(
-104:     campo,
-105:     requerido: requerido,
-106:     min: 1,
-107:     mensaje: 'Debe ser un entero mayor que 0 (centavos)',
-108:   );
-109: 
-110:   String? opcion(String campo, Set<String> opciones, {bool requerido = true}) {
-111:     final v = _datos[campo];
-112:     if (v == null) {
-113:       if (requerido) error(campo, 'Es obligatorio');
-114:       return null;
-115:     }
-116:     if (v is! String || !opciones.contains(v)) {
-117:       error(campo, 'Debe ser uno de: ${opciones.join(', ')}');
-118:       return null;
-119:     }
-120:     return v;
-121:   }
-122: 
-123:   /// Fecha de calendario `AAAA-MM-DD`.
-124:   String? fecha(String campo, {bool requerido = true}) {
-125:     final v = _datos[campo];
-126:     if (v == null) {
-127:       if (requerido) error(campo, 'Es obligatorio');
-128:       return null;
-129:     }
-130:     if (v is! String || parsearFecha(v) == null) {
-131:       error(campo, 'Debe ser una fecha válida AAAA-MM-DD');
-132:       return null;
-133:     }
-134:     return v;
-135:   }
-136: 
-137:   void comprobar() {
-138:     if (errores.isNotEmpty) throw ErrorApi.datosInvalidos(errores);
-139:   }
-140: }
+ 78:   // backend/lib/src/comun/json.dart
+ 79: 
+ 80:   int? entero(
+ 81:     String campo, {
+ 82:     bool requerido = true,
+ 83:     int? min,
+ 84:     int? max,
+ 85:     String? mensaje,
+ 86:   }) {
+ 87:     final v = _datos[campo];
+ 88:     if (v == null) {
+ 89:       if (requerido) error(campo, 'Es obligatorio');
+ 90:       return null;
+ 91:     }
+ 92:     if (v is! int || (min != null && v < min) || (max != null && v > max)) {
+ 93:       error(
+ 94:         campo,
+ 95:         mensaje ??
+ 96:             (min != null && max != null
+ 97:                 ? 'Debe ser un entero entre $min y $max'
+ 98:                 : min != null
+ 99:                 ? 'Debe ser un entero mayor o igual a $min'
+100:                 : 'Debe ser un entero válido'),
+101:       );
+102:       return null;
+103:     }
+104:     return v;
+105:   }
+106: 
+107:   /// Dinero en centavos: entero mayor que 0 y con límite de $10,000,000 MXN.
+108:   int? centavos(String campo, {bool requerido = true}) => entero(
+109:     campo,
+110:     requerido: requerido,
+111:     min: 1,
+112:     max: 1000000000, // 10 millones de pesos en centavos
+113:     mensaje:
+114:         'Debe ser un entero mayor que 0 y menor a 1,000,000,000 (centavos)',
+115:   );
+116: 
+117:   String? opcion(String campo, Set<String> opciones, {bool requerido = true}) {
+118:     final v = _datos[campo];
+119:     if (v == null) {
+120:       if (requerido) error(campo, 'Es obligatorio');
+121:       return null;
+122:     }
+123:     if (v is! String || !opciones.contains(v)) {
+124:       error(campo, 'Debe ser uno de: ${opciones.join(', ')}');
+125:       return null;
+126:     }
+127:     return v;
+128:   }
+129: 
+130:   /// Fecha de calendario `AAAA-MM-DD`.
+131:   String? fecha(String campo, {bool requerido = true}) {
+132:     final v = _datos[campo];
+133:     if (v == null) {
+134:       if (requerido) error(campo, 'Es obligatorio');
+135:       return null;
+136:     }
+137:     if (v is! String || parsearFecha(v) == null) {
+138:       error(campo, 'Debe ser una fecha válida AAAA-MM-DD');
+139:       return null;
+140:     }
+141:     return v;
+142:   }
+143: 
+144:   void comprobar() {
+145:     if (errores.isNotEmpty) throw ErrorApi.datosInvalidos(errores);
+146:   }
+147: }
 ````
 
 ## File: backend/lib/src/comun/middleware.dart
@@ -6815,69 +7799,70 @@ README.md
  3: import '../comun/fechas.dart';
  4: import 'base_datos.dart';
  5: import 'migraciones/m001_inicial.dart';
- 6: 
- 7: class Migracion {
- 8:   const Migracion(this.numero, this.nombre, this.sql);
- 9: 
-10:   final int numero;
-11:   final String nombre;
-12:   final String sql;
-13: }
-14: 
-15: /// Todas las migraciones, en orden.
-16: ///
-17: /// Reglas:
-18: /// - Nunca se edita una migración ya publicada en un tag; se agrega otra.
-19: /// - El número es consecutivo y no se repite (lo comprueba una prueba).
-20: /// - Viven como texto en Dart y no como archivos .sql porque la app de
-21: ///   Flutter no puede leer archivos sueltos del paquete del backend.
-22: const migraciones = <Migracion>[m001Inicial];
-23: 
-24: /// Aplica las migraciones pendientes, cada una en su transacción.
-25: ///
-26: /// Si la base ya tenía datos y hay migraciones pendientes, antes guarda una
-27: /// copia completa en [rutaRespaldo] (por ejemplo, al actualizar la app).
-28: /// Regresa los números aplicados.
-29: List<int> aplicarMigraciones(
-30:   Database db, {
-31:   String? Function(int versionActual)? rutaRespaldo,
-32:   Reloj reloj = relojSistema,
-33: }) {
-34:   db.execute('''
-35:     CREATE TABLE IF NOT EXISTS esquema_migraciones (
-36:       numero  INTEGER PRIMARY KEY,
-37:       nombre  TEXT NOT NULL,
-38:       aplicada TEXT NOT NULL
-39:     )
-40:   ''');
-41:   final actual = versionEsquema(db);
-42:   final pendientes = migraciones.where((m) => m.numero > actual).toList();
-43:   if (pendientes.isEmpty) return const [];
-44: 
-45:   if (actual > 0) {
-46:     final ruta = rutaRespaldo?.call(actual);
-47:     if (ruta != null) db.execute('VACUUM INTO ?', [ruta]);
-48:   }
-49: 
-50:   for (final m in pendientes) {
-51:     transaccion(db, () {
-52:       db.execute(m.sql);
-53:       db.execute(
-54:         'INSERT INTO esquema_migraciones (numero, nombre, aplicada) VALUES (?, ?, ?)',
-55:         [m.numero, m.nombre, instanteIso(reloj())],
-56:       );
-57:     });
-58:   }
-59:   return [for (final m in pendientes) m.numero];
-60: }
-61: 
-62: int versionEsquema(Database db) =>
-63:     db
-64:             .select(
-65:               'SELECT COALESCE(MAX(numero), 0) AS v FROM esquema_migraciones',
-66:             )
-67:             .first['v']
-68:         as int;
+ 6: import 'migraciones/m002_ventas_pedidos_envases.dart';
+ 7: 
+ 8: class Migracion {
+ 9:   const Migracion(this.numero, this.nombre, this.sql);
+10: 
+11:   final int numero;
+12:   final String nombre;
+13:   final String sql;
+14: }
+15: 
+16: /// Todas las migraciones, en orden.
+17: ///
+18: /// Reglas:
+19: /// - Nunca se edita una migración ya publicada en un tag; se agrega otra.
+20: /// - El número es consecutivo y no se repite (lo comprueba una prueba).
+21: /// - Viven como texto en Dart y no como archivos .sql porque la app de
+22: ///   Flutter no puede leer archivos sueltos del paquete del backend.
+23: const migraciones = <Migracion>[m001Inicial, m002VentasPedidosEnvases];
+24: 
+25: /// Aplica las migraciones pendientes, cada una en su transacción.
+26: ///
+27: /// Si la base ya tenía datos y hay migraciones pendientes, antes guarda una
+28: /// copia completa en [rutaRespaldo] (por ejemplo, al actualizar la app).
+29: /// Regresa los números aplicados.
+30: List<int> aplicarMigraciones(
+31:   Database db, {
+32:   String? Function(int versionActual)? rutaRespaldo,
+33:   Reloj reloj = relojSistema,
+34: }) {
+35:   db.execute('''
+36:     CREATE TABLE IF NOT EXISTS esquema_migraciones (
+37:       numero  INTEGER PRIMARY KEY,
+38:       nombre  TEXT NOT NULL,
+39:       aplicada TEXT NOT NULL
+40:     )
+41:   ''');
+42:   final actual = versionEsquema(db);
+43:   final pendientes = migraciones.where((m) => m.numero > actual).toList();
+44:   if (pendientes.isEmpty) return const [];
+45: 
+46:   if (actual > 0) {
+47:     final ruta = rutaRespaldo?.call(actual);
+48:     if (ruta != null) db.execute('VACUUM INTO ?', [ruta]);
+49:   }
+50: 
+51:   for (final m in pendientes) {
+52:     transaccion(db, () {
+53:       db.execute(m.sql);
+54:       db.execute(
+55:         'INSERT INTO esquema_migraciones (numero, nombre, aplicada) VALUES (?, ?, ?)',
+56:         [m.numero, m.nombre, instanteIso(reloj())],
+57:       );
+58:     });
+59:   }
+60:   return [for (final m in pendientes) m.numero];
+61: }
+62: 
+63: int versionEsquema(Database db) =>
+64:     db
+65:             .select(
+66:               'SELECT COALESCE(MAX(numero), 0) AS v FROM esquema_migraciones',
+67:             )
+68:             .first['v']
+69:         as int;
 ````
 
 ## File: backend/lib/src/db/repositorio_ajustes.dart
@@ -6918,112 +7903,112 @@ README.md
  10: 
  11:   final Database _db;
  12: 
- 13:   List<Producto> listar({String? busqueda, String? categoria}) {
- 14:     final condiciones = ['eliminado = 0'];
- 15:     final parametros = <Object?>[];
- 16:     if (busqueda != null && busqueda.isNotEmpty) {
- 17:       condiciones.add(
- 18:         "(nombre_busqueda LIKE ? ESCAPE '\\' OR codigo LIKE ? ESCAPE '\\')",
- 19:       );
- 20:       final patron = '%${_escaparLike(normalizarBusqueda(busqueda))}%';
- 21:       parametros.addAll([patron, patron]);
- 22:     }
- 23:     if (categoria != null && categoria.isNotEmpty) {
- 24:       condiciones.add('categoria = ?');
- 25:       parametros.add(categoria);
- 26:     }
- 27:     return _db
- 28:         .select(
- 29:           'SELECT * FROM productos WHERE ${condiciones.join(' AND ')} '
- 30:           'ORDER BY nombre_busqueda, id',
- 31:           parametros,
- 32:         )
- 33:         .map(_desdeFila)
- 34:         .toList();
- 35:   }
- 36: 
- 37:   Producto? porId(String id) {
- 38:     final filas = _db.select(
- 39:       'SELECT * FROM productos WHERE id = ? AND eliminado = 0',
- 40:       [id],
- 41:     );
- 42:     return filas.isEmpty ? null : _desdeFila(filas.first);
- 43:   }
- 44: 
- 45:   bool existeCodigo(String codigo) => _db.select(
- 46:     'SELECT 1 FROM productos WHERE codigo = ? AND eliminado = 0',
- 47:     [codigo],
- 48:   ).isNotEmpty;
- 49: 
- 50:   void insertar(Producto p) {
- 51:     _db.execute(
- 52:       '''
- 53:       INSERT INTO productos (id, codigo, nombre, nombre_busqueda, categoria, presentacion,
- 54:         precio, precio_caja, piezas_por_caja, existencia_piezas, minimo, envase, caducidad,
- 55:         foto, creado, actualizado)
- 56:       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
- 57:       ''',
- 58:       [
- 59:         p.id,
- 60:         p.codigo,
- 61:         p.nombre,
- 62:         normalizarBusqueda(p.nombre),
- 63:         p.categoria,
- 64:         p.presentacion,
- 65:         p.precio,
- 66:         p.precioCaja,
- 67:         p.piezasPorCaja,
- 68:         p.existenciaPiezas,
- 69:         p.minimo,
- 70:         p.envase,
- 71:         p.caducidad,
- 72:         p.foto,
- 73:         p.creado,
- 74:         p.actualizado,
- 75:       ],
- 76:     );
- 77:   }
- 78: 
- 79:   /// Registra un cambio de existencia. [piezas] lleva signo: `-3` en una venta.
- 80:   void registrarMovimiento({
- 81:     required String productoId,
- 82:     required String tipo,
- 83:     required int piezas,
- 84:     required int existenciaResultante,
- 85:     required String origen,
- 86:     required String fecha,
- 87:     String? referencia,
- 88:     String? nota,
- 89:   }) {
- 90:     _db.execute(
- 91:       '''
- 92:       INSERT INTO movimientos (producto_id, tipo, piezas, existencia_resultante, referencia,
- 93:         origen, nota, fecha)
- 94:       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
- 95:       ''',
- 96:       [
- 97:         productoId,
- 98:         tipo,
- 99:         piezas,
-100:         existenciaResultante,
-101:         referencia,
-102:         origen,
-103:         nota,
-104:         fecha,
-105:       ],
-106:     );
-107:   }
-108: 
-109:   int contar() =>
-110:       _db
-111:               .select('SELECT COUNT(*) AS n FROM productos WHERE eliminado = 0')
-112:               .first['n']
-113:           as int;
-114: 
-115:   static String _escaparLike(String texto) => texto
-116:       .replaceAll(r'\', r'\\')
-117:       .replaceAll('%', r'\%')
-118:       .replaceAll('_', r'\_');
+ 13:   // backend/lib/src/db/repositorio_productos.dart
+ 14: 
+ 15:   List<Producto> listar({String? busqueda, String? categoria}) {
+ 16:     final condiciones = ['eliminado = 0'];
+ 17:     final parametros = <Object?>[];
+ 18:     if (busqueda != null && busqueda.isNotEmpty) {
+ 19:       condiciones.add(
+ 20:         "(nombre_busqueda LIKE ? ESCAPE '^' OR codigo LIKE ? ESCAPE '^')",
+ 21:       );
+ 22:       final patron = '%${_escaparLike(normalizarBusqueda(busqueda))}%';
+ 23:       parametros.addAll([patron, patron]);
+ 24:     }
+ 25:     if (categoria != null && categoria.isNotEmpty) {
+ 26:       condiciones.add('categoria = ?');
+ 27:       parametros.add(categoria);
+ 28:     }
+ 29:     return _db
+ 30:         .select(
+ 31:           'SELECT * FROM productos WHERE ${condiciones.join(' AND ')} '
+ 32:           'ORDER BY nombre_busqueda, id',
+ 33:           parametros,
+ 34:         )
+ 35:         .map(_desdeFila)
+ 36:         .toList();
+ 37:   }
+ 38: 
+ 39:   Producto? porId(String id) {
+ 40:     final filas = _db.select(
+ 41:       'SELECT * FROM productos WHERE id = ? AND eliminado = 0',
+ 42:       [id],
+ 43:     );
+ 44:     return filas.isEmpty ? null : _desdeFila(filas.first);
+ 45:   }
+ 46: 
+ 47:   bool existeCodigo(String codigo) => _db.select(
+ 48:     'SELECT 1 FROM productos WHERE codigo = ? AND eliminado = 0',
+ 49:     [codigo],
+ 50:   ).isNotEmpty;
+ 51: 
+ 52:   void insertar(Producto p) {
+ 53:     _db.execute(
+ 54:       '''
+ 55:       INSERT INTO productos (id, codigo, nombre, nombre_busqueda, categoria, presentacion,
+ 56:         precio, precio_caja, piezas_por_caja, existencia_piezas, minimo, envase, caducidad,
+ 57:         foto, creado, actualizado)
+ 58:       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+ 59:       ''',
+ 60:       [
+ 61:         p.id,
+ 62:         p.codigo,
+ 63:         p.nombre,
+ 64:         normalizarBusqueda(p.nombre),
+ 65:         p.categoria,
+ 66:         p.presentacion,
+ 67:         p.precio,
+ 68:         p.precioCaja,
+ 69:         p.piezasPorCaja,
+ 70:         p.existenciaPiezas,
+ 71:         p.minimo,
+ 72:         p.envase,
+ 73:         p.caducidad,
+ 74:         p.foto,
+ 75:         p.creado,
+ 76:         p.actualizado,
+ 77:       ],
+ 78:     );
+ 79:   }
+ 80: 
+ 81:   /// Registra un cambio de existencia. [piezas] lleva signo: `-3` en una venta.
+ 82:   void registrarMovimiento({
+ 83:     required String productoId,
+ 84:     required String tipo,
+ 85:     required int piezas,
+ 86:     required int existenciaResultante,
+ 87:     required String origen,
+ 88:     required String fecha,
+ 89:     String? referencia,
+ 90:     String? nota,
+ 91:   }) {
+ 92:     _db.execute(
+ 93:       '''
+ 94:       INSERT INTO movimientos (producto_id, tipo, piezas, existencia_resultante, referencia,
+ 95:         origen, nota, fecha)
+ 96:       VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+ 97:       ''',
+ 98:       [
+ 99:         productoId,
+100:         tipo,
+101:         piezas,
+102:         existenciaResultante,
+103:         referencia,
+104:         origen,
+105:         nota,
+106:         fecha,
+107:       ],
+108:     );
+109:   }
+110: 
+111:   int contar() =>
+112:       _db
+113:               .select('SELECT COUNT(*) AS n FROM productos WHERE eliminado = 0')
+114:               .first['n']
+115:           as int;
+116: 
+117:   static String _escaparLike(String texto) =>
+118:       texto.replaceAll('^', '^^').replaceAll('%', '^%').replaceAll('_', '^_');
 119: 
 120:   static Producto _desdeFila(Row f) => Producto(
 121:     id: f['id'] as String,
@@ -7108,30 +8093,33 @@ README.md
  2: abstract final class TiposEvento {
  3:   static const conexionLista = 'conexion.lista';
  4:   static const productoActualizado = 'producto.actualizado';
- 5: }
- 6: 
- 7: /// Mensaje del servidor: `{ "tipo", "datos", "fecha" }`.
- 8: class Evento {
- 9:   const Evento({required this.tipo, required this.datos, required this.fecha});
-10: 
-11:   final String tipo;
-12:   final Map<String, Object?> datos;
+ 5:   static const pedidoCreado = 'pedido.creado';
+ 6:   static const pedidoAtendido = 'pedido.atendido';
+ 7:   static const balanceEnvasesActualizado = 'envases.actualizado';
+ 8: }
+ 9: 
+10: /// Mensaje del servidor: `{ "tipo", "datos", "fecha" }`.
+11: class Evento {
+12:   const Evento({required this.tipo, required this.datos, required this.fecha});
 13: 
-14:   /// ISO 8601 UTC.
-15:   final String fecha;
+14:   final String tipo;
+15:   final Map<String, Object?> datos;
 16: 
-17:   factory Evento.fromJson(Map<String, Object?> j) => Evento(
-18:     tipo: j['tipo'] as String,
-19:     datos: (j['datos'] as Map).cast<String, Object?>(),
-20:     fecha: j['fecha'] as String,
-21:   );
-22: 
-23:   Map<String, Object?> toJson() => {
-24:     'tipo': tipo,
-25:     'datos': datos,
-26:     'fecha': fecha,
-27:   };
-28: }
+17:   /// ISO 8601 UTC.
+18:   final String fecha;
+19: 
+20:   factory Evento.fromJson(Map<String, Object?> j) => Evento(
+21:     tipo: j['tipo'] as String,
+22:     datos: (j['datos'] as Map).cast<String, Object?>(),
+23:     fecha: j['fecha'] as String,
+24:   );
+25: 
+26:   Map<String, Object?> toJson() => {
+27:     'tipo': tipo,
+28:     'datos': datos,
+29:     'fecha': fecha,
+30:   };
+31: }
 ````
 
 ## File: backend/lib/src/modelos/producto.dart
@@ -7418,503 +8406,6 @@ README.md
 49:     }, origen: 'Datos de ejemplo');
 50:   }
 51: }
-````
-
-## File: backend/lib/src/servicios/servicio_productos.dart
-````dart
-  1: import 'package:sqlite3/sqlite3.dart';
-  2: 
-  3: import '../comun/errores.dart';
-  4: import '../comun/fechas.dart';
-  5: import '../comun/json.dart';
-  6: import '../comun/seguridad.dart';
-  7: import '../db/base_datos.dart';
-  8: import '../db/repositorio_productos.dart';
-  9: import '../modelos/evento.dart';
- 10: import '../modelos/producto.dart';
- 11: import '../ws/hub.dart';
- 12: 
- 13: final _patronCodigo = RegExp(r'^[0-9A-Za-z]+$');
- 14: 
- 15: class ServicioProductos {
- 16:   ServicioProductos({
- 17:     required Database db,
- 18:     required RepositorioProductos repositorio,
- 19:     required Hub hub,
- 20:     Reloj reloj = relojSistema,
- 21:   }) : _db = db,
- 22:        _repo = repositorio,
- 23:        _hub = hub,
- 24:        _reloj = reloj;
- 25: 
- 26:   final Database _db;
- 27:   final RepositorioProductos _repo;
- 28:   final Hub _hub;
- 29:   final Reloj _reloj;
- 30: 
- 31:   List<Producto> listar({String? busqueda, String? categoria}) =>
- 32:       _repo.listar(busqueda: busqueda?.trim(), categoria: categoria?.trim());
- 33: 
- 34:   Producto obtener(String id) =>
- 35:       _repo.porId(id) ?? (throw ErrorApi.noEncontrado('el producto'));
- 36: 
- 37:   /// Crea un producto con su existencia inicial. [origen] queda en el
- 38:   /// movimiento de inventario: "Caja", el nombre de la terminal o "Datos de ejemplo".
- 39:   Producto crear(Map<String, Object?> datos, {required String origen}) {
- 40:     final v = Validador(datos);
- 41:     final codigo = v.texto(
- 42:       'codigo',
- 43:       max: 64,
- 44:       patron: _patronCodigo,
- 45:       mensajePatron: 'Solo letras y dígitos, sin espacios',
- 46:     );
- 47:     final nombre = v.texto('nombre', max: 80);
- 48:     final categoria = v.texto('categoria', max: 40)?.toLowerCase();
- 49:     final presentacion = v.texto('presentacion', requerido: false, max: 40);
- 50:     final precio = v.centavos('precio');
- 51:     final precioCaja = v.centavos('precioCaja', requerido: false);
- 52:     final piezasPorCaja = v.entero(
- 53:       'piezasPorCaja',
- 54:       requerido: false,
- 55:       min: 2,
- 56:       mensaje: 'Debe ser un entero de 2 o más',
- 57:     );
- 58:     final existencia =
- 59:         v.entero('existenciaPiezas', requerido: false, min: 0) ?? 0;
- 60:     final minimo = v.entero('minimo', requerido: false, min: 0) ?? 0;
- 61:     final envase = v.opcion('envase', formatosEnvase, requerido: false);
- 62:     final caducidad = v.fecha('caducidad', requerido: false);
- 63: 
- 64:     if (v.presente('precioCaja') != v.presente('piezasPorCaja')) {
- 65:       v.error(
- 66:         v.presente('precioCaja') ? 'piezasPorCaja' : 'precioCaja',
- 67:         'precioCaja y piezasPorCaja van juntos: los dos o ninguno',
- 68:       );
- 69:     }
- 70:     v.comprobar();
- 71: 
- 72:     final ahora = instanteIso(_reloj());
- 73:     final producto = Producto(
- 74:       id: generarId('p'),
- 75:       codigo: codigo!,
- 76:       nombre: nombre!,
- 77:       categoria: categoria!,
- 78:       presentacion: presentacion,
- 79:       precio: precio!,
- 80:       precioCaja: precioCaja,
- 81:       piezasPorCaja: piezasPorCaja,
- 82:       existenciaPiezas: existencia,
- 83:       minimo: minimo,
- 84:       envase: envase,
- 85:       caducidad: caducidad,
- 86:       creado: ahora,
- 87:       actualizado: ahora,
- 88:     );
- 89: 
- 90:     transaccion(_db, () {
- 91:       if (_repo.existeCodigo(producto.codigo)) {
- 92:         throw ErrorApi.codigoDuplicado(producto.codigo);
- 93:       }
- 94:       _repo.insertar(producto);
- 95:       if (existencia > 0) {
- 96:         _repo.registrarMovimiento(
- 97:           productoId: producto.id,
- 98:           tipo: 'inicial',
- 99:           piezas: existencia,
-100:           existenciaResultante: existencia,
-101:           origen: origen,
-102:           fecha: ahora,
-103:         );
-104:       }
-105:     });
-106: 
-107:     _hub.emitir(TiposEvento.productoActualizado, {
-108:       'producto': producto.toJson(),
-109:     });
-110:     return producto;
-111:   }
-112: }
-````
-
-## File: backend/lib/src/servicios/servicio_terminales.dart
-````dart
-  1: import '../comun/errores.dart';
-  2: import '../comun/fechas.dart';
-  3: import '../comun/json.dart';
-  4: import '../comun/seguridad.dart';
-  5: import '../db/repositorio_terminales.dart';
-  6: import '../modelos/terminal.dart';
-  7: import '../ws/hub.dart';
-  8: 
-  9: /// Emparejamiento, registro y autenticación de terminales.
- 10: class ServicioTerminales {
- 11:   ServicioTerminales({
- 12:     required RepositorioTerminales repositorio,
- 13:     required Hub hub,
- 14:     Reloj reloj = relojSistema,
- 15:   }) : _repo = repositorio,
- 16:        _hub = hub,
- 17:        _reloj = reloj;
- 18: 
- 19:   static const vigenciaCodigo = Duration(minutes: 10);
- 20:   static const intentosPorCodigo = 5;
- 21: 
- 22:   /// No se escribe `ultima_conexion` en cada petición, solo si pasó este tiempo.
- 23:   static const intervaloConexion = Duration(minutes: 1);
- 24: 
- 25:   final RepositorioTerminales _repo;
- 26:   final Hub _hub;
- 27:   final Reloj _reloj;
- 28: 
- 29:   ({String codigo, DateTime expira})? _codigo;
- 30:   var _intentosFallidos = 0;
- 31:   final _ultimaMarca = <String, DateTime>{};
- 32: 
- 33:   /// Un código nuevo invalida el anterior.
- 34:   CodigoEmparejamiento crearCodigo() {
- 35:     final expira = _reloj().add(vigenciaCodigo);
- 36:     _codigo = (codigo: generarCodigoNumerico(6), expira: expira);
- 37:     _intentosFallidos = 0;
- 38:     return CodigoEmparejamiento(
- 39:       codigo: _codigo!.codigo,
- 40:       expira: instanteIso(expira),
- 41:     );
- 42:   }
- 43: 
- 44:   /// Regresa la terminal y su clave. La clave no se vuelve a mostrar.
- 45:   ({Terminal terminal, String clave}) registrar(Map<String, Object?> datos) {
- 46:     final v = Validador(datos);
- 47:     final nombre = v.texto('nombre', max: 40);
- 48:     final codigo = v.texto('codigo', min: 6, max: 6);
- 49:     v.comprobar();
- 50: 
- 51:     final vigente = _codigo;
- 52:     if (vigente == null || !_reloj().isBefore(vigente.expira)) {
- 53:       throw ErrorApi.codigoInvalido();
- 54:     }
- 55:     if (!igualesSeguro(codigo!, vigente.codigo)) {
- 56:       // Con 5 intentos sobre 1 000 000 de códigos, adivinar es inviable.
- 57:       if (++_intentosFallidos >= intentosPorCodigo) _codigo = null;
- 58:       throw ErrorApi.codigoInvalido();
- 59:     }
- 60:     _codigo = null; // Un código sirve para una sola terminal.
- 61: 
- 62:     final ahora = instanteIso(_reloj());
- 63:     final clave = generarClave();
- 64:     final terminal = Terminal(
- 65:       id: generarId('t'),
- 66:       nombre: nombre!,
- 67:       registrada: ahora,
- 68:       ultimaConexion: ahora,
- 69:     );
- 70:     _repo.insertar(terminal, claveHash: hashClave(clave));
- 71:     return (terminal: terminal, clave: clave);
- 72:   }
- 73: 
- 74:   /// Terminal dueña de [clave], o `null` si no existe o fue revocada.
- 75:   Terminal? autenticar(String clave) {
- 76:     final terminal = _repo.activaPorHash(hashClave(clave));
- 77:     if (terminal == null) return null;
- 78:     final ahora = _reloj();
- 79:     final ultima = _ultimaMarca[terminal.id];
- 80:     if (ultima == null || ahora.difference(ultima) >= intervaloConexion) {
- 81:       _repo.marcarConexion(terminal.id, instanteIso(ahora));
- 82:       _ultimaMarca[terminal.id] = ahora;
- 83:     }
- 84:     return terminal;
- 85:   }
- 86: 
- 87:   List<Terminal> listar() {
- 88:     final conectadas = _hub.terminalesConectadas;
- 89:     return [
- 90:       for (final t in _repo.listarActivas())
- 91:         t.conConexion(conectadas.contains(t.id)),
- 92:     ];
- 93:   }
- 94: 
- 95:   Future<void> revocar(String id) async {
- 96:     if (!_repo.revocar(id)) throw ErrorApi.noEncontrado('la terminal');
- 97:     _ultimaMarca.remove(id);
- 98:     await _hub.desconectarTerminal(id);
- 99:   }
-100: }
-````
-
-## File: backend/lib/src/ws/hub.dart
-````dart
- 1: import 'dart:convert';
- 2: 
- 3: import 'package:web_socket_channel/web_socket_channel.dart';
- 4: 
- 5: import '../comun/bitacora.dart';
- 6: import '../comun/fechas.dart';
- 7: import '../comun/sesion.dart';
- 8: import '../modelos/evento.dart';
- 9: 
-10: /// Conexiones WebSocket abiertas y envío de eventos a todas.
-11: ///
-12: /// Los servicios llaman a [emitir] DESPUÉS de confirmar la transacción, para
-13: /// no avisar de un cambio que terminó en rollback.
-14: class Hub {
-15:   Hub({
-16:     required this.version,
-17:     required Bitacora bitacora,
-18:     Reloj reloj = relojSistema,
-19:   }) : _bitacora = bitacora,
-20:        _reloj = reloj;
-21: 
-22:   final String version;
-23:   final Bitacora _bitacora;
-24:   final Reloj _reloj;
-25:   final _conexiones = <WebSocketChannel, Sesion>{};
-26: 
-27:   int get totalConexiones => _conexiones.length;
-28: 
-29:   Set<String> get terminalesConectadas => {
-30:     for (final s in _conexiones.values)
-31:       if (s.terminalId != null) s.terminalId!,
-32:   };
-33: 
-34:   void conectar(WebSocketChannel canal, Sesion sesion) {
-35:     _conexiones[canal] = sesion;
-36:     _bitacora.info(
-37:       'WS conectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
-38:     );
-39:     _enviar(canal, _evento(TiposEvento.conexionLista, {'version': version}));
-40:     canal.stream.listen(
-41:       (_) {}, // El cliente no manda mensajes por ahora (contrato).
-42:       onDone: () => _quitar(canal),
-43:       onError: (Object e) => _quitar(canal),
-44:       cancelOnError: true,
-45:     );
-46:   }
-47: 
-48:   void emitir(String tipo, Map<String, Object?> datos) {
-49:     final texto = jsonEncode(_evento(tipo, datos).toJson());
-50:     for (final canal in _conexiones.keys.toList()) {
-51:       _enviarTexto(canal, texto);
-52:     }
-53:   }
-54: 
-55:   /// Cierra los WebSocket de una terminal revocada.
-56:   Future<void> desconectarTerminal(String terminalId) async {
-57:     final canales = [
-58:       for (final e in _conexiones.entries)
-59:         if (e.value.terminalId == terminalId) e.key,
-60:     ];
-61:     for (final c in canales) {
-62:       _conexiones.remove(c);
-63:       await c.sink.close();
-64:     }
-65:   }
-66: 
-67:   Future<void> cerrar() async {
-68:     final canales = _conexiones.keys.toList();
-69:     _conexiones.clear();
-70:     await Future.wait(canales.map((c) => c.sink.close()));
-71:   }
-72: 
-73:   Evento _evento(String tipo, Map<String, Object?> datos) =>
-74:       Evento(tipo: tipo, datos: datos, fecha: instanteIso(_reloj()));
-75: 
-76:   void _enviar(WebSocketChannel canal, Evento evento) =>
-77:       _enviarTexto(canal, jsonEncode(evento.toJson()));
-78: 
-79:   void _enviarTexto(WebSocketChannel canal, String texto) {
-80:     try {
-81:       canal.sink.add(texto);
-82:     } on StateError {
-83:       _quitar(canal);
-84:     }
-85:   }
-86: 
-87:   void _quitar(WebSocketChannel canal) {
-88:     final sesion = _conexiones.remove(canal);
-89:     if (sesion != null) {
-90:       _bitacora.info(
-91:         'WS desconectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
-92:       );
-93:     }
-94:   }
-95: }
-````
-
-## File: backend/lib/src/servidor.dart
-````dart
-  1: import 'dart:io';
-  2: 
-  3: import 'package:path/path.dart' as p;
-  4: import 'package:shelf/shelf.dart';
-  5: import 'package:shelf/shelf_io.dart' as io;
-  6: import 'package:shelf_router/shelf_router.dart';
-  7: import 'package:shelf_web_socket/shelf_web_socket.dart';
-  8: import 'package:sqlite3/sqlite3.dart';
-  9: 
- 10: import 'comun/bitacora.dart';
- 11: import 'comun/errores.dart';
- 12: import 'comun/fechas.dart';
- 13: import 'comun/middleware.dart';
- 14: import 'comun/seguridad.dart';
- 15: import 'comun/sesion.dart';
- 16: import 'db/base_datos.dart';
- 17: import 'db/migraciones.dart';
- 18: import 'db/repositorio_ajustes.dart';
- 19: import 'db/repositorio_productos.dart';
- 20: import 'db/repositorio_terminales.dart';
- 21: import 'rutas/rutas_productos.dart';
- 22: import 'rutas/rutas_terminales.dart';
- 23: import 'seed/datos_ejemplo.dart';
- 24: import 'servicios/servicio_productos.dart';
- 25: import 'servicios/servicio_terminales.dart';
- 26: import 'ws/hub.dart';
- 27: 
- 28: /// Versión del servidor; se manda en `conexion.lista`.
- 29: const versionServidor = '0.1.0';
- 30: 
- 31: /// El servidor de Anaquel. La app lo arranca dentro de sí misma en modo Caja;
- 32: /// en desarrollo lo arranca `bin/server.dart`.
- 33: ///
- 34: /// ```dart
- 35: /// final servidor = DepositoServer(rutaBaseDatos: '${docs.path}/anaquel.db');
- 36: /// await servidor.iniciar();
- 37: /// // La app de la caja usa servidor.claveCaja en X-Clave-Terminal.
- 38: /// await servidor.detener();
- 39: /// ```
- 40: class DepositoServer {
- 41:   DepositoServer({
- 42:     required this.rutaBaseDatos,
- 43:     this.puerto = 8080,
- 44:     InternetAddress? direccion,
- 45:     String? claveCaja,
- 46:     this.datosEjemplo = false,
- 47:     Bitacora? bitacora,
- 48:     Reloj reloj = relojSistema,
- 49:   }) : direccion = direccion ?? InternetAddress.anyIPv4,
- 50:        claveCaja = claveCaja ?? generarClave(),
- 51:        bitacora = bitacora ?? Bitacora(),
- 52:        _reloj = reloj;
- 53: 
- 54:   /// Archivo SQLite, o [enMemoria].
- 55:   final String rutaBaseDatos;
- 56: 
- 57:   /// `0` elige un puerto libre (pruebas); el real queda en [puertoActual].
- 58:   final int puerto;
- 59:   final InternetAddress direccion;
- 60: 
- 61:   /// Clave con la que la app de la caja se identifica. Nunca sale del iPad.
- 62:   final String claveCaja;
- 63: 
- 64:   /// Carga los productos del prototipo si la base está vacía.
- 65:   final bool datosEjemplo;
- 66:   final Bitacora bitacora;
- 67:   final Reloj _reloj;
- 68: 
- 69:   HttpServer? _http;
- 70:   Database? _db;
- 71:   Hub? _hub;
- 72: 
- 73:   bool get iniciado => _http != null;
- 74: 
- 75:   int get puertoActual =>
- 76:       _http?.port ?? (throw StateError('El servidor no está iniciado'));
- 77: 
- 78:   /// Abre la base, aplica migraciones (con respaldo previo) y empieza a escuchar.
- 79:   Future<void> iniciar() async {
- 80:     if (iniciado) return;
- 81:     final db = abrirBaseDatos(rutaBaseDatos);
- 82:     try {
- 83:       final aplicadas = aplicarMigraciones(
- 84:         db,
- 85:         rutaRespaldo: _rutaRespaldoMigracion,
- 86:         reloj: _reloj,
- 87:       );
- 88:       if (aplicadas.isNotEmpty) {
- 89:         bitacora.info('Migraciones aplicadas: ${aplicadas.join(', ')}');
- 90:       }
- 91: 
- 92:       final hub = Hub(
- 93:         version: versionServidor,
- 94:         bitacora: bitacora,
- 95:         reloj: _reloj,
- 96:       );
- 97:       final ajustes = RepositorioAjustes(db);
- 98:       final repoProductos = RepositorioProductos(db);
- 99:       final productos = ServicioProductos(
-100:         db: db,
-101:         repositorio: repoProductos,
-102:         hub: hub,
-103:         reloj: _reloj,
-104:       );
-105:       final terminales = ServicioTerminales(
-106:         repositorio: RepositorioTerminales(db),
-107:         hub: hub,
-108:         reloj: _reloj,
-109:       );
-110: 
-111:       if (datosEjemplo && repoProductos.contar() == 0) {
-112:         cargarDatosEjemplo(
-113:           productos,
-114:           zonaHoraria: ajustes.zonaHoraria,
-115:           reloj: _reloj,
-116:         );
-117:         bitacora.info('Datos de ejemplo cargados');
-118:       }
-119: 
-120:       final router =
-121:           Router(
-122:               notFoundHandler: (_) => throw ErrorApi.noEncontrado('esa ruta'),
-123:             )
-124:             ..get('/salud', (Request _) => Response.ok('ok'))
-125:             ..get('/api/v1/ws', (Request peticion) {
-126:               final sesion = sesionDe(peticion);
-127:               return webSocketHandler(
-128:                 (canal, _) => hub.conectar(canal, sesion),
-129:                 pingInterval: const Duration(seconds: 20),
-130:               )(peticion);
-131:             });
-132:       montarRutasTerminales(router, terminales);
-133:       montarRutasProductos(router, productos);
-134: 
-135:       final manejador = const Pipeline()
-136:           .addMiddleware(registrarPeticiones(bitacora))
-137:           .addMiddleware(manejarErrores(bitacora))
-138:           .addMiddleware(
-139:             autenticar(claveCaja: claveCaja, terminales: terminales),
-140:           )
-141:           .addHandler(router.call);
-142: 
-143:       _http = await io.serve(manejador, direccion, puerto);
-144:       _db = db;
-145:       _hub = hub;
-146:       bitacora.info(
-147:         'Servidor $versionServidor en ${direccion.address}:${_http!.port}',
-148:       );
-149:     } catch (e, pila) {
-150:       db.close();
-151:       bitacora.error('No se pudo iniciar el servidor', e, pila);
-152:       rethrow;
-153:     }
-154:   }
-155: 
-156:   /// Cierra conexiones y la base. Se puede volver a [iniciar] después.
-157:   Future<void> detener() async {
-158:     await _hub?.cerrar();
-159:     await _http?.close(force: true);
-160:     _db?.close();
-161:     _http = null;
-162:     _db = null;
-163:     _hub = null;
-164:     bitacora.info('Servidor detenido');
-165:   }
-166: 
-167:   String? _rutaRespaldoMigracion(int versionActual) {
-168:     if (rutaBaseDatos == enMemoria) return null;
-169:     final marca = instanteIso(_reloj()).replaceAll(RegExp('[-:]'), '');
-170:     final carpeta = p.join(p.dirname(rutaBaseDatos), 'respaldos');
-171:     Directory(carpeta).createSync(recursive: true);
-172:     return p.join(carpeta, 'antes-de-migrar-v$versionActual-$marca.db');
-173:   }
-174: }
 ````
 
 ## File: backend/test/ayudantes/servidor_prueba.dart
@@ -8249,73 +8740,6 @@ README.md
 222:     },
 223:   );
 224: }
-````
-
-## File: backend/test/fechas_test.dart
-````dart
- 1: import 'package:deposito_backend/src/comun/fechas.dart';
- 2: import 'package:test/test.dart';
- 3: 
- 4: void main() {
- 5:   const mexico = Duration(hours: -6);
- 6: 
- 7:   group('diaNegocio', () {
- 8:     test(
- 9:       'una venta a las 23:59 del local cuenta en ese día, aunque en UTC ya sea el siguiente',
-10:       () {
-11:         // 2 de octubre 23:59 en México = 3 de octubre 05:59 UTC.
-12:         expect(
-13:           diaNegocio(DateTime.utc(2026, 10, 3, 5, 59), mexico),
-14:           '2026-10-02',
-15:         );
-16:       },
-17:     );
-18: 
-19:     test('una venta a las 00:01 del local cuenta en el día nuevo', () {
-20:       expect(diaNegocio(DateTime.utc(2026, 10, 3, 6, 1), mexico), '2026-10-03');
-21:     });
-22: 
-23:     test('ignora la zona del dispositivo: usa el instante en UTC', () {
-24:       final local = DateTime.utc(2026, 10, 3, 5, 59).toLocal();
-25:       expect(diaNegocio(local, mexico), '2026-10-02');
-26:     });
-27: 
-28:     test('cambio de año', () {
-29:       expect(diaNegocio(DateTime.utc(2027, 1, 1, 5, 0), mexico), '2026-12-31');
-30:     });
-31:   });
-32: 
-33:   test('rangoDiaNegocio cubre de medianoche a medianoche local en UTC', () {
-34:     final r = rangoDiaNegocio('2026-10-02', mexico);
-35:     expect(r.inicio, DateTime.utc(2026, 10, 2, 6));
-36:     expect(r.fin, DateTime.utc(2026, 10, 3, 6));
-37:     expect(diaNegocio(r.inicio, mexico), '2026-10-02');
-38:     expect(
-39:       diaNegocio(r.fin.subtract(const Duration(seconds: 1)), mexico),
-40:       '2026-10-02',
-41:     );
-42:   });
-43: 
-44:   test('instanteIso es UTC sin milisegundos', () {
-45:     expect(
-46:       instanteIso(DateTime.utc(2026, 10, 2, 18, 30, 0, 456)),
-47:       '2026-10-02T18:30:00Z',
-48:     );
-49:   });
-50: 
-51:   test('parsearFecha rechaza fechas que no existen', () {
-52:     expect(parsearFecha('2026-02-28'), isNotNull);
-53:     expect(parsearFecha('2026-02-30'), isNull);
-54:     expect(parsearFecha('2026-13-01'), isNull);
-55:     expect(parsearFecha('2026-1-01'), isNull);
-56:   });
-57: 
-58:   test('parsearDesfase', () {
-59:     expect(parsearDesfase('-06:00'), const Duration(hours: -6));
-60:     expect(parsearDesfase('+05:30'), const Duration(hours: 5, minutes: 30));
-61:     expect(parsearDesfase('-6'), isNull);
-62:   });
-63: }
 ````
 
 ## File: backend/test/migraciones_test.dart
@@ -11958,6 +12382,695 @@ README.md
 47: }
 ````
 
+## File: backend/lib/src/comun/bitacora.dart
+````dart
+ 1: import 'dart:io';
+ 2: 
+ 3: import 'fechas.dart';
+ 4: 
+ 5: enum NivelLog { info, advertencia, error }
+ 6: 
+ 7: /// Log del servidor: una línea por evento, en consola y opcionalmente en un
+ 8: /// archivo que rota al pasar de [tamanoMaximo] y conserva [archivosRotados]
+ 9: /// copias (`anaquel.log.1`, `.2`...). El archivo se puede exportar desde la
+10: /// pantalla de Diagnóstico para dar soporte remoto.
+11: class Bitacora {
+12:   Bitacora({
+13:     this.rutaArchivo,
+14:     this.consola = true,
+15:     this.tamanoMaximo = 1024 * 1024,
+16:     this.archivosRotados = 3,
+17:     Reloj reloj = relojSistema,
+18:   }) : _reloj = reloj;
+19: 
+20:   /// Bitácora que no escribe nada (pruebas).
+21:   Bitacora.silenciosa() : this(consola: false);
+22: 
+23:   final String? rutaArchivo;
+24:   final bool consola;
+25:   final int tamanoMaximo;
+26:   final int archivosRotados;
+27:   final Reloj _reloj;
+28: 
+29:   /// Últimos errores en memoria, para la pantalla de Diagnóstico.
+30:   final ultimosErrores = <String>[];
+31: 
+32:   void info(String mensaje) => _escribir(NivelLog.info, mensaje);
+33: 
+34:   void advertencia(String mensaje) => _escribir(NivelLog.advertencia, mensaje);
+35: 
+36:   void error(String mensaje, [Object? error, StackTrace? pila]) {
+37:     final detalle = [mensaje, ?error?.toString(), ?pila?.toString()].join('\n');
+38:     _escribir(NivelLog.error, detalle);
+39:     ultimosErrores.add(
+40:       '${instanteIso(_reloj())} $mensaje${error == null ? '' : ': $error'}',
+41:     );
+42:     if (ultimosErrores.length > 50) ultimosErrores.removeAt(0);
+43:   }
+44: 
+45:   void _escribir(NivelLog nivel, String mensaje) {
+46:     final linea =
+47:         '${instanteIso(_reloj())} ${nivel.name.toUpperCase()} $mensaje';
+48:     if (consola) stdout.writeln(linea);
+49:     final ruta = rutaArchivo;
+50:     if (ruta == null) return;
+51:     try {
+52:       final archivo = File(ruta);
+53:       if (archivo.existsSync() && archivo.lengthSync() > tamanoMaximo) {
+54:         _rotar(ruta);
+55:       }
+56:       archivo.writeAsStringSync(
+57:         '$linea\n',
+58:         mode: FileMode.append,
+59:         flush: false,
+60:       );
+61:     } on FileSystemException catch (e) {
+62:       // Un log que falla no debe tumbar una venta.
+63:       if (consola) stderr.writeln('No se pudo escribir el log: $e');
+64:     }
+65:   }
+66: 
+67:   void _rotar(String ruta) {
+68:     for (var i = archivosRotados - 1; i >= 1; i--) {
+69:       final anterior = File('$ruta.$i');
+70:       if (anterior.existsSync()) anterior.renameSync('$ruta.${i + 1}');
+71:     }
+72:     File(ruta).renameSync('$ruta.1');
+73:     final sobrante = File('$ruta.${archivosRotados + 1}');
+74:     if (sobrante.existsSync()) sobrante.deleteSync();
+75:   }
+76: }
+````
+
+## File: backend/lib/src/servicios/servicio_productos.dart
+````dart
+  1: import 'package:sqlite3/sqlite3.dart';
+  2: 
+  3: import '../comun/errores.dart';
+  4: import '../comun/fechas.dart';
+  5: import '../comun/json.dart';
+  6: import '../comun/seguridad.dart';
+  7: import '../db/base_datos.dart';
+  8: import '../db/repositorio_productos.dart';
+  9: import '../modelos/evento.dart';
+ 10: import '../modelos/producto.dart';
+ 11: import '../ws/hub.dart';
+ 12: 
+ 13: final _patronCodigo = RegExp(r'^[0-9A-Za-z]+$');
+ 14: 
+ 15: class ServicioProductos {
+ 16:   ServicioProductos({
+ 17:     required Database db,
+ 18:     required RepositorioProductos repositorio,
+ 19:     required Hub hub,
+ 20:     Reloj reloj = relojSistema,
+ 21:   }) : _db = db,
+ 22:        _repo = repositorio,
+ 23:        _hub = hub,
+ 24:        _reloj = reloj;
+ 25: 
+ 26:   final Database _db;
+ 27:   final RepositorioProductos _repo;
+ 28:   final Hub _hub;
+ 29:   final Reloj _reloj;
+ 30: 
+ 31:   List<Producto> listar({String? busqueda, String? categoria}) =>
+ 32:       _repo.listar(busqueda: busqueda?.trim(), categoria: categoria?.trim());
+ 33: 
+ 34:   Producto obtener(String id) =>
+ 35:       _repo.porId(id) ?? (throw ErrorApi.noEncontrado('el producto'));
+ 36: 
+ 37:   /// Crea un producto con su existencia inicial. [origen] queda en el
+ 38:   /// movimiento de inventario: "Caja", el nombre de la terminal o "Datos de ejemplo".
+ 39:   Producto crear(Map<String, Object?> datos, {required String origen}) {
+ 40:     final v = Validador(datos);
+ 41:     final codigo = v.texto(
+ 42:       'codigo',
+ 43:       max: 64,
+ 44:       patron: _patronCodigo,
+ 45:       mensajePatron: 'Solo letras y dígitos, sin espacios',
+ 46:     );
+ 47:     final nombre = v.texto('nombre', max: 80);
+ 48:     final categoria = v.texto('categoria', max: 40)?.toLowerCase();
+ 49:     final presentacion = v.texto('presentacion', requerido: false, max: 40);
+ 50:     final precio = v.centavos('precio');
+ 51:     final precioCaja = v.centavos('precioCaja', requerido: false);
+ 52:     final piezasPorCaja = v.entero(
+ 53:       'piezasPorCaja',
+ 54:       requerido: false,
+ 55:       min: 2,
+ 56:       mensaje: 'Debe ser un entero de 2 o más',
+ 57:     );
+ 58:     final existencia =
+ 59:         v.entero('existenciaPiezas', requerido: false, min: 0) ?? 0;
+ 60:     final minimo = v.entero('minimo', requerido: false, min: 0) ?? 0;
+ 61:     final envase = v.opcion('envase', formatosEnvase, requerido: false);
+ 62:     final caducidad = v.fecha('caducidad', requerido: false);
+ 63: 
+ 64:     if (v.presente('precioCaja') != v.presente('piezasPorCaja')) {
+ 65:       v.error(
+ 66:         v.presente('precioCaja') ? 'piezasPorCaja' : 'precioCaja',
+ 67:         'precioCaja y piezasPorCaja van juntos: los dos o ninguno',
+ 68:       );
+ 69:     }
+ 70:     v.comprobar();
+ 71: 
+ 72:     final ahora = instanteIso(_reloj());
+ 73:     final producto = Producto(
+ 74:       id: generarId('p'),
+ 75:       codigo: codigo!,
+ 76:       nombre: nombre!,
+ 77:       categoria: categoria!,
+ 78:       presentacion: presentacion,
+ 79:       precio: precio!,
+ 80:       precioCaja: precioCaja,
+ 81:       piezasPorCaja: piezasPorCaja,
+ 82:       existenciaPiezas: existencia,
+ 83:       minimo: minimo,
+ 84:       envase: envase,
+ 85:       caducidad: caducidad,
+ 86:       creado: ahora,
+ 87:       actualizado: ahora,
+ 88:     );
+ 89: 
+ 90:     transaccion(_db, () {
+ 91:       if (_repo.existeCodigo(producto.codigo)) {
+ 92:         throw ErrorApi.codigoDuplicado(producto.codigo);
+ 93:       }
+ 94:       _repo.insertar(producto);
+ 95:       if (existencia > 0) {
+ 96:         _repo.registrarMovimiento(
+ 97:           productoId: producto.id,
+ 98:           tipo: 'inicial',
+ 99:           piezas: existencia,
+100:           existenciaResultante: existencia,
+101:           origen: origen,
+102:           fecha: ahora,
+103:         );
+104:       }
+105:     });
+106: 
+107:     _hub.emitir(TiposEvento.productoActualizado, {
+108:       'producto': producto.toJson(),
+109:     });
+110:     return producto;
+111:   }
+112: }
+````
+
+## File: backend/lib/src/servicios/servicio_terminales.dart
+````dart
+  1: import '../comun/errores.dart';
+  2: import '../comun/fechas.dart';
+  3: import '../comun/json.dart';
+  4: import '../comun/seguridad.dart';
+  5: import '../db/repositorio_terminales.dart';
+  6: import '../modelos/terminal.dart';
+  7: import '../ws/hub.dart';
+  8: 
+  9: /// Emparejamiento, registro y autenticación de terminales.
+ 10: class ServicioTerminales {
+ 11:   ServicioTerminales({
+ 12:     required RepositorioTerminales repositorio,
+ 13:     required Hub hub,
+ 14:     Reloj reloj = relojSistema,
+ 15:   }) : _repo = repositorio,
+ 16:        _hub = hub,
+ 17:        _reloj = reloj;
+ 18: 
+ 19:   static const vigenciaCodigo = Duration(minutes: 10);
+ 20:   static const intentosPorCodigo = 5;
+ 21: 
+ 22:   /// No se escribe `ultima_conexion` en cada petición, solo si pasó este tiempo.
+ 23:   static const intervaloConexion = Duration(minutes: 1);
+ 24: 
+ 25:   final RepositorioTerminales _repo;
+ 26:   final Hub _hub;
+ 27:   final Reloj _reloj;
+ 28: 
+ 29:   ({String codigo, DateTime expira})? _codigo;
+ 30:   var _intentosFallidos = 0;
+ 31:   final _ultimaMarca = <String, DateTime>{};
+ 32: 
+ 33:   /// Un código nuevo invalida el anterior.
+ 34:   CodigoEmparejamiento crearCodigo() {
+ 35:     final expira = _reloj().add(vigenciaCodigo);
+ 36:     _codigo = (codigo: generarCodigoNumerico(6), expira: expira);
+ 37:     _intentosFallidos = 0;
+ 38:     return CodigoEmparejamiento(
+ 39:       codigo: _codigo!.codigo,
+ 40:       expira: instanteIso(expira),
+ 41:     );
+ 42:   }
+ 43: 
+ 44:   /// Regresa la terminal y su clave. La clave no se vuelve a mostrar.
+ 45:   ({Terminal terminal, String clave}) registrar(Map<String, Object?> datos) {
+ 46:     final v = Validador(datos);
+ 47:     final nombre = v.texto('nombre', max: 40);
+ 48:     final codigo = v.texto('codigo', min: 6, max: 6);
+ 49:     v.comprobar();
+ 50: 
+ 51:     final vigente = _codigo;
+ 52:     if (vigente == null || !_reloj().isBefore(vigente.expira)) {
+ 53:       throw ErrorApi.codigoInvalido();
+ 54:     }
+ 55:     if (!igualesSeguro(codigo!, vigente.codigo)) {
+ 56:       // Con 5 intentos sobre 1 000 000 de códigos, adivinar es inviable.
+ 57:       if (++_intentosFallidos >= intentosPorCodigo) _codigo = null;
+ 58:       throw ErrorApi.codigoInvalido();
+ 59:     }
+ 60:     _codigo = null; // Un código sirve para una sola terminal.
+ 61: 
+ 62:     final ahora = instanteIso(_reloj());
+ 63:     final clave = generarClave();
+ 64:     final terminal = Terminal(
+ 65:       id: generarId('t'),
+ 66:       nombre: nombre!,
+ 67:       registrada: ahora,
+ 68:       ultimaConexion: ahora,
+ 69:     );
+ 70:     _repo.insertar(terminal, claveHash: hashClave(clave));
+ 71:     return (terminal: terminal, clave: clave);
+ 72:   }
+ 73: 
+ 74:   /// Terminal dueña de [clave], o `null` si no existe o fue revocada.
+ 75:   Terminal? autenticar(String clave) {
+ 76:     final terminal = _repo.activaPorHash(hashClave(clave));
+ 77:     if (terminal == null) return null;
+ 78:     final ahora = _reloj();
+ 79:     final ultima = _ultimaMarca[terminal.id];
+ 80:     if (ultima == null || ahora.difference(ultima) >= intervaloConexion) {
+ 81:       _repo.marcarConexion(terminal.id, instanteIso(ahora));
+ 82:       _ultimaMarca[terminal.id] = ahora;
+ 83:     }
+ 84:     return terminal;
+ 85:   }
+ 86: 
+ 87:   List<Terminal> listar() {
+ 88:     final conectadas = _hub.terminalesConectadas;
+ 89:     return [
+ 90:       for (final t in _repo.listarActivas())
+ 91:         t.conConexion(conectadas.contains(t.id)),
+ 92:     ];
+ 93:   }
+ 94: 
+ 95:   Future<void> revocar(String id) async {
+ 96:     if (!_repo.revocar(id)) throw ErrorApi.noEncontrado('la terminal');
+ 97:     _ultimaMarca.remove(id);
+ 98:     await _hub.desconectarTerminal(id);
+ 99:   }
+100: }
+````
+
+## File: backend/lib/src/ws/hub.dart
+````dart
+ 1: import 'dart:convert';
+ 2: 
+ 3: import 'package:web_socket_channel/web_socket_channel.dart';
+ 4: 
+ 5: import '../comun/bitacora.dart';
+ 6: import '../comun/fechas.dart';
+ 7: import '../comun/sesion.dart';
+ 8: import '../modelos/evento.dart';
+ 9: 
+10: /// Conexiones WebSocket abiertas y envío de eventos a todas.
+11: ///
+12: /// Los servicios llaman a [emitir] DESPUÉS de confirmar la transacción, para
+13: /// no avisar de un cambio que terminó en rollback.
+14: class Hub {
+15:   Hub({
+16:     required this.version,
+17:     required Bitacora bitacora,
+18:     Reloj reloj = relojSistema,
+19:   }) : _bitacora = bitacora,
+20:        _reloj = reloj;
+21: 
+22:   final String version;
+23:   final Bitacora _bitacora;
+24:   final Reloj _reloj;
+25:   final _conexiones = <WebSocketChannel, Sesion>{};
+26: 
+27:   int get totalConexiones => _conexiones.length;
+28: 
+29:   Set<String> get terminalesConectadas => {
+30:     for (final s in _conexiones.values)
+31:       if (s.terminalId != null) s.terminalId!,
+32:   };
+33: 
+34:   void conectar(WebSocketChannel canal, Sesion sesion) {
+35:     _conexiones[canal] = sesion;
+36:     _bitacora.info(
+37:       'WS conectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
+38:     );
+39:     _enviar(canal, _evento(TiposEvento.conexionLista, {'version': version}));
+40:     canal.stream.listen(
+41:       (_) {}, // El cliente no manda mensajes por ahora (contrato).
+42:       onDone: () => _quitar(canal),
+43:       onError: (Object e) => _quitar(canal),
+44:       cancelOnError: true,
+45:     );
+46:   }
+47: 
+48:   void emitir(String tipo, Map<String, Object?> datos) {
+49:     final texto = jsonEncode(_evento(tipo, datos).toJson());
+50:     for (final canal in _conexiones.keys.toList()) {
+51:       _enviarTexto(canal, texto);
+52:     }
+53:   }
+54: 
+55:   /// Cierra los WebSocket de una terminal revocada.
+56:   Future<void> desconectarTerminal(String terminalId) async {
+57:     final canales = [
+58:       for (final e in _conexiones.entries)
+59:         if (e.value.terminalId == terminalId) e.key,
+60:     ];
+61:     for (final c in canales) {
+62:       _conexiones.remove(c);
+63:       await c.sink.close();
+64:     }
+65:   }
+66: 
+67:   Future<void> cerrar() async {
+68:     final canales = _conexiones.keys.toList();
+69:     _conexiones.clear();
+70:     await Future.wait(canales.map((c) => c.sink.close()));
+71:   }
+72: 
+73:   Evento _evento(String tipo, Map<String, Object?> datos) =>
+74:       Evento(tipo: tipo, datos: datos, fecha: instanteIso(_reloj()));
+75: 
+76:   void _enviar(WebSocketChannel canal, Evento evento) =>
+77:       _enviarTexto(canal, jsonEncode(evento.toJson()));
+78: 
+79:   void _enviarTexto(WebSocketChannel canal, String texto) {
+80:     try {
+81:       canal.sink.add(texto);
+82:     } catch (e) {
+83:       // Si el socket falló o se cerró del lado del cliente, desconectarlo de inmediato
+84:       _quitar(canal);
+85:       try {
+86:         canal.sink.close();
+87:       } catch (_) {}
+88:     }
+89:   }
+90: 
+91:   void _quitar(WebSocketChannel canal) {
+92:     final sesion = _conexiones.remove(canal);
+93:     if (sesion != null) {
+94:       _bitacora.info(
+95:         'WS desconectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
+96:       );
+97:     }
+98:   }
+99: }
+````
+
+## File: backend/lib/src/servidor.dart
+````dart
+  1: import 'dart:io';
+  2: 
+  3: import 'package:path/path.dart' as p;
+  4: import 'package:shelf/shelf.dart';
+  5: import 'package:shelf/shelf_io.dart' as io;
+  6: import 'package:shelf_router/shelf_router.dart';
+  7: import 'package:shelf_web_socket/shelf_web_socket.dart';
+  8: import 'package:sqlite3/sqlite3.dart';
+  9: 
+ 10: import 'comun/bitacora.dart';
+ 11: import 'comun/errores.dart';
+ 12: import 'comun/fechas.dart';
+ 13: import 'comun/middleware.dart';
+ 14: import 'comun/seguridad.dart';
+ 15: import 'comun/sesion.dart';
+ 16: import 'db/base_datos.dart';
+ 17: import 'db/migraciones.dart';
+ 18: import 'db/repositorio_ajustes.dart';
+ 19: import 'db/repositorio_productos.dart';
+ 20: import 'db/repositorio_terminales.dart';
+ 21: import 'rutas/rutas_productos.dart';
+ 22: import 'rutas/rutas_terminales.dart';
+ 23: import 'seed/datos_ejemplo.dart';
+ 24: import 'servicios/servicio_productos.dart';
+ 25: import 'servicios/servicio_terminales.dart';
+ 26: import 'ws/hub.dart';
+ 27: import 'db/repositorio_envases.dart';
+ 28: import 'db/repositorio_ventas.dart';
+ 29: import 'rutas/rutas_envases.dart';
+ 30: import 'rutas/rutas_ventas.dart';
+ 31: import 'rutas/rutas_pedidos.dart';
+ 32: import 'servicios/servicio_envases.dart';
+ 33: import 'servicios/servicio_ventas.dart';
+ 34: import 'servicios/servicio_pedidos.dart';
+ 35: 
+ 36: /// Versión del servidor; se manda en `conexion.lista`.
+ 37: const versionServidor = '0.1.0';
+ 38: 
+ 39: /// El servidor de Anaquel. La app lo arranca dentro de sí misma en modo Caja;
+ 40: /// en desarrollo lo arranca `bin/server.dart`.
+ 41: ///
+ 42: /// ```dart
+ 43: /// final servidor = DepositoServer(rutaBaseDatos: '${docs.path}/anaquel.db');
+ 44: /// await servidor.iniciar();
+ 45: /// // La app de la caja usa servidor.claveCaja en X-Clave-Terminal.
+ 46: /// await servidor.detener();
+ 47: /// ```
+ 48: class DepositoServer {
+ 49:   DepositoServer({
+ 50:     required this.rutaBaseDatos,
+ 51:     this.puerto = 8080,
+ 52:     InternetAddress? direccion,
+ 53:     String? claveCaja,
+ 54:     this.datosEjemplo = false,
+ 55:     Bitacora? bitacora,
+ 56:     Reloj reloj = relojSistema,
+ 57:   }) : direccion = direccion ?? InternetAddress.anyIPv4,
+ 58:        claveCaja = claveCaja ?? generarClave(),
+ 59:        bitacora = bitacora ?? Bitacora(),
+ 60:        _reloj = reloj;
+ 61: 
+ 62:   /// Archivo SQLite, o [enMemoria].
+ 63:   final String rutaBaseDatos;
+ 64: 
+ 65:   /// `0` elige un puerto libre (pruebas); el real queda en [puertoActual].
+ 66:   final int puerto;
+ 67:   final InternetAddress direccion;
+ 68: 
+ 69:   /// Clave con la que la app de la caja se identifica. Nunca sale del iPad.
+ 70:   final String claveCaja;
+ 71: 
+ 72:   /// Carga los productos del prototipo si la base está vacía.
+ 73:   final bool datosEjemplo;
+ 74:   final Bitacora bitacora;
+ 75:   final Reloj _reloj;
+ 76: 
+ 77:   HttpServer? _http;
+ 78:   Database? _db;
+ 79:   Hub? _hub;
+ 80: 
+ 81:   bool get iniciado => _http != null;
+ 82: 
+ 83:   int get puertoActual =>
+ 84:       _http?.port ?? (throw StateError('El servidor no está iniciado'));
+ 85: 
+ 86:   /// Abre la base, aplica migraciones (con respaldo previo) y empieza a escuchar.
+ 87:   // backend/lib/src/servidor.dart
+ 88: 
+ 89:   Future<void> iniciar() async {
+ 90:     if (iniciado) return;
+ 91:     final db = abrirBaseDatos(rutaBaseDatos);
+ 92:     try {
+ 93:       final aplicadas = aplicarMigraciones(
+ 94:         db,
+ 95:         rutaRespaldo: _rutaRespaldoMigracion,
+ 96:         reloj: _reloj,
+ 97:       );
+ 98:       if (aplicadas.isNotEmpty) {
+ 99:         bitacora.info('Migraciones aplicadas: ${aplicadas.join(', ')}');
+100:       }
+101: 
+102:       final hub = Hub(
+103:         version: versionServidor,
+104:         bitacora: bitacora,
+105:         reloj: _reloj,
+106:       );
+107:       final ajustes = RepositorioAjustes(db);
+108:       final repoProductos = RepositorioProductos(db);
+109:       final repoEnvases = RepositorioEnvases(db);
+110:       final repoVentas = RepositorioVentas(db);
+111:       final productos = ServicioProductos(
+112:         db: db,
+113:         repositorio: repoProductos,
+114:         hub: hub,
+115:         reloj: _reloj,
+116:       );
+117:       final terminales = ServicioTerminales(
+118:         repositorio: RepositorioTerminales(db),
+119:         hub: hub,
+120:         reloj: _reloj,
+121:       );
+122:       final envases = ServicioEnvases(
+123:         db: db,
+124:         repositorio: repoEnvases,
+125:         hub: hub,
+126:         reloj: _reloj,
+127:       );
+128: 
+129:       final ventas = ServicioVentas(
+130:         db: db,
+131:         repoVentas: repoVentas,
+132:         repoProductos: repoProductos,
+133:         repoEnvases: repoEnvases,
+134:         repoAjustes: ajustes,
+135:         hub: hub,
+136:         reloj: _reloj,
+137:       );
+138: 
+139:       final pedidos = ServicioPedidos(db: db, hub: hub, reloj: _reloj);
+140: 
+141:       if (datosEjemplo && repoProductos.contar() == 0) {
+142:         cargarDatosEjemplo(
+143:           productos,
+144:           zonaHoraria: ajustes.zonaHoraria,
+145:           reloj: _reloj,
+146:         );
+147:         bitacora.info('Datos de ejemplo cargados');
+148:       }
+149: 
+150:       final router =
+151:           Router(
+152:               notFoundHandler: (_) => throw ErrorApi.noEncontrado('esa ruta'),
+153:             )
+154:             ..get('/salud', (Request _) => Response.ok('ok'))
+155:             ..get('/api/v1/ws', (Request peticion) {
+156:               final sesion = sesionDe(peticion);
+157:               return webSocketHandler(
+158:                 (canal, _) => hub.conectar(canal, sesion),
+159:                 pingInterval: const Duration(seconds: 20),
+160:               )(peticion);
+161:             });
+162:       montarRutasTerminales(router, terminales);
+163:       montarRutasProductos(router, productos);
+164:       montarRutasTerminales(router, terminales);
+165:       montarRutasProductos(router, productos);
+166:       montarRutasEnvases(router, envases);
+167:       montarRutasVentas(router, ventas);
+168:       montarRutasPedidos(router, pedidos);
+169: 
+170:       final manejador = const Pipeline()
+171:           .addMiddleware(registrarPeticiones(bitacora))
+172:           .addMiddleware(manejarErrores(bitacora))
+173:           .addMiddleware(
+174:             autenticar(claveCaja: claveCaja, terminales: terminales),
+175:           )
+176:           .addHandler(router.call);
+177: 
+178:       _http = await io.serve(manejador, direccion, puerto);
+179:       _db = db;
+180:       _hub = hub;
+181:       bitacora.info(
+182:         'Servidor $versionServidor en ${direccion.address}:${_http!.port}',
+183:       );
+184:     } catch (e, pila) {
+185:       // Limpieza integral en caso de error durante el arranque
+186:       await _hub?.cerrar();
+187:       await _http?.close(force: true);
+188:       db.close();
+189:       _http = null;
+190:       _db = null;
+191:       _hub = null;
+192:       bitacora.error('No se pudo iniciar el servidor', e, pila);
+193:       rethrow;
+194:     }
+195:   }
+196: 
+197:   /// Cierra conexiones y la base. Se puede volver a [iniciar] después.
+198:   Future<void> detener() async {
+199:     await _hub?.cerrar();
+200:     await _http?.close(force: true);
+201:     _db?.close();
+202:     _http = null;
+203:     _db = null;
+204:     _hub = null;
+205:     bitacora.info('Servidor detenido');
+206:   }
+207: 
+208:   String? _rutaRespaldoMigracion(int versionActual) {
+209:     if (rutaBaseDatos == enMemoria) return null;
+210:     final marca = instanteIso(_reloj()).replaceAll(RegExp('[-:]'), '');
+211:     final carpeta = p.join(p.dirname(rutaBaseDatos), 'respaldos');
+212:     Directory(carpeta).createSync(recursive: true);
+213:     return p.join(carpeta, 'antes-de-migrar-v$versionActual-$marca.db');
+214:   }
+215: }
+````
+
+## File: backend/test/fechas_test.dart
+````dart
+ 1: import 'package:deposito_backend/src/comun/fechas.dart';
+ 2: import 'package:test/test.dart';
+ 3: 
+ 4: void main() {
+ 5:   const mexico = Duration(hours: -6);
+ 6: 
+ 7:   group('diaNegocio', () {
+ 8:     test(
+ 9:       'una venta a las 23:59 del local cuenta en ese día, aunque en UTC ya sea el siguiente',
+10:       () {
+11:         // 2 de octubre 23:59 en México = 3 de octubre 05:59 UTC.
+12:         expect(
+13:           diaNegocio(DateTime.utc(2026, 10, 3, 5, 59), mexico),
+14:           '2026-10-02',
+15:         );
+16:       },
+17:     );
+18: 
+19:     test('una venta a las 00:01 del local cuenta en el día nuevo', () {
+20:       expect(diaNegocio(DateTime.utc(2026, 10, 3, 6, 1), mexico), '2026-10-03');
+21:     });
+22: 
+23:     test('ignora la zona del dispositivo: usa el instante en UTC', () {
+24:       final local = DateTime.utc(2026, 10, 3, 5, 59).toLocal();
+25:       expect(diaNegocio(local, mexico), '2026-10-02');
+26:     });
+27: 
+28:     test('cambio de año', () {
+29:       expect(diaNegocio(DateTime.utc(2027, 1, 1, 5, 0), mexico), '2026-12-31');
+30:     });
+31:   });
+32: 
+33:   test('rangoDiaNegocio cubre de medianoche a medianoche local en UTC', () {
+34:     final r = rangoDiaNegocio('2026-10-02', mexico);
+35:     expect(r.inicio, DateTime.utc(2026, 10, 2, 6));
+36:     expect(r.fin, DateTime.utc(2026, 10, 3, 6));
+37:     expect(diaNegocio(r.inicio, mexico), '2026-10-02');
+38:     expect(
+39:       diaNegocio(r.fin.subtract(const Duration(seconds: 1)), mexico),
+40:       '2026-10-02',
+41:     );
+42:   });
+43: 
+44:   test('instanteIso es UTC sin milisegundos', () {
+45:     expect(
+46:       instanteIso(DateTime.utc(2026, 10, 2, 18, 30, 0, 456)),
+47:       '2026-10-02T18:30:00Z',
+48:     );
+49:   });
+50: 
+51:   test('parsearFecha rechaza fechas que no existen', () {
+52:     expect(parsearFecha('2026-02-28'), isNotNull);
+53:     expect(parsearFecha('2026-02-30'), isNull);
+54:     expect(parsearFecha('2026-13-01'), isNull);
+55:     expect(parsearFecha('2026-1-01'), isNull);
+56:   });
+57: 
+58:   test('parsearDesfase', () {
+59:     expect(parsearDesfase('-06:00'), const Duration(hours: -6));
+60:     expect(parsearDesfase('+05:30'), const Duration(hours: 5, minutes: 30));
+61:     expect(parsearDesfase('-6'), isNull);
+62:   });
+63: }
+````
+
 ## File: backend/pubspec.yaml
 ````yaml
  1: name: deposito_backend
@@ -12264,28 +13377,30 @@ README.md
  3: Formato: una sección por versión del backend (tag), con lo que se agregó y lo que cambió en el contrato de la API.
  4: 
  5: ## Sin publicar (rumbo a v0.1.0)
- 6: 
- 7: ### Contrato
- 8: - Convenciones de autenticación (`X-Clave-Terminal`), catálogo de errores y fechas de calendario.
- 9: - Terminales: código de emparejamiento, registro, listado y revocación.
-10: - Productos: listar y buscar, detalle y crear.
-11: - WebSocket: `conexion.lista` y `producto.actualizado`.
-12: 
-13: ### Backend
-14: - `DepositoServer` embebible con `iniciar()` y `detener()`.
-15: - Estructura por capas, middleware de errores, log y autenticación.
-16: - SQLite en modo WAL, transacciones `BEGIN IMMEDIATE`, migraciones numeradas con respaldo previo.
-17: - Tabla `movimientos` para el historial de existencias.
-18: - Datos de ejemplo del prototipo.
-19: - Pruebas unitarias y e2e con `crearServidorDePrueba()`.
-20: 
-21: ### App
-22: - Tema del prototipo (claro y oscuro) con Barlow incluida en la app.
-23: - Elegir modo Caja o Terminal.
-24: - Caja: servidor embebido, menú lateral adaptable, tablero, catálogo con búsqueda y filtros, alta de producto, QR para conectar terminales y ajustes.
-25: - Terminal: vinculación por QR o a mano, escanear producto, catálogo y ajustes.
-26: - Tiempo real con reconexión automática e indicador de conexión.
-27: - Permisos de red y cámara en Android e iOS; nombre "Anaquel".
+ 6: Migración 002: tablas para ventas, venta_lineas, pedidos y balance_envases.   
+ 7: Endpoints POST/GET /api/v1/ventas, POST/GET/DELETE /api/v1/pedidos y GET/POST /api/v1/envases.   
+ 8: Eventos de tiempo real para actualización de envases y creación de pedidos.  
+ 9: ### Contrato
+10: - Convenciones de autenticación (`X-Clave-Terminal`), catálogo de errores y fechas de calendario.
+11: - Terminales: código de emparejamiento, registro, listado y revocación.
+12: - Productos: listar y buscar, detalle y crear.
+13: - WebSocket: `conexion.lista` y `producto.actualizado`.
+14: 
+15: ### Backend
+16: - `DepositoServer` embebible con `iniciar()` y `detener()`.
+17: - Estructura por capas, middleware de errores, log y autenticación.
+18: - SQLite en modo WAL, transacciones `BEGIN IMMEDIATE`, migraciones numeradas con respaldo previo.
+19: - Tabla `movimientos` para el historial de existencias.
+20: - Datos de ejemplo del prototipo.
+21: - Pruebas unitarias y e2e con `crearServidorDePrueba()`.
+22: 
+23: ### App
+24: - Tema del prototipo (claro y oscuro) con Barlow incluida en la app.
+25: - Elegir modo Caja o Terminal.
+26: - Caja: servidor embebido, menú lateral adaptable, tablero, catálogo con búsqueda y filtros, alta de producto, QR para conectar terminales y ajustes.
+27: - Terminal: vinculación por QR o a mano, escanear producto, catálogo y ajustes.
+28: - Tiempo real con reconexión automática e indicador de conexión.
+29: - Permisos de red y cámara en Android e iOS; nombre "Anaquel".
 ````
 
 ## File: README.md
