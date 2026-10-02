@@ -1,0 +1,53 @@
+{
+  "$schema": "https://repomix.com/schemas/latest/schema.json",
+  "output": {
+    "filePath": "repomix-output.md",
+    "style": "markdown",
+    "parsableStyle": false,
+    "compress": false,
+    "headerText": "Paquete de contexto del repositorio Anaquel (deposito-app). Anaquel es un punto de venta e inventario local para un depósito: una app Flutter en modo Caja aloja un backend Dart con API REST, WebSocket y SQLite; los teléfonos en modo Terminal se conectan por la red local. El contrato está en docs/API.md y los estándares obligatorios en docs/ESTANDARES.md. El proyecto todavía está en desarrollo: ventas, cortes, envases y otras funciones están pendientes; consulta README.md y docs/PLAN_DE_TRABAJO.md antes de asumir que algo está implementado. La app y el backend requieren Dart 3.13.4 / Flutter 3.47.5.",
+    "fileSummary": true,
+    "directoryStructure": true,
+    "files": true,
+    "removeComments": false,
+    "removeEmptyLines": false,
+    "showLineNumbers": true,
+    "includeEmptyDirectories": false,
+    "truncateBase64": true,
+    "git": {
+      "includeDiffs": false,
+      "includeLogs": false
+    }
+  },
+  "include": [
+    "AGENTS.md",
+    "README.md",
+    "CHANGELOG.md",
+    ".gitignore",
+    ".gitattributes",
+    ".github/**",
+    "docs/**",
+    "backend/**/*.dart",
+    "backend/pubspec.yaml",
+    "backend/analysis_options.yaml",
+    "app/lib/**/*.dart",
+    "app/test/**/*.dart",
+    "app/pubspec.yaml",
+    "app/analysis_options.yaml",
+    "app/android/app/src/main/AndroidManifest.xml",
+    "app/ios/Runner/Info.plist"
+  ],
+  "ignore": {
+    "useGitignore": true,
+    "useDefaultPatterns": true,
+    "customPatterns": [
+      "repomix-output.md"
+    ]
+  },
+  "security": {
+    "enableSecurityCheck": true
+  },
+  "tokenCount": {
+    "encoding": "o200k_base"
+  }
+}
