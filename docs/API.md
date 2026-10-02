@@ -84,7 +84,7 @@ El QR contiene este JSON:
 
 `POST /api/v1/terminales/codigo` · Solo caja
 
-Genera un código de 6 dígitos que vence en 10 minutos. Pedir uno nuevo invalida el anterior.
+Genera un código de 6 dígitos que vence en 10 minutos. Pedir uno nuevo invalida el anterior. Cinco intentos fallidos también lo invalidan, y sirve para registrar una sola terminal.
 
 - Respuesta `201`:
 
