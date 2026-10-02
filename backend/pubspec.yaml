@@ -1,20 +1,21 @@
 name: deposito_backend
-description: A starting point for Dart libraries or applications.
-version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+description: Servidor de Anaquel. API REST, WebSocket y SQLite, embebido en la app en modo Caja.
+version: 0.1.0
+publish_to: none
 
 environment:
   sdk: ^3.13.4
 
-# Add regular dependencies here.
 dependencies:
+  crypto: ^3.0.6
   path: ^1.9.1
   shelf: ^1.4.2
   shelf_router: ^1.1.4
   shelf_web_socket: ^3.0.0
   sqlite3: ^3.6.0
-  # path: ^1.9.0
+  web_socket_channel: ^3.0.3
 
 dev_dependencies:
+  http: ^1.6.0
   lints: ^6.0.0
   test: ^1.25.6
