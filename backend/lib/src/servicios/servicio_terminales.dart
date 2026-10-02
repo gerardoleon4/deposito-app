@@ -10,9 +10,11 @@ import '../ws/hub.dart';
 class ServicioTerminales {
   ServicioTerminales({
     required RepositorioTerminales repositorio,
-    required this._hub,
-    this._reloj = relojSistema,
-  }) : _repo = repositorio;
+    required Hub hub,
+    Reloj reloj = relojSistema,
+  }) : _repo = repositorio,
+       _hub = hub,
+       _reloj = reloj;
 
   static const vigenciaCodigo = Duration(minutes: 10);
   static const intentosPorCodigo = 5;
