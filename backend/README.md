@@ -1,39 +1,75 @@
-<!--
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
+# deposito_backend
 
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/tools/pub/writing-package-pages).
+Servidor de Anaquel: API REST, WebSocket y SQLite. La app lo arranca dentro de sí misma en modo Caja; en desarrollo se corre en la laptop.
 
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/tools/pub/create-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/to/develop-packages).
--->
+El contrato de la API está en [`docs/API.md`](../docs/API.md).
 
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
+## Correr en desarrollo
 
-## Features
-
-TODO: List what your package can do. Maybe include images, gifs, or videos.
-
-## Getting started
-
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
-
-## Usage
-
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder.
-
-```dart
-const like = 'sample';
+```bash
+dart pub get
+dart run bin/server.dart
 ```
 
-## Additional information
+Al arrancar imprime la **clave de caja** y un `curl` de prueba. Por omisión carga los productos del prototipo y guarda la base en `datos/anaquel.db`, que git ignora.
 
-TODO: Tell users more about the package: where to find more information, how to
-contribute to the package, how to file issues, what response they can expect
-from the package authors, and more.
+| Variable | Para qué |
+| --- | --- |
+| `PUERTO` | Puerto (8080 por omisión) |
+| `BASE_DATOS` | Ruta del archivo SQLite |
+| `CLAVE_CAJA` | Fija la clave de caja para no copiarla en cada arranque |
+| `SIN_EJEMPLOS=1` | Arranca con la base vacía |
+
+Para emparejar una terminal desde la laptop:
+
+```bash
+curl -X POST -H "X-Clave-Terminal: <clave de caja>" localhost:8080/api/v1/terminales/codigo
+```
+
+## Usarlo desde la app
+
+```dart
+import 'package:deposito_backend/deposito_backend.dart';
+
+final servidor = DepositoServer(rutaBaseDatos: '${docs.path}/anaquel.db');
+await servidor.iniciar();
+// Las pantallas de la caja mandan servidor.claveCaja en X-Clave-Terminal.
+await servidor.detener();
+```
+
+La app también importa de aquí los modelos (`Producto`, `Terminal`, `Evento`), para que los campos sean los mismos en los dos lados.
+
+## Estructura
+
+```
+lib/src/
+├── servidor.dart   DepositoServer: arranque, rutas y middleware
+├── comun/          errores, validación, fechas, log, sesión, seguridad
+├── db/             conexión, transacciones, migraciones y repositorios
+├── modelos/        Producto, Terminal, Evento (con toJson/fromJson)
+├── rutas/          un archivo por módulo; solo leen la petición y responden
+├── servicios/      reglas de negocio
+├── ws/             hub de WebSocket
+└── seed/           datos de ejemplo del prototipo
+```
+
+**Regla de capas:** las rutas no tienen lógica, los servicios no escriben SQL y los repositorios no tienen reglas de negocio.
+
+## Reglas que no se rompen
+
+- **Dinero:** enteros en centavos. Un número con decimales es un error, no se redondea.
+- **Fechas:** se guardan en UTC. El día del negocio se calcula solo con `diaNegocio()`.
+- **Transacciones:** toda operación de dinero o existencias va dentro de `transaccion()`.
+- **Existencias:** cada cambio deja un registro en `movimientos`.
+- **Migraciones:** se agrega una nueva en `db/migraciones/` y se registra en `migraciones.dart`. Nunca se edita una ya publicada. Antes de aplicarlas se respalda la base en `respaldos/`.
+- **Eventos:** se emiten después de confirmar la transacción, nunca dentro.
+
+## Pruebas
+
+```bash
+dart test
+```
+
+- `test/ayudantes/servidor_prueba.dart`: `crearServidorDePrueba()` levanta un servidor real con SQLite en memoria en un puerto libre.
+- `api_test.dart`: pruebas e2e del contrato.
+- El resto son pruebas unitarias de servicios, fechas y migraciones.
