@@ -6140,8 +6140,8 @@ README.md
 14:     this.consola = true,
 15:     this.tamanoMaximo = 1024 * 1024,
 16:     this.archivosRotados = 3,
-17:     this._reloj = relojSistema,
-18:   });
+17:     Reloj reloj = relojSistema,
+18:   }) : _reloj = reloj;
 19: 
 20:   /// Bitácora que no escribe nada (pruebas).
 21:   Bitacora.silenciosa() : this(consola: false);
@@ -7438,201 +7438,206 @@ README.md
  14: 
  15: class ServicioProductos {
  16:   ServicioProductos({
- 17:     required this._db,
+ 17:     required Database db,
  18:     required RepositorioProductos repositorio,
- 19:     required this._hub,
- 20:     this._reloj = relojSistema,
- 21:   }) : _repo = repositorio;
- 22: 
- 23:   final Database _db;
- 24:   final RepositorioProductos _repo;
- 25:   final Hub _hub;
- 26:   final Reloj _reloj;
- 27: 
- 28:   List<Producto> listar({String? busqueda, String? categoria}) =>
- 29:       _repo.listar(busqueda: busqueda?.trim(), categoria: categoria?.trim());
+ 19:     required Hub hub,
+ 20:     Reloj reloj = relojSistema,
+ 21:   }) : _db = db,
+ 22:        _repo = repositorio,
+ 23:        _hub = hub,
+ 24:        _reloj = reloj;
+ 25: 
+ 26:   final Database _db;
+ 27:   final RepositorioProductos _repo;
+ 28:   final Hub _hub;
+ 29:   final Reloj _reloj;
  30: 
- 31:   Producto obtener(String id) =>
- 32:       _repo.porId(id) ?? (throw ErrorApi.noEncontrado('el producto'));
+ 31:   List<Producto> listar({String? busqueda, String? categoria}) =>
+ 32:       _repo.listar(busqueda: busqueda?.trim(), categoria: categoria?.trim());
  33: 
- 34:   /// Crea un producto con su existencia inicial. [origen] queda en el
- 35:   /// movimiento de inventario: "Caja", el nombre de la terminal o "Datos de ejemplo".
- 36:   Producto crear(Map<String, Object?> datos, {required String origen}) {
- 37:     final v = Validador(datos);
- 38:     final codigo = v.texto(
- 39:       'codigo',
- 40:       max: 64,
- 41:       patron: _patronCodigo,
- 42:       mensajePatron: 'Solo letras y dígitos, sin espacios',
- 43:     );
- 44:     final nombre = v.texto('nombre', max: 80);
- 45:     final categoria = v.texto('categoria', max: 40)?.toLowerCase();
- 46:     final presentacion = v.texto('presentacion', requerido: false, max: 40);
- 47:     final precio = v.centavos('precio');
- 48:     final precioCaja = v.centavos('precioCaja', requerido: false);
- 49:     final piezasPorCaja = v.entero(
- 50:       'piezasPorCaja',
- 51:       requerido: false,
- 52:       min: 2,
- 53:       mensaje: 'Debe ser un entero de 2 o más',
- 54:     );
- 55:     final existencia =
- 56:         v.entero('existenciaPiezas', requerido: false, min: 0) ?? 0;
- 57:     final minimo = v.entero('minimo', requerido: false, min: 0) ?? 0;
- 58:     final envase = v.opcion('envase', formatosEnvase, requerido: false);
- 59:     final caducidad = v.fecha('caducidad', requerido: false);
- 60: 
- 61:     if (v.presente('precioCaja') != v.presente('piezasPorCaja')) {
- 62:       v.error(
- 63:         v.presente('precioCaja') ? 'piezasPorCaja' : 'precioCaja',
- 64:         'precioCaja y piezasPorCaja van juntos: los dos o ninguno',
- 65:       );
- 66:     }
- 67:     v.comprobar();
- 68: 
- 69:     final ahora = instanteIso(_reloj());
- 70:     final producto = Producto(
- 71:       id: generarId('p'),
- 72:       codigo: codigo!,
- 73:       nombre: nombre!,
- 74:       categoria: categoria!,
- 75:       presentacion: presentacion,
- 76:       precio: precio!,
- 77:       precioCaja: precioCaja,
- 78:       piezasPorCaja: piezasPorCaja,
- 79:       existenciaPiezas: existencia,
- 80:       minimo: minimo,
- 81:       envase: envase,
- 82:       caducidad: caducidad,
- 83:       creado: ahora,
- 84:       actualizado: ahora,
- 85:     );
- 86: 
- 87:     transaccion(_db, () {
- 88:       if (_repo.existeCodigo(producto.codigo)) {
- 89:         throw ErrorApi.codigoDuplicado(producto.codigo);
- 90:       }
- 91:       _repo.insertar(producto);
- 92:       if (existencia > 0) {
- 93:         _repo.registrarMovimiento(
- 94:           productoId: producto.id,
- 95:           tipo: 'inicial',
- 96:           piezas: existencia,
- 97:           existenciaResultante: existencia,
- 98:           origen: origen,
- 99:           fecha: ahora,
-100:         );
-101:       }
-102:     });
-103: 
-104:     _hub.emitir(TiposEvento.productoActualizado, {
-105:       'producto': producto.toJson(),
-106:     });
-107:     return producto;
-108:   }
-109: }
+ 34:   Producto obtener(String id) =>
+ 35:       _repo.porId(id) ?? (throw ErrorApi.noEncontrado('el producto'));
+ 36: 
+ 37:   /// Crea un producto con su existencia inicial. [origen] queda en el
+ 38:   /// movimiento de inventario: "Caja", el nombre de la terminal o "Datos de ejemplo".
+ 39:   Producto crear(Map<String, Object?> datos, {required String origen}) {
+ 40:     final v = Validador(datos);
+ 41:     final codigo = v.texto(
+ 42:       'codigo',
+ 43:       max: 64,
+ 44:       patron: _patronCodigo,
+ 45:       mensajePatron: 'Solo letras y dígitos, sin espacios',
+ 46:     );
+ 47:     final nombre = v.texto('nombre', max: 80);
+ 48:     final categoria = v.texto('categoria', max: 40)?.toLowerCase();
+ 49:     final presentacion = v.texto('presentacion', requerido: false, max: 40);
+ 50:     final precio = v.centavos('precio');
+ 51:     final precioCaja = v.centavos('precioCaja', requerido: false);
+ 52:     final piezasPorCaja = v.entero(
+ 53:       'piezasPorCaja',
+ 54:       requerido: false,
+ 55:       min: 2,
+ 56:       mensaje: 'Debe ser un entero de 2 o más',
+ 57:     );
+ 58:     final existencia =
+ 59:         v.entero('existenciaPiezas', requerido: false, min: 0) ?? 0;
+ 60:     final minimo = v.entero('minimo', requerido: false, min: 0) ?? 0;
+ 61:     final envase = v.opcion('envase', formatosEnvase, requerido: false);
+ 62:     final caducidad = v.fecha('caducidad', requerido: false);
+ 63: 
+ 64:     if (v.presente('precioCaja') != v.presente('piezasPorCaja')) {
+ 65:       v.error(
+ 66:         v.presente('precioCaja') ? 'piezasPorCaja' : 'precioCaja',
+ 67:         'precioCaja y piezasPorCaja van juntos: los dos o ninguno',
+ 68:       );
+ 69:     }
+ 70:     v.comprobar();
+ 71: 
+ 72:     final ahora = instanteIso(_reloj());
+ 73:     final producto = Producto(
+ 74:       id: generarId('p'),
+ 75:       codigo: codigo!,
+ 76:       nombre: nombre!,
+ 77:       categoria: categoria!,
+ 78:       presentacion: presentacion,
+ 79:       precio: precio!,
+ 80:       precioCaja: precioCaja,
+ 81:       piezasPorCaja: piezasPorCaja,
+ 82:       existenciaPiezas: existencia,
+ 83:       minimo: minimo,
+ 84:       envase: envase,
+ 85:       caducidad: caducidad,
+ 86:       creado: ahora,
+ 87:       actualizado: ahora,
+ 88:     );
+ 89: 
+ 90:     transaccion(_db, () {
+ 91:       if (_repo.existeCodigo(producto.codigo)) {
+ 92:         throw ErrorApi.codigoDuplicado(producto.codigo);
+ 93:       }
+ 94:       _repo.insertar(producto);
+ 95:       if (existencia > 0) {
+ 96:         _repo.registrarMovimiento(
+ 97:           productoId: producto.id,
+ 98:           tipo: 'inicial',
+ 99:           piezas: existencia,
+100:           existenciaResultante: existencia,
+101:           origen: origen,
+102:           fecha: ahora,
+103:         );
+104:       }
+105:     });
+106: 
+107:     _hub.emitir(TiposEvento.productoActualizado, {
+108:       'producto': producto.toJson(),
+109:     });
+110:     return producto;
+111:   }
+112: }
 ````
 
 ## File: backend/lib/src/servicios/servicio_terminales.dart
 ````dart
- 1: import '../comun/errores.dart';
- 2: import '../comun/fechas.dart';
- 3: import '../comun/json.dart';
- 4: import '../comun/seguridad.dart';
- 5: import '../db/repositorio_terminales.dart';
- 6: import '../modelos/terminal.dart';
- 7: import '../ws/hub.dart';
- 8: 
- 9: /// Emparejamiento, registro y autenticación de terminales.
-10: class ServicioTerminales {
-11:   ServicioTerminales({
-12:     required RepositorioTerminales repositorio,
-13:     required this._hub,
-14:     this._reloj = relojSistema,
-15:   }) : _repo = repositorio;
-16: 
-17:   static const vigenciaCodigo = Duration(minutes: 10);
-18:   static const intentosPorCodigo = 5;
-19: 
-20:   /// No se escribe `ultima_conexion` en cada petición, solo si pasó este tiempo.
-21:   static const intervaloConexion = Duration(minutes: 1);
-22: 
-23:   final RepositorioTerminales _repo;
-24:   final Hub _hub;
-25:   final Reloj _reloj;
-26: 
-27:   ({String codigo, DateTime expira})? _codigo;
-28:   var _intentosFallidos = 0;
-29:   final _ultimaMarca = <String, DateTime>{};
-30: 
-31:   /// Un código nuevo invalida el anterior.
-32:   CodigoEmparejamiento crearCodigo() {
-33:     final expira = _reloj().add(vigenciaCodigo);
-34:     _codigo = (codigo: generarCodigoNumerico(6), expira: expira);
-35:     _intentosFallidos = 0;
-36:     return CodigoEmparejamiento(
-37:       codigo: _codigo!.codigo,
-38:       expira: instanteIso(expira),
-39:     );
-40:   }
-41: 
-42:   /// Regresa la terminal y su clave. La clave no se vuelve a mostrar.
-43:   ({Terminal terminal, String clave}) registrar(Map<String, Object?> datos) {
-44:     final v = Validador(datos);
-45:     final nombre = v.texto('nombre', max: 40);
-46:     final codigo = v.texto('codigo', min: 6, max: 6);
-47:     v.comprobar();
-48: 
-49:     final vigente = _codigo;
-50:     if (vigente == null || !_reloj().isBefore(vigente.expira)) {
-51:       throw ErrorApi.codigoInvalido();
-52:     }
-53:     if (!igualesSeguro(codigo!, vigente.codigo)) {
-54:       // Con 5 intentos sobre 1 000 000 de códigos, adivinar es inviable.
-55:       if (++_intentosFallidos >= intentosPorCodigo) _codigo = null;
-56:       throw ErrorApi.codigoInvalido();
-57:     }
-58:     _codigo = null; // Un código sirve para una sola terminal.
-59: 
-60:     final ahora = instanteIso(_reloj());
-61:     final clave = generarClave();
-62:     final terminal = Terminal(
-63:       id: generarId('t'),
-64:       nombre: nombre!,
-65:       registrada: ahora,
-66:       ultimaConexion: ahora,
-67:     );
-68:     _repo.insertar(terminal, claveHash: hashClave(clave));
-69:     return (terminal: terminal, clave: clave);
-70:   }
-71: 
-72:   /// Terminal dueña de [clave], o `null` si no existe o fue revocada.
-73:   Terminal? autenticar(String clave) {
-74:     final terminal = _repo.activaPorHash(hashClave(clave));
-75:     if (terminal == null) return null;
-76:     final ahora = _reloj();
-77:     final ultima = _ultimaMarca[terminal.id];
-78:     if (ultima == null || ahora.difference(ultima) >= intervaloConexion) {
-79:       _repo.marcarConexion(terminal.id, instanteIso(ahora));
-80:       _ultimaMarca[terminal.id] = ahora;
-81:     }
-82:     return terminal;
-83:   }
-84: 
-85:   List<Terminal> listar() {
-86:     final conectadas = _hub.terminalesConectadas;
-87:     return [
-88:       for (final t in _repo.listarActivas())
-89:         t.conConexion(conectadas.contains(t.id)),
-90:     ];
-91:   }
-92: 
-93:   Future<void> revocar(String id) async {
-94:     if (!_repo.revocar(id)) throw ErrorApi.noEncontrado('la terminal');
-95:     _ultimaMarca.remove(id);
-96:     await _hub.desconectarTerminal(id);
-97:   }
-98: }
+  1: import '../comun/errores.dart';
+  2: import '../comun/fechas.dart';
+  3: import '../comun/json.dart';
+  4: import '../comun/seguridad.dart';
+  5: import '../db/repositorio_terminales.dart';
+  6: import '../modelos/terminal.dart';
+  7: import '../ws/hub.dart';
+  8: 
+  9: /// Emparejamiento, registro y autenticación de terminales.
+ 10: class ServicioTerminales {
+ 11:   ServicioTerminales({
+ 12:     required RepositorioTerminales repositorio,
+ 13:     required Hub hub,
+ 14:     Reloj reloj = relojSistema,
+ 15:   }) : _repo = repositorio,
+ 16:        _hub = hub,
+ 17:        _reloj = reloj;
+ 18: 
+ 19:   static const vigenciaCodigo = Duration(minutes: 10);
+ 20:   static const intentosPorCodigo = 5;
+ 21: 
+ 22:   /// No se escribe `ultima_conexion` en cada petición, solo si pasó este tiempo.
+ 23:   static const intervaloConexion = Duration(minutes: 1);
+ 24: 
+ 25:   final RepositorioTerminales _repo;
+ 26:   final Hub _hub;
+ 27:   final Reloj _reloj;
+ 28: 
+ 29:   ({String codigo, DateTime expira})? _codigo;
+ 30:   var _intentosFallidos = 0;
+ 31:   final _ultimaMarca = <String, DateTime>{};
+ 32: 
+ 33:   /// Un código nuevo invalida el anterior.
+ 34:   CodigoEmparejamiento crearCodigo() {
+ 35:     final expira = _reloj().add(vigenciaCodigo);
+ 36:     _codigo = (codigo: generarCodigoNumerico(6), expira: expira);
+ 37:     _intentosFallidos = 0;
+ 38:     return CodigoEmparejamiento(
+ 39:       codigo: _codigo!.codigo,
+ 40:       expira: instanteIso(expira),
+ 41:     );
+ 42:   }
+ 43: 
+ 44:   /// Regresa la terminal y su clave. La clave no se vuelve a mostrar.
+ 45:   ({Terminal terminal, String clave}) registrar(Map<String, Object?> datos) {
+ 46:     final v = Validador(datos);
+ 47:     final nombre = v.texto('nombre', max: 40);
+ 48:     final codigo = v.texto('codigo', min: 6, max: 6);
+ 49:     v.comprobar();
+ 50: 
+ 51:     final vigente = _codigo;
+ 52:     if (vigente == null || !_reloj().isBefore(vigente.expira)) {
+ 53:       throw ErrorApi.codigoInvalido();
+ 54:     }
+ 55:     if (!igualesSeguro(codigo!, vigente.codigo)) {
+ 56:       // Con 5 intentos sobre 1 000 000 de códigos, adivinar es inviable.
+ 57:       if (++_intentosFallidos >= intentosPorCodigo) _codigo = null;
+ 58:       throw ErrorApi.codigoInvalido();
+ 59:     }
+ 60:     _codigo = null; // Un código sirve para una sola terminal.
+ 61: 
+ 62:     final ahora = instanteIso(_reloj());
+ 63:     final clave = generarClave();
+ 64:     final terminal = Terminal(
+ 65:       id: generarId('t'),
+ 66:       nombre: nombre!,
+ 67:       registrada: ahora,
+ 68:       ultimaConexion: ahora,
+ 69:     );
+ 70:     _repo.insertar(terminal, claveHash: hashClave(clave));
+ 71:     return (terminal: terminal, clave: clave);
+ 72:   }
+ 73: 
+ 74:   /// Terminal dueña de [clave], o `null` si no existe o fue revocada.
+ 75:   Terminal? autenticar(String clave) {
+ 76:     final terminal = _repo.activaPorHash(hashClave(clave));
+ 77:     if (terminal == null) return null;
+ 78:     final ahora = _reloj();
+ 79:     final ultima = _ultimaMarca[terminal.id];
+ 80:     if (ultima == null || ahora.difference(ultima) >= intervaloConexion) {
+ 81:       _repo.marcarConexion(terminal.id, instanteIso(ahora));
+ 82:       _ultimaMarca[terminal.id] = ahora;
+ 83:     }
+ 84:     return terminal;
+ 85:   }
+ 86: 
+ 87:   List<Terminal> listar() {
+ 88:     final conectadas = _hub.terminalesConectadas;
+ 89:     return [
+ 90:       for (final t in _repo.listarActivas())
+ 91:         t.conConexion(conectadas.contains(t.id)),
+ 92:     ];
+ 93:   }
+ 94: 
+ 95:   Future<void> revocar(String id) async {
+ 96:     if (!_repo.revocar(id)) throw ErrorApi.noEncontrado('la terminal');
+ 97:     _ultimaMarca.remove(id);
+ 98:     await _hub.desconectarTerminal(id);
+ 99:   }
+100: }
 ````
 
 ## File: backend/lib/src/ws/hub.dart
@@ -7653,84 +7658,85 @@ README.md
 14: class Hub {
 15:   Hub({
 16:     required this.version,
-17:     required this._bitacora,
-18:     this._reloj = relojSistema,
-19:   });
-20: 
-21:   final String version;
-22:   final Bitacora _bitacora;
-23:   final Reloj _reloj;
-24:   final _conexiones = <WebSocketChannel, Sesion>{};
-25: 
-26:   int get totalConexiones => _conexiones.length;
-27: 
-28:   Set<String> get terminalesConectadas => {
-29:     for (final s in _conexiones.values)
-30:       if (s.terminalId != null) s.terminalId!,
-31:   };
-32: 
-33:   void conectar(WebSocketChannel canal, Sesion sesion) {
-34:     _conexiones[canal] = sesion;
-35:     _bitacora.info(
-36:       'WS conectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
-37:     );
-38:     _enviar(canal, _evento(TiposEvento.conexionLista, {'version': version}));
-39:     canal.stream.listen(
-40:       (_) {}, // El cliente no manda mensajes por ahora (contrato).
-41:       onDone: () => _quitar(canal),
-42:       onError: (Object e) => _quitar(canal),
-43:       cancelOnError: true,
-44:     );
-45:   }
-46: 
-47:   void emitir(String tipo, Map<String, Object?> datos) {
-48:     final texto = jsonEncode(_evento(tipo, datos).toJson());
-49:     for (final canal in _conexiones.keys.toList()) {
-50:       _enviarTexto(canal, texto);
-51:     }
-52:   }
-53: 
-54:   /// Cierra los WebSocket de una terminal revocada.
-55:   Future<void> desconectarTerminal(String terminalId) async {
-56:     final canales = [
-57:       for (final e in _conexiones.entries)
-58:         if (e.value.terminalId == terminalId) e.key,
-59:     ];
-60:     for (final c in canales) {
-61:       _conexiones.remove(c);
-62:       await c.sink.close();
-63:     }
-64:   }
-65: 
-66:   Future<void> cerrar() async {
-67:     final canales = _conexiones.keys.toList();
-68:     _conexiones.clear();
-69:     await Future.wait(canales.map((c) => c.sink.close()));
-70:   }
-71: 
-72:   Evento _evento(String tipo, Map<String, Object?> datos) =>
-73:       Evento(tipo: tipo, datos: datos, fecha: instanteIso(_reloj()));
-74: 
-75:   void _enviar(WebSocketChannel canal, Evento evento) =>
-76:       _enviarTexto(canal, jsonEncode(evento.toJson()));
-77: 
-78:   void _enviarTexto(WebSocketChannel canal, String texto) {
-79:     try {
-80:       canal.sink.add(texto);
-81:     } on StateError {
-82:       _quitar(canal);
-83:     }
-84:   }
-85: 
-86:   void _quitar(WebSocketChannel canal) {
-87:     final sesion = _conexiones.remove(canal);
-88:     if (sesion != null) {
-89:       _bitacora.info(
-90:         'WS desconectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
-91:       );
-92:     }
-93:   }
-94: }
+17:     required Bitacora bitacora,
+18:     Reloj reloj = relojSistema,
+19:   }) : _bitacora = bitacora,
+20:        _reloj = reloj;
+21: 
+22:   final String version;
+23:   final Bitacora _bitacora;
+24:   final Reloj _reloj;
+25:   final _conexiones = <WebSocketChannel, Sesion>{};
+26: 
+27:   int get totalConexiones => _conexiones.length;
+28: 
+29:   Set<String> get terminalesConectadas => {
+30:     for (final s in _conexiones.values)
+31:       if (s.terminalId != null) s.terminalId!,
+32:   };
+33: 
+34:   void conectar(WebSocketChannel canal, Sesion sesion) {
+35:     _conexiones[canal] = sesion;
+36:     _bitacora.info(
+37:       'WS conectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
+38:     );
+39:     _enviar(canal, _evento(TiposEvento.conexionLista, {'version': version}));
+40:     canal.stream.listen(
+41:       (_) {}, // El cliente no manda mensajes por ahora (contrato).
+42:       onDone: () => _quitar(canal),
+43:       onError: (Object e) => _quitar(canal),
+44:       cancelOnError: true,
+45:     );
+46:   }
+47: 
+48:   void emitir(String tipo, Map<String, Object?> datos) {
+49:     final texto = jsonEncode(_evento(tipo, datos).toJson());
+50:     for (final canal in _conexiones.keys.toList()) {
+51:       _enviarTexto(canal, texto);
+52:     }
+53:   }
+54: 
+55:   /// Cierra los WebSocket de una terminal revocada.
+56:   Future<void> desconectarTerminal(String terminalId) async {
+57:     final canales = [
+58:       for (final e in _conexiones.entries)
+59:         if (e.value.terminalId == terminalId) e.key,
+60:     ];
+61:     for (final c in canales) {
+62:       _conexiones.remove(c);
+63:       await c.sink.close();
+64:     }
+65:   }
+66: 
+67:   Future<void> cerrar() async {
+68:     final canales = _conexiones.keys.toList();
+69:     _conexiones.clear();
+70:     await Future.wait(canales.map((c) => c.sink.close()));
+71:   }
+72: 
+73:   Evento _evento(String tipo, Map<String, Object?> datos) =>
+74:       Evento(tipo: tipo, datos: datos, fecha: instanteIso(_reloj()));
+75: 
+76:   void _enviar(WebSocketChannel canal, Evento evento) =>
+77:       _enviarTexto(canal, jsonEncode(evento.toJson()));
+78: 
+79:   void _enviarTexto(WebSocketChannel canal, String texto) {
+80:     try {
+81:       canal.sink.add(texto);
+82:     } on StateError {
+83:       _quitar(canal);
+84:     }
+85:   }
+86: 
+87:   void _quitar(WebSocketChannel canal) {
+88:     final sesion = _conexiones.remove(canal);
+89:     if (sesion != null) {
+90:       _bitacora.info(
+91:         'WS desconectado: ${sesion.nombre} (${_conexiones.length} abiertos)',
+92:       );
+93:     }
+94:   }
+95: }
 ````
 
 ## File: backend/lib/src/servidor.dart
@@ -7782,132 +7788,133 @@ README.md
  45:     String? claveCaja,
  46:     this.datosEjemplo = false,
  47:     Bitacora? bitacora,
- 48:     this._reloj = relojSistema,
+ 48:     Reloj reloj = relojSistema,
  49:   }) : direccion = direccion ?? InternetAddress.anyIPv4,
  50:        claveCaja = claveCaja ?? generarClave(),
- 51:        bitacora = bitacora ?? Bitacora();
- 52: 
- 53:   /// Archivo SQLite, o [enMemoria].
- 54:   final String rutaBaseDatos;
- 55: 
- 56:   /// `0` elige un puerto libre (pruebas); el real queda en [puertoActual].
- 57:   final int puerto;
- 58:   final InternetAddress direccion;
- 59: 
- 60:   /// Clave con la que la app de la caja se identifica. Nunca sale del iPad.
- 61:   final String claveCaja;
- 62: 
- 63:   /// Carga los productos del prototipo si la base está vacía.
- 64:   final bool datosEjemplo;
- 65:   final Bitacora bitacora;
- 66:   final Reloj _reloj;
- 67: 
- 68:   HttpServer? _http;
- 69:   Database? _db;
- 70:   Hub? _hub;
- 71: 
- 72:   bool get iniciado => _http != null;
- 73: 
- 74:   int get puertoActual =>
- 75:       _http?.port ?? (throw StateError('El servidor no está iniciado'));
- 76: 
- 77:   /// Abre la base, aplica migraciones (con respaldo previo) y empieza a escuchar.
- 78:   Future<void> iniciar() async {
- 79:     if (iniciado) return;
- 80:     final db = abrirBaseDatos(rutaBaseDatos);
- 81:     try {
- 82:       final aplicadas = aplicarMigraciones(
- 83:         db,
- 84:         rutaRespaldo: _rutaRespaldoMigracion,
- 85:         reloj: _reloj,
- 86:       );
- 87:       if (aplicadas.isNotEmpty) {
- 88:         bitacora.info('Migraciones aplicadas: ${aplicadas.join(', ')}');
- 89:       }
- 90: 
- 91:       final hub = Hub(
- 92:         version: versionServidor,
- 93:         bitacora: bitacora,
- 94:         reloj: _reloj,
- 95:       );
- 96:       final ajustes = RepositorioAjustes(db);
- 97:       final repoProductos = RepositorioProductos(db);
- 98:       final productos = ServicioProductos(
- 99:         db: db,
-100:         repositorio: repoProductos,
-101:         hub: hub,
-102:         reloj: _reloj,
-103:       );
-104:       final terminales = ServicioTerminales(
-105:         repositorio: RepositorioTerminales(db),
-106:         hub: hub,
-107:         reloj: _reloj,
-108:       );
-109: 
-110:       if (datosEjemplo && repoProductos.contar() == 0) {
-111:         cargarDatosEjemplo(
-112:           productos,
-113:           zonaHoraria: ajustes.zonaHoraria,
-114:           reloj: _reloj,
-115:         );
-116:         bitacora.info('Datos de ejemplo cargados');
-117:       }
-118: 
-119:       final router =
-120:           Router(
-121:               notFoundHandler: (_) => throw ErrorApi.noEncontrado('esa ruta'),
-122:             )
-123:             ..get('/salud', (Request _) => Response.ok('ok'))
-124:             ..get('/api/v1/ws', (Request peticion) {
-125:               final sesion = sesionDe(peticion);
-126:               return webSocketHandler(
-127:                 (canal, _) => hub.conectar(canal, sesion),
-128:                 pingInterval: const Duration(seconds: 20),
-129:               )(peticion);
-130:             });
-131:       montarRutasTerminales(router, terminales);
-132:       montarRutasProductos(router, productos);
-133: 
-134:       final manejador = const Pipeline()
-135:           .addMiddleware(registrarPeticiones(bitacora))
-136:           .addMiddleware(manejarErrores(bitacora))
-137:           .addMiddleware(
-138:             autenticar(claveCaja: claveCaja, terminales: terminales),
-139:           )
-140:           .addHandler(router.call);
-141: 
-142:       _http = await io.serve(manejador, direccion, puerto);
-143:       _db = db;
-144:       _hub = hub;
-145:       bitacora.info(
-146:         'Servidor $versionServidor en ${direccion.address}:${_http!.port}',
-147:       );
-148:     } catch (e, pila) {
-149:       db.close();
-150:       bitacora.error('No se pudo iniciar el servidor', e, pila);
-151:       rethrow;
-152:     }
-153:   }
-154: 
-155:   /// Cierra conexiones y la base. Se puede volver a [iniciar] después.
-156:   Future<void> detener() async {
-157:     await _hub?.cerrar();
-158:     await _http?.close(force: true);
-159:     _db?.close();
-160:     _http = null;
-161:     _db = null;
-162:     _hub = null;
-163:     bitacora.info('Servidor detenido');
-164:   }
-165: 
-166:   String? _rutaRespaldoMigracion(int versionActual) {
-167:     if (rutaBaseDatos == enMemoria) return null;
-168:     final marca = instanteIso(_reloj()).replaceAll(RegExp('[-:]'), '');
-169:     final carpeta = p.join(p.dirname(rutaBaseDatos), 'respaldos');
-170:     Directory(carpeta).createSync(recursive: true);
-171:     return p.join(carpeta, 'antes-de-migrar-v$versionActual-$marca.db');
-172:   }
-173: }
+ 51:        bitacora = bitacora ?? Bitacora(),
+ 52:        _reloj = reloj;
+ 53: 
+ 54:   /// Archivo SQLite, o [enMemoria].
+ 55:   final String rutaBaseDatos;
+ 56: 
+ 57:   /// `0` elige un puerto libre (pruebas); el real queda en [puertoActual].
+ 58:   final int puerto;
+ 59:   final InternetAddress direccion;
+ 60: 
+ 61:   /// Clave con la que la app de la caja se identifica. Nunca sale del iPad.
+ 62:   final String claveCaja;
+ 63: 
+ 64:   /// Carga los productos del prototipo si la base está vacía.
+ 65:   final bool datosEjemplo;
+ 66:   final Bitacora bitacora;
+ 67:   final Reloj _reloj;
+ 68: 
+ 69:   HttpServer? _http;
+ 70:   Database? _db;
+ 71:   Hub? _hub;
+ 72: 
+ 73:   bool get iniciado => _http != null;
+ 74: 
+ 75:   int get puertoActual =>
+ 76:       _http?.port ?? (throw StateError('El servidor no está iniciado'));
+ 77: 
+ 78:   /// Abre la base, aplica migraciones (con respaldo previo) y empieza a escuchar.
+ 79:   Future<void> iniciar() async {
+ 80:     if (iniciado) return;
+ 81:     final db = abrirBaseDatos(rutaBaseDatos);
+ 82:     try {
+ 83:       final aplicadas = aplicarMigraciones(
+ 84:         db,
+ 85:         rutaRespaldo: _rutaRespaldoMigracion,
+ 86:         reloj: _reloj,
+ 87:       );
+ 88:       if (aplicadas.isNotEmpty) {
+ 89:         bitacora.info('Migraciones aplicadas: ${aplicadas.join(', ')}');
+ 90:       }
+ 91: 
+ 92:       final hub = Hub(
+ 93:         version: versionServidor,
+ 94:         bitacora: bitacora,
+ 95:         reloj: _reloj,
+ 96:       );
+ 97:       final ajustes = RepositorioAjustes(db);
+ 98:       final repoProductos = RepositorioProductos(db);
+ 99:       final productos = ServicioProductos(
+100:         db: db,
+101:         repositorio: repoProductos,
+102:         hub: hub,
+103:         reloj: _reloj,
+104:       );
+105:       final terminales = ServicioTerminales(
+106:         repositorio: RepositorioTerminales(db),
+107:         hub: hub,
+108:         reloj: _reloj,
+109:       );
+110: 
+111:       if (datosEjemplo && repoProductos.contar() == 0) {
+112:         cargarDatosEjemplo(
+113:           productos,
+114:           zonaHoraria: ajustes.zonaHoraria,
+115:           reloj: _reloj,
+116:         );
+117:         bitacora.info('Datos de ejemplo cargados');
+118:       }
+119: 
+120:       final router =
+121:           Router(
+122:               notFoundHandler: (_) => throw ErrorApi.noEncontrado('esa ruta'),
+123:             )
+124:             ..get('/salud', (Request _) => Response.ok('ok'))
+125:             ..get('/api/v1/ws', (Request peticion) {
+126:               final sesion = sesionDe(peticion);
+127:               return webSocketHandler(
+128:                 (canal, _) => hub.conectar(canal, sesion),
+129:                 pingInterval: const Duration(seconds: 20),
+130:               )(peticion);
+131:             });
+132:       montarRutasTerminales(router, terminales);
+133:       montarRutasProductos(router, productos);
+134: 
+135:       final manejador = const Pipeline()
+136:           .addMiddleware(registrarPeticiones(bitacora))
+137:           .addMiddleware(manejarErrores(bitacora))
+138:           .addMiddleware(
+139:             autenticar(claveCaja: claveCaja, terminales: terminales),
+140:           )
+141:           .addHandler(router.call);
+142: 
+143:       _http = await io.serve(manejador, direccion, puerto);
+144:       _db = db;
+145:       _hub = hub;
+146:       bitacora.info(
+147:         'Servidor $versionServidor en ${direccion.address}:${_http!.port}',
+148:       );
+149:     } catch (e, pila) {
+150:       db.close();
+151:       bitacora.error('No se pudo iniciar el servidor', e, pila);
+152:       rethrow;
+153:     }
+154:   }
+155: 
+156:   /// Cierra conexiones y la base. Se puede volver a [iniciar] después.
+157:   Future<void> detener() async {
+158:     await _hub?.cerrar();
+159:     await _http?.close(force: true);
+160:     _db?.close();
+161:     _http = null;
+162:     _db = null;
+163:     _hub = null;
+164:     bitacora.info('Servidor detenido');
+165:   }
+166: 
+167:   String? _rutaRespaldoMigracion(int versionActual) {
+168:     if (rutaBaseDatos == enMemoria) return null;
+169:     final marca = instanteIso(_reloj()).replaceAll(RegExp('[-:]'), '');
+170:     final carpeta = p.join(p.dirname(rutaBaseDatos), 'respaldos');
+171:     Directory(carpeta).createSync(recursive: true);
+172:     return p.join(carpeta, 'antes-de-migrar-v$versionActual-$marca.db');
+173:   }
+174: }
 ````
 
 ## File: backend/test/ayudantes/servidor_prueba.dart
@@ -8253,59 +8260,62 @@ README.md
  5:   const mexico = Duration(hours: -6);
  6: 
  7:   group('diaNegocio', () {
- 8:     test('una venta a las 23:59 del local cuenta en ese día, aunque en UTC ya sea el siguiente', () {
- 9:       // 2 de octubre 23:59 en México = 3 de octubre 05:59 UTC.
-10:       expect(
-11:         diaNegocio(DateTime.utc(2026, 10, 3, 5, 59), mexico),
-12:         '2026-10-02',
-13:       );
-14:     });
-15: 
-16:     test('una venta a las 00:01 del local cuenta en el día nuevo', () {
-17:       expect(diaNegocio(DateTime.utc(2026, 10, 3, 6, 1), mexico), '2026-10-03');
-18:     });
-19: 
-20:     test('ignora la zona del dispositivo: usa el instante en UTC', () {
-21:       final local = DateTime.utc(2026, 10, 3, 5, 59).toLocal();
-22:       expect(diaNegocio(local, mexico), '2026-10-02');
-23:     });
-24: 
-25:     test('cambio de año', () {
-26:       expect(diaNegocio(DateTime.utc(2027, 1, 1, 5, 0), mexico), '2026-12-31');
-27:     });
-28:   });
-29: 
-30:   test('rangoDiaNegocio cubre de medianoche a medianoche local en UTC', () {
-31:     final r = rangoDiaNegocio('2026-10-02', mexico);
-32:     expect(r.inicio, DateTime.utc(2026, 10, 2, 6));
-33:     expect(r.fin, DateTime.utc(2026, 10, 3, 6));
-34:     expect(diaNegocio(r.inicio, mexico), '2026-10-02');
-35:     expect(
-36:       diaNegocio(r.fin.subtract(const Duration(seconds: 1)), mexico),
-37:       '2026-10-02',
-38:     );
-39:   });
-40: 
-41:   test('instanteIso es UTC sin milisegundos', () {
-42:     expect(
-43:       instanteIso(DateTime.utc(2026, 10, 2, 18, 30, 0, 456)),
-44:       '2026-10-02T18:30:00Z',
-45:     );
-46:   });
-47: 
-48:   test('parsearFecha rechaza fechas que no existen', () {
-49:     expect(parsearFecha('2026-02-28'), isNotNull);
-50:     expect(parsearFecha('2026-02-30'), isNull);
-51:     expect(parsearFecha('2026-13-01'), isNull);
-52:     expect(parsearFecha('2026-1-01'), isNull);
-53:   });
-54: 
-55:   test('parsearDesfase', () {
-56:     expect(parsearDesfase('-06:00'), const Duration(hours: -6));
-57:     expect(parsearDesfase('+05:30'), const Duration(hours: 5, minutes: 30));
-58:     expect(parsearDesfase('-6'), isNull);
-59:   });
-60: }
+ 8:     test(
+ 9:       'una venta a las 23:59 del local cuenta en ese día, aunque en UTC ya sea el siguiente',
+10:       () {
+11:         // 2 de octubre 23:59 en México = 3 de octubre 05:59 UTC.
+12:         expect(
+13:           diaNegocio(DateTime.utc(2026, 10, 3, 5, 59), mexico),
+14:           '2026-10-02',
+15:         );
+16:       },
+17:     );
+18: 
+19:     test('una venta a las 00:01 del local cuenta en el día nuevo', () {
+20:       expect(diaNegocio(DateTime.utc(2026, 10, 3, 6, 1), mexico), '2026-10-03');
+21:     });
+22: 
+23:     test('ignora la zona del dispositivo: usa el instante en UTC', () {
+24:       final local = DateTime.utc(2026, 10, 3, 5, 59).toLocal();
+25:       expect(diaNegocio(local, mexico), '2026-10-02');
+26:     });
+27: 
+28:     test('cambio de año', () {
+29:       expect(diaNegocio(DateTime.utc(2027, 1, 1, 5, 0), mexico), '2026-12-31');
+30:     });
+31:   });
+32: 
+33:   test('rangoDiaNegocio cubre de medianoche a medianoche local en UTC', () {
+34:     final r = rangoDiaNegocio('2026-10-02', mexico);
+35:     expect(r.inicio, DateTime.utc(2026, 10, 2, 6));
+36:     expect(r.fin, DateTime.utc(2026, 10, 3, 6));
+37:     expect(diaNegocio(r.inicio, mexico), '2026-10-02');
+38:     expect(
+39:       diaNegocio(r.fin.subtract(const Duration(seconds: 1)), mexico),
+40:       '2026-10-02',
+41:     );
+42:   });
+43: 
+44:   test('instanteIso es UTC sin milisegundos', () {
+45:     expect(
+46:       instanteIso(DateTime.utc(2026, 10, 2, 18, 30, 0, 456)),
+47:       '2026-10-02T18:30:00Z',
+48:     );
+49:   });
+50: 
+51:   test('parsearFecha rechaza fechas que no existen', () {
+52:     expect(parsearFecha('2026-02-28'), isNotNull);
+53:     expect(parsearFecha('2026-02-30'), isNull);
+54:     expect(parsearFecha('2026-13-01'), isNull);
+55:     expect(parsearFecha('2026-1-01'), isNull);
+56:   });
+57: 
+58:   test('parsearDesfase', () {
+59:     expect(parsearDesfase('-06:00'), const Duration(hours: -6));
+60:     expect(parsearDesfase('+05:30'), const Duration(hours: 5, minutes: 30));
+61:     expect(parsearDesfase('-6'), isNull);
+62:   });
+63: }
 ````
 
 ## File: backend/test/migraciones_test.dart
