@@ -14,9 +14,10 @@ import '../modelos/evento.dart';
 class Hub {
   Hub({
     required this.version,
-    required this._bitacora,
-    this._reloj = relojSistema,
-  });
+    required Bitacora bitacora,
+    Reloj reloj = relojSistema,
+  }) : _bitacora = bitacora,
+       _reloj = reloj;
 
   final String version;
   final Bitacora _bitacora;

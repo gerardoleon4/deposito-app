@@ -14,11 +14,14 @@ final _patronCodigo = RegExp(r'^[0-9A-Za-z]+$');
 
 class ServicioProductos {
   ServicioProductos({
-    required this._db,
+    required Database db,
     required RepositorioProductos repositorio,
-    required this._hub,
-    this._reloj = relojSistema,
-  }) : _repo = repositorio;
+    required Hub hub,
+    Reloj reloj = relojSistema,
+  }) : _db = db,
+       _repo = repositorio,
+       _hub = hub,
+       _reloj = reloj;
 
   final Database _db;
   final RepositorioProductos _repo;

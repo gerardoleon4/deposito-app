@@ -45,10 +45,11 @@ class DepositoServer {
     String? claveCaja,
     this.datosEjemplo = false,
     Bitacora? bitacora,
-    this._reloj = relojSistema,
+    Reloj reloj = relojSistema,
   }) : direccion = direccion ?? InternetAddress.anyIPv4,
        claveCaja = claveCaja ?? generarClave(),
-       bitacora = bitacora ?? Bitacora();
+       bitacora = bitacora ?? Bitacora(),
+       _reloj = reloj;
 
   /// Archivo SQLite, o [enMemoria].
   final String rutaBaseDatos;

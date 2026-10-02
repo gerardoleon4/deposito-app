@@ -14,8 +14,8 @@ class Bitacora {
     this.consola = true,
     this.tamanoMaximo = 1024 * 1024,
     this.archivosRotados = 3,
-    this._reloj = relojSistema,
-  });
+    Reloj reloj = relojSistema,
+  }) : _reloj = reloj;
 
   /// Bitácora que no escribe nada (pruebas).
   Bitacora.silenciosa() : this(consola: false);
