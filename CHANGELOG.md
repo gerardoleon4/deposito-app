@@ -3,7 +3,9 @@
 Formato: una sección por versión del backend (tag), con lo que se agregó y lo que cambió en el contrato de la API.
 
 ## Sin publicar (rumbo a v0.1.0)
-
+Migración 002: tablas para ventas, venta_lineas, pedidos y balance_envases.   
+Endpoints POST/GET /api/v1/ventas, POST/GET/DELETE /api/v1/pedidos y GET/POST /api/v1/envases.   
+Eventos de tiempo real para actualización de envases y creación de pedidos.  
 ### Contrato
 - Convenciones de autenticación (`X-Clave-Terminal`), catálogo de errores y fechas de calendario.
 - Terminales: código de emparejamiento, registro, listado y revocación.

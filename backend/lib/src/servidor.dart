@@ -24,6 +24,14 @@ import 'seed/datos_ejemplo.dart';
 import 'servicios/servicio_productos.dart';
 import 'servicios/servicio_terminales.dart';
 import 'ws/hub.dart';
+import 'db/repositorio_envases.dart';
+import 'db/repositorio_ventas.dart';
+import 'rutas/rutas_envases.dart';
+import 'rutas/rutas_ventas.dart';
+import 'rutas/rutas_pedidos.dart';
+import 'servicios/servicio_envases.dart';
+import 'servicios/servicio_ventas.dart';
+import 'servicios/servicio_pedidos.dart';
 
 /// Versión del servidor; se manda en `conexion.lista`.
 const versionServidor = '0.1.0';
@@ -76,6 +84,8 @@ class DepositoServer {
       _http?.port ?? (throw StateError('El servidor no está iniciado'));
 
   /// Abre la base, aplica migraciones (con respaldo previo) y empieza a escuchar.
+  // backend/lib/src/servidor.dart
+
   Future<void> iniciar() async {
     if (iniciado) return;
     final db = abrirBaseDatos(rutaBaseDatos);
@@ -96,6 +106,8 @@ class DepositoServer {
       );
       final ajustes = RepositorioAjustes(db);
       final repoProductos = RepositorioProductos(db);
+      final repoEnvases = RepositorioEnvases(db);
+      final repoVentas = RepositorioVentas(db);
       final productos = ServicioProductos(
         db: db,
         repositorio: repoProductos,
@@ -107,6 +119,24 @@ class DepositoServer {
         hub: hub,
         reloj: _reloj,
       );
+      final envases = ServicioEnvases(
+        db: db,
+        repositorio: repoEnvases,
+        hub: hub,
+        reloj: _reloj,
+      );
+
+      final ventas = ServicioVentas(
+        db: db,
+        repoVentas: repoVentas,
+        repoProductos: repoProductos,
+        repoEnvases: repoEnvases,
+        repoAjustes: ajustes,
+        hub: hub,
+        reloj: _reloj,
+      );
+
+      final pedidos = ServicioPedidos(db: db, hub: hub, reloj: _reloj);
 
       if (datosEjemplo && repoProductos.contar() == 0) {
         cargarDatosEjemplo(
@@ -131,6 +161,11 @@ class DepositoServer {
             });
       montarRutasTerminales(router, terminales);
       montarRutasProductos(router, productos);
+      montarRutasTerminales(router, terminales);
+      montarRutasProductos(router, productos);
+      montarRutasEnvases(router, envases);
+      montarRutasVentas(router, ventas);
+      montarRutasPedidos(router, pedidos);
 
       final manejador = const Pipeline()
           .addMiddleware(registrarPeticiones(bitacora))
@@ -147,7 +182,13 @@ class DepositoServer {
         'Servidor $versionServidor en ${direccion.address}:${_http!.port}',
       );
     } catch (e, pila) {
+      // Limpieza integral en caso de error durante el arranque
+      await _hub?.cerrar();
+      await _http?.close(force: true);
       db.close();
+      _http = null;
+      _db = null;
+      _hub = null;
       bitacora.error('No se pudo iniciar el servidor', e, pila);
       rethrow;
     }

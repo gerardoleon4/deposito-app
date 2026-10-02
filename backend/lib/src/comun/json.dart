@@ -75,10 +75,13 @@ class Validador {
     return t;
   }
 
+  // backend/lib/src/comun/json.dart
+
   int? entero(
     String campo, {
     bool requerido = true,
     int? min,
+    int? max,
     String? mensaje,
   }) {
     final v = _datos[campo];
@@ -86,25 +89,29 @@ class Validador {
       if (requerido) error(campo, 'Es obligatorio');
       return null;
     }
-    if (v is! int || (min != null && v < min)) {
+    if (v is! int || (min != null && v < min) || (max != null && v > max)) {
       error(
         campo,
         mensaje ??
-            (min == null
-                ? 'Debe ser un entero'
-                : 'Debe ser un entero mayor o igual a $min'),
+            (min != null && max != null
+                ? 'Debe ser un entero entre $min y $max'
+                : min != null
+                ? 'Debe ser un entero mayor o igual a $min'
+                : 'Debe ser un entero válido'),
       );
       return null;
     }
     return v;
   }
 
-  /// Dinero en centavos: entero mayor que 0. `42.5` es error, no se redondea.
+  /// Dinero en centavos: entero mayor que 0 y con límite de $10,000,000 MXN.
   int? centavos(String campo, {bool requerido = true}) => entero(
     campo,
     requerido: requerido,
     min: 1,
-    mensaje: 'Debe ser un entero mayor que 0 (centavos)',
+    max: 1000000000, // 10 millones de pesos en centavos
+    mensaje:
+        'Debe ser un entero mayor que 0 y menor a 1,000,000,000 (centavos)',
   );
 
   String? opcion(String campo, Set<String> opciones, {bool requerido = true}) {
