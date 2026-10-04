@@ -35,6 +35,63 @@ void main() {
   });
 
   test(
+    'la caja cobra y un reintento con la misma clave no cobra dos veces',
+    () async {
+      final victoria = (await caja.listarProductos()).firstWhere(
+        (p) => p.nombre == 'Victoria Mega',
+      );
+      final lineas = [
+        LineaVenta(productoId: victoria.id, porCaja: true, cantidad: 1),
+        LineaVenta(productoId: victoria.id, porCaja: false, cantidad: 2),
+      ];
+
+      final primera = await caja.registrarVenta(
+        lineas: lineas,
+        metodo: 'efectivo',
+        recibido: 100000,
+        claveIdempotencia: 'cobro-integracion-1',
+      );
+      final reintento = await caja.registrarVenta(
+        lineas: lineas,
+        metodo: 'efectivo',
+        recibido: 100000,
+        claveIdempotencia: 'cobro-integracion-1',
+      );
+
+      expect(reintento.folio, primera.folio);
+      expect(primera.total, victoria.precioCaja! + 2 * victoria.precio);
+      expect(primera.cambio, 100000 - primera.total);
+      final despues = (await caja.listarProductos()).firstWhere(
+        (p) => p.id == victoria.id,
+      );
+      expect(
+        despues.existenciaPiezas,
+        victoria.existenciaPiezas - victoria.piezasPorCaja! - 2,
+      );
+    },
+  );
+
+  test('sin existencias el error llega como stock_insuficiente', () async {
+    final p = (await caja.listarProductos()).first;
+    await expectLater(
+      caja.registrarVenta(
+        lineas: [
+          LineaVenta(
+            productoId: p.id,
+            porCaja: false,
+            cantidad: p.existenciaPiezas + 1,
+          ),
+        ],
+        metodo: 'tarjeta',
+        claveIdempotencia: 'cobro-integracion-2',
+      ),
+      throwsA(
+        isA<FalloApi>().having((f) => f.codigo, 'codigo', 'stock_insuficiente'),
+      ),
+    );
+  });
+
+  test(
     'una terminal se vincula con el código y ve en vivo lo que crea la caja',
     () async {
       final codigo = await caja.crearCodigoEmparejamiento();

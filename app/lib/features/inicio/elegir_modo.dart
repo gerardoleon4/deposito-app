@@ -2,21 +2,22 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/tema/colores.dart';
-import '../terminal/pantallas/vinculacion_terminal.dart';
+import '../../core/config/configuracion.dart';
 import 'pantallas/crear_cuenta_maestra.dart';
 import 'pantallas/inicializando_bd.dart';
 import 'pantallas/restaurar_respaldo.dart';
-import '../personal/pantallas/gestion_personal.dart';
 
 /// Pantalla "Configura tu punto de venta".
-/// Permite elegir entre crear servidor, conectar terminal o restaurar respaldo.
+///
+/// Al terminar de configurar guarda el modo del dispositivo y el router lleva
+/// al tablero de la caja o a vincular la terminal (app/router.dart).
 class ElegirModo extends ConsumerWidget {
   const ElegirModo({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colores;
-    // notificador ya no es necesario aquí
+    final notificador = ref.read(configuracionProvider.notifier);
 
     return Scaffold(
       backgroundColor: c.fondo,
@@ -45,7 +46,8 @@ class ElegirModo extends ConsumerWidget {
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 600),
-                child: Padding(
+                // En teléfonos chicos no cabe todo: se desplaza.
+                child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 24,
                     vertical: 32,
@@ -99,15 +101,8 @@ class ElegirModo extends ConsumerWidget {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => InicializandoBD(
-                                        alTerminar: () {
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const GestionPersonal(),
-                                            ),
-                                          );
-                                        },
+                                        alTerminar: () => notificador
+                                            .elegirModo(ModoDispositivo.caja),
                                       ),
                                     ),
                                   );
@@ -123,14 +118,8 @@ class ElegirModo extends ConsumerWidget {
                         titulo: 'Conectar Celular como Terminal',
                         descripcion:
                             'Vincula este equipo a un Servidor Host existente.',
-                        alPresionar: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => const VinculacionTerminal(),
-                            ),
-                          );
-                        },
+                        alPresionar: () =>
+                            notificador.elegirModo(ModoDispositivo.terminal),
                       ),
                       const SizedBox(height: 16),
                       _OpcionConfiguracion(
@@ -148,7 +137,7 @@ class ElegirModo extends ConsumerWidget {
                         },
                       ),
 
-                      const Spacer(),
+                      const SizedBox(height: 48),
 
                       // Footer
                       Center(

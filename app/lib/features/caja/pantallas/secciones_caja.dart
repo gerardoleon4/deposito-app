@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../ajustes/ajustes.dart';
 import '../../catalogo/pantallas/pantalla_catalogo.dart';
 import '../../proximamente/proximamente.dart';
+import '../../pdv/pantallas/punto_venta.dart';
 import 'inicio_caja.dart';
 
 /// Secciones de la caja, en el orden del menú. Las que no están construidas
@@ -36,14 +37,7 @@ final seccionesCaja = <SeccionCaja>[
     'Vender',
     Icons.shopping_cart_outlined,
     Icons.shopping_cart_rounded,
-    () => const Proximamente(
-      icono: Icons.shopping_cart_outlined,
-      titulo: 'Vender',
-      descripcion:
-          'Carrito por pieza o caja, envases y cobro en efectivo o tarjeta.',
-      sprint: 3,
-      responsable: 'Daniel',
-    ),
+    PuntoVenta.new,
   ),
   SeccionCaja(
     'ventas',

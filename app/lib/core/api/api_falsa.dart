@@ -1,6 +1,7 @@
 import 'package:deposito_backend/deposito_backend.dart';
 
 import 'api.dart';
+import 'fallo_api.dart';
 
 /// Datos de prueba con la forma exacta del contrato. Sirve para pruebas de
 /// widgets y para programar pantallas antes de que exista su endpoint.
@@ -48,6 +49,57 @@ class ApiFalsa implements Api {
   @override
   Future<void> revocarTerminal(String id) async =>
       terminales.removeWhere((t) => t.id == id);
+
+  /// Ventas cobradas, por clave de idempotencia.
+  final ventas = <String, VentaRegistrada>{};
+
+  @override
+  Future<VentaRegistrada> registrarVenta({
+    required List<LineaVenta> lineas,
+    required String metodo,
+    int? recibido,
+    required String claveIdempotencia,
+  }) async {
+    final repetida = ventas[claveIdempotencia];
+    if (repetida != null) return repetida;
+
+    var total = 0;
+    final piezas = <String, int>{};
+    for (final l in lineas) {
+      final p = productos.firstWhere((p) => p.id == l.productoId);
+      total += (l.porCaja ? p.precioCaja! : p.precio) * l.cantidad;
+      piezas[p.id] =
+          (piezas[p.id] ?? 0) + (l.porCaja ? p.piezasPorCaja! : 1) * l.cantidad;
+    }
+    for (final e in piezas.entries) {
+      final i = productos.indexWhere((p) => p.id == e.key);
+      final p = productos[i];
+      if (p.existenciaPiezas < e.value) {
+        throw FalloApi(
+          'stock_insuficiente',
+          'No hay suficiente ${p.nombre}: quedan ${p.existenciaPiezas} piezas',
+          estado: 409,
+        );
+      }
+      productos[i] = Producto.fromJson({
+        ...p.toJson(),
+        'existenciaPiezas': p.existenciaPiezas - e.value,
+      });
+    }
+    final pagado = metodo == 'tarjeta' ? total : (recibido ?? total);
+    final venta = VentaRegistrada(
+      id: 'v_${ventas.length + 1}',
+      folio: 1001 + ventas.length,
+      fecha: '2026-10-02T18:30:00Z',
+      diaNegocio: '2026-10-02',
+      total: total,
+      metodo: metodo,
+      recibido: pagado,
+      cambio: pagado - total,
+    );
+    ventas[claveIdempotencia] = venta;
+    return venta;
+  }
 }
 
 List<Producto> productosDePrueba() {

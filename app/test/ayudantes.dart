@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:network_image_mock/network_image_mock.dart';
-
 import 'package:deposito_app/app/app.dart';
 import 'package:deposito_app/core/api/api.dart';
 import 'package:deposito_app/core/api/api_falsa.dart';
@@ -43,26 +41,24 @@ Future<void> montarApp(
   });
   final prefs = await SharedPreferences.getInstance();
 
-  await mockNetworkImagesFor(() async {
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          preferenciasProvider.overrideWithValue(prefs),
-          apiProvider.overrideWith((ref) async => api ?? ApiFalsa()),
-          servidorEmbebidoProvider.overrideWith(
-            (ref) async => DepositoServer(rutaBaseDatos: enMemoria),
-          ),
-          direccionLocalProvider.overrideWith((ref) async => '192.168.1.50'),
-          estadoConexionProvider.overrideWith(
-            (ref) => Stream.value(EstadoConexion.enLinea),
-          ),
-          eventosProvider.overrideWith((ref) => const Stream.empty()),
-        ],
-        child: const AnaquelApp(),
-      ),
-    );
-    await tester.pumpAndSettle();
-  });
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [
+        preferenciasProvider.overrideWithValue(prefs),
+        apiProvider.overrideWith((ref) async => api ?? ApiFalsa()),
+        servidorEmbebidoProvider.overrideWith(
+          (ref) async => DepositoServer(rutaBaseDatos: enMemoria),
+        ),
+        direccionLocalProvider.overrideWith((ref) async => '192.168.1.50'),
+        estadoConexionProvider.overrideWith(
+          (ref) => Stream.value(EstadoConexion.enLinea),
+        ),
+        eventosProvider.overrideWith((ref) => const Stream.empty()),
+      ],
+      child: const AnaquelApp(),
+    ),
+  );
+  await tester.pumpAndSettle();
 }
 
 /// Carga Barlow e íconos para que las capturas se vean como en el dispositivo
