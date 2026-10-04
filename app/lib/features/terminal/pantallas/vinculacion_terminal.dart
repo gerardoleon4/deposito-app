@@ -114,10 +114,12 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
                         right: 0,
                         child: Container(
                           height: 2,
-                          color: c.azul,
-                          boxShadow: [
-                            BoxShadow(color: c.azul.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2),
-                          ],
+                          decoration: BoxDecoration(
+                            color: c.azul,
+                            boxShadow: [
+                              BoxShadow(color: c.azul.withValues(alpha: 0.5), blurRadius: 10, spreadRadius: 2),
+                            ],
+                          ),
                         ),
                       ),
                     ],
