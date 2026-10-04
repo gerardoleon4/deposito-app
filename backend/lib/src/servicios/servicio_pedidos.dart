@@ -1,20 +1,24 @@
 import 'package:sqlite3/sqlite3.dart';
 
+import '../comun/errores.dart';
 import '../comun/fechas.dart';
 import '../comun/json.dart';
 import '../comun/seguridad.dart';
 import '../db/base_datos.dart';
+import '../db/repositorio_productos.dart';
 import '../modelos/evento.dart';
 import '../ws/hub.dart';
 
 class ServicioPedidos {
   ServicioPedidos({
     required this._db,
+    required this._repoProductos,
     required this._hub,
     this._reloj = relojSistema,
   });
 
   final Database _db;
+  final RepositorioProductos _repoProductos;
   final Hub _hub;
   final Reloj _reloj;
 
@@ -24,9 +28,36 @@ class ServicioPedidos {
   }) {
     final v = Validador(datos);
     final nota = v.texto('nota', requerido: false, max: 120);
-    final lineas = datos['lineas'];
-    if (lineas is! List || lineas.isEmpty) {
+    final crudo = datos['lineas'];
+    final lineas = <Map<String, Object?>>[];
+    if (crudo is! List || crudo.isEmpty) {
       v.error('lineas', 'Debe contener productos');
+    } else {
+      for (var i = 0; i < crudo.length; i++) {
+        final l = crudo[i];
+        final pid = l is Map ? l['productoId'] : null;
+        final unidad = l is Map ? l['unidad'] : null;
+        final cantidad = l is Map ? l['cantidad'] : null;
+        if (pid is! String ||
+            (unidad != 'pieza' && unidad != 'caja') ||
+            cantidad is! int ||
+            cantidad < 1) {
+          v.error(
+            'lineas',
+            'La línea ${i + 1} necesita productoId, unidad (pieza o caja) '
+                'y cantidad entera mayor que 0',
+          );
+          continue;
+        }
+        if (_repoProductos.porId(pid) == null) {
+          v.error(
+            'lineas',
+            'La línea ${i + 1} tiene un producto que no existe',
+          );
+          continue;
+        }
+        lineas.add({'productoId': pid, 'unidad': unidad, 'cantidad': cantidad});
+      }
     }
     v.comprobar();
 
@@ -39,8 +70,7 @@ class ServicioPedidos {
         [pedidoId, origen, fecha, nota],
       );
 
-      for (final l in (lineas as List)) {
-        if (l is! Map) continue;
+      for (final l in lineas) {
         _db.execute(
           'INSERT INTO pedido_lineas (pedido_id, producto_id, unidad, cantidad) VALUES (?, ?, ?, ?)',
           [pedidoId, l['productoId'], l['unidad'], l['cantidad']],
@@ -89,7 +119,11 @@ class ServicioPedidos {
   }
 
   void descartar(String id) {
-    _db.execute('UPDATE pedidos SET atendido = 1 WHERE id = ?', [id]);
+    _db.execute(
+      'UPDATE pedidos SET atendido = 1 WHERE id = ? AND atendido = 0',
+      [id],
+    );
+    if (_db.updatedRows == 0) throw ErrorApi.noEncontrado('el pedido');
     _hub.emitir(TiposEvento.pedidoAtendido, {'id': id});
   }
 }

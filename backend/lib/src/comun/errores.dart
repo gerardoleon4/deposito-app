@@ -52,6 +52,13 @@ class ErrorApi implements Exception {
     'Ya existe un producto con el código $codigo',
   );
 
+  factory ErrorApi.stockInsuficiente(String nombre, int disponibles) =>
+      ErrorApi(
+        409,
+        'stock_insuficiente',
+        'No hay suficiente $nombre: quedan $disponibles piezas',
+      );
+
   factory ErrorApi.interno() => ErrorApi(
     500,
     'error_interno',

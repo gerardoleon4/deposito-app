@@ -43,12 +43,16 @@ class ServidorPrueba {
   Future<http.Response> get(String ruta, {String? clave}) =>
       _cliente.get(uri(ruta), headers: _cabeceras(clave));
 
-  Future<http.Response> post(String ruta, Object? cuerpo, {String? clave}) =>
-      _cliente.post(
-        uri(ruta),
-        headers: _cabeceras(clave),
-        body: cuerpo is String ? cuerpo : jsonEncode(cuerpo),
-      );
+  Future<http.Response> post(
+    String ruta,
+    Object? cuerpo, {
+    String? clave,
+    Map<String, String> cabeceras = const {},
+  }) => _cliente.post(
+    uri(ruta),
+    headers: {..._cabeceras(clave), ...cabeceras},
+    body: cuerpo is String ? cuerpo : jsonEncode(cuerpo),
+  );
 
   Future<http.Response> delete(String ruta, {String? clave}) =>
       _cliente.delete(uri(ruta), headers: _cabeceras(clave));
@@ -82,6 +86,10 @@ Map<String, Object?> json(http.Response r) =>
 /// `codigo` del error del contrato.
 String? codigoError(http.Response r) =>
     (json(r)['error'] as Map<String, Object?>?)?['codigo'] as String?;
+
+/// Campos con error de un `datos_invalidos`.
+Map<String, Object?> camposError(http.Response r) =>
+    ((json(r)['error'] as Map)['campos'] as Map).cast();
 
 /// Producto válido mínimo para pruebas; [cambios] reemplaza campos.
 Map<String, Object?> productoValido([

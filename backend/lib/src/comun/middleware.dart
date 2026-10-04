@@ -10,6 +10,9 @@ import 'sesion.dart';
 
 const cabeceraClave = 'x-clave-terminal';
 
+/// Clave que la app genera por cobro para que un reintento no cobre dos veces.
+const cabeceraIdempotencia = 'x-clave-idempotencia';
+
 /// Rutas que no piden clave (relativas, sin `/` inicial).
 const _rutasPublicas = {'salud', 'api/v1/terminales/registro'};
 
