@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../../../app/tema/colores.dart';
 import '../../auth/pantallas/login_diario.dart';
@@ -13,9 +14,22 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
   bool _mostrandoInputManual = false;
   final _ipCtrl = TextEditingController();
   bool _detectado = false;
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    // Iniciar timer de 5 segundos para simular escaneo exitoso
+    _timer = Timer(const Duration(seconds: 5), () {
+      if (mounted && !_mostrandoInputManual) {
+        _simularConexionExitosa();
+      }
+    });
+  }
 
   @override
   void dispose() {
+    _timer?.cancel();
     _ipCtrl.dispose();
     super.dispose();
   }
@@ -41,7 +55,7 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Fondo oscurecido (simulando cámara apuntando a estantes)
+          // Fondo oscurecido
           Container(
             color: Colors.black87,
             child: Opacity(
@@ -74,7 +88,7 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
                           style: TextStyle(color: Colors.black, fontSize: 18, fontWeight: FontWeight.bold),
                         ),
                       ),
-                      const SizedBox(width: 40), // Balancear el header
+                      const SizedBox(width: 40),
                     ],
                   ),
                 ),
@@ -88,16 +102,13 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
                         Container(
                           width: 250,
                           height: 250,
-                          decoration: BoxDecoration(
-                            // Simulando los corchetes en las esquinas con un Stack o Border modificado.
-                            // Para simplificar y hacerlo idéntico sin un CustomPainter complejo, usaré un Stack con las 4 esquinas.
-                          ),
+                          decoration: const BoxDecoration(),
                           child: Stack(
                             children: [
-                              _EsquinaBrackets(esquina: 0, color: c.azul), // Arriba-Izquierda
-                              _EsquinaBrackets(esquina: 1, color: c.azul), // Arriba-Derecha
-                              _EsquinaBrackets(esquina: 2, color: c.azul), // Abajo-Derecha
-                              _EsquinaBrackets(esquina: 3, color: c.azul), // Abajo-Izquierda
+                              _EsquinaBrackets(esquina: 0, color: c.azul),
+                              _EsquinaBrackets(esquina: 1, color: c.azul),
+                              _EsquinaBrackets(esquina: 2, color: c.azul),
+                              _EsquinaBrackets(esquina: 3, color: c.azul),
                               
                               if (_detectado)
                                 Center(
@@ -134,7 +145,6 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
                   ),
                   child: Column(
                     children: [
-                      // Indicador de pasos
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -146,63 +156,105 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
                         ],
                       ),
                       const SizedBox(height: 32),
-                      Icon(Icons.qr_code_2_rounded, size: 40, color: c.azul),
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Escanea el código QR',
-                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
-                      ),
-                      const SizedBox(height: 12),
-                      const Text(
-                        'En el Servidor Host, ve a Configuración > Emparejar\nTerminal.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
-                      ),
-                      const SizedBox(height: 32),
                       
                       if (_mostrandoInputManual) ...[
+                        // ESTADO: CONEXIÓN MANUAL
+                        const Text(
+                          'Conexión manual',
+                          style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'Escribe la dirección IP que aparece en el Servidor Host.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 14, color: Colors.black54),
+                        ),
+                        const SizedBox(height: 24),
+                        
+                        Align(
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            'Dirección IP',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey[800]),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        
                         Row(
                           children: [
                             Expanded(
+                              flex: 2,
                               child: TextField(
                                 controller: _ipCtrl,
                                 decoration: InputDecoration(
-                                  hintText: 'Ej. 192.168.1.100',
-                                  filled: true,
-                                  fillColor: c.fondo,
-                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                                  hintText: '192.168.1.100',
+                                  hintStyle: const TextStyle(color: Colors.black38),
+                                  filled: false,
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                                  enabledBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: Colors.grey[300]!),
+                                  ),
+                                  focusedBorder: OutlineInputBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                    borderSide: BorderSide(color: c.azul, width: 2),
+                                  ),
                                 ),
                                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                style: const TextStyle(color: Colors.black87, fontSize: 16),
                               ),
                             ),
                             const SizedBox(width: 12),
-                            IconButton(
-                              onPressed: _simularConexionExitosa,
-                              icon: const Icon(Icons.arrow_forward_ios_rounded),
-                              style: IconButton.styleFrom(
-                                backgroundColor: c.azul,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.all(16),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            Expanded(
+                              flex: 1,
+                              child: ElevatedButton(
+                                onPressed: _simularConexionExitosa,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF3B82F6), // Azul vibrante del botón
+                                  foregroundColor: Colors.white,
+                                  elevation: 0,
+                                  padding: const EdgeInsets.symmetric(vertical: 16),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: const Text('Conectar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                               ),
                             ),
                           ],
                         ),
-                      ] else ...[
+                        
+                        const SizedBox(height: 24),
                         TextButton(
-                          onPressed: () => setState(() => _mostrandoInputManual = true),
-                          child: Text('Ingresar IP manualmente', style: TextStyle(color: c.azul, fontWeight: FontWeight.w600, fontSize: 14)),
+                          onPressed: () => setState(() => _mostrandoInputManual = false),
+                          child: const Text('Volver al escáner', style: TextStyle(color: Color(0xFF3B82F6), fontWeight: FontWeight.bold, fontSize: 16)),
+                        ),
+                      ] else ...[
+                        // ESTADO: ESCÁNER QR
+                        Icon(Icons.qr_code_2_rounded, size: 40, color: c.azul),
+                        const SizedBox(height: 16),
+                        const Text(
+                          'Escanea el código QR',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black),
+                        ),
+                        const SizedBox(height: 12),
+                        const Text(
+                          'En el Servidor Host, ve a Configuración > Emparejar\nTerminal.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 14, color: Colors.black54, height: 1.4),
+                        ),
+                        const SizedBox(height: 32),
+                        TextButton(
+                          onPressed: () {
+                            _timer?.cancel();
+                            setState(() => _mostrandoInputManual = true);
+                          },
+                          child: const Text('Ingresar IP manualmente', style: TextStyle(color: Color(0xFF3B82F6), fontWeight: FontWeight.w600, fontSize: 14)),
                         ),
                       ],
                       
-                      const SizedBox(height: 32),
-                      // Botón oculto para simular en el prototipo
-                      GestureDetector(
-                        onTap: _simularConexionExitosa,
-                        child: const Text(
-                          'Desarrollado por Equipo Umizommi',
-                          style: TextStyle(color: Colors.black38, fontSize: 12, fontWeight: FontWeight.w500),
-                        ),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'Desarrollado por Equipo Umizommi',
+                        style: TextStyle(color: Colors.black45, fontSize: 14, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
