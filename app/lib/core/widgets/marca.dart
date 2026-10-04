@@ -55,6 +55,51 @@ class _Botella extends CustomPainter {
   bool shouldRepaint(_Botella old) => old.color != color;
 }
 
+/// Logo de marca Nexo POS: "nexo" en oscuro y "POS" en azul.
+class LogoNexo extends StatelessWidget {
+  const LogoNexo({
+    super.key,
+    this.tamanoBase = 42,
+    this.mostrarSubtitulo = true,
+  });
+
+  final double tamanoBase;
+  final bool mostrarSubtitulo;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colores;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.baseline,
+      textBaseline: TextBaseline.alphabetic,
+      children: [
+        Text(
+          'nexo',
+          style: TextStyle(
+            fontSize: tamanoBase,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -1.2,
+            color: c.tinta,
+          ),
+        ),
+        if (mostrarSubtitulo) ...[
+          const SizedBox(width: 8),
+          Text(
+            'POS',
+            style: TextStyle(
+              fontSize: tamanoBase * 0.42,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.5,
+              color: c.azul,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 /// Píldora gris con texto secundario (fecha, IP, versión).
 class Pildora extends StatelessWidget {
   const Pildora({super.key, required this.texto, this.icono});
