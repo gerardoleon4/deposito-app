@@ -4,16 +4,37 @@
 // Uso: dart .github/scripts/verificar_versiones.dart [rama_base]
 // Con rama_base (por ejemplo origin/develop) también rechaza dependencias
 // que bajen de versión respecto a esa rama.
+//
+// La versión fija sale de ci.yml (setup-dart y flutter-version). Para subir
+// de versión se cambia ahí, en los pubspec.yaml y en AGENTS.md; si falta
+// alguno, este script dice cuál.
 import 'dart:io';
 
-/// Debe coincidir con AGENTS.md y con las versiones de ci.yml.
-const sdkFijo = '^3.13.4';
-
+const ci = '.github/workflows/ci.yml';
+const agentes = 'AGENTS.md';
 const pubspecs = ['backend/pubspec.yaml', 'app/pubspec.yaml'];
 
 void main(List<String> args) {
   final base = args.isEmpty ? null : args.first;
   final errores = <String>[];
+
+  final textoCi = File(ci).readAsStringSync();
+  final dart = RegExp(r'sdk:\s*(\d+\.\d+\.\d+)').firstMatch(textoCi)?.group(1);
+  final flutter = RegExp(r'flutter-version:\s*(\d+\.\d+\.\d+)')
+      .firstMatch(textoCi)
+      ?.group(1);
+  if (dart == null || flutter == null) {
+    stderr.writeln('$ci: no encontré la versión de Dart o de Flutter.');
+    exit(1);
+  }
+  final sdkFijo = '^$dart';
+
+  final textoAgentes = File(agentes).readAsStringSync();
+  if (!textoAgentes.contains('Flutter $flutter, Dart $dart')) {
+    errores.add(
+      '$agentes: debe decir "Flutter $flutter, Dart $dart" como $ci.',
+    );
+  }
 
   for (final ruta in pubspecs) {
     final texto = File(ruta).readAsStringSync();
@@ -59,8 +80,8 @@ void main(List<String> args) {
     ..writeln(
       '\nSi no compila en tu máquina, actualiza Flutter a la versión de '
       'AGENTS.md en lugar de bajar versiones. Si de verdad hay que cambiarlas, '
-      'se acuerda con el equipo y se actualiza sdkFijo en este script, '
-      'AGENTS.md y ci.yml en el mismo PR.',
+      'se acuerda con el equipo y se cambia en el mismo PR en $ci, '
+      'los pubspec.yaml y $agentes.',
     );
   exit(1);
 }
