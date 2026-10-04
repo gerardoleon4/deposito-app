@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/tema/colores.dart';
+import '../../../../core/formato/formato.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
 import 'corte_caja.dart';
 
@@ -9,7 +10,9 @@ class MovimientoCaja {
   final DateTime hora;
   final bool esIngreso;
   final String motivo;
-  final double monto;
+
+  /// Centavos.
+  final int monto;
 
   MovimientoCaja(this.id, this.hora, this.esIngreso, this.motivo, this.monto);
 }
@@ -22,28 +25,28 @@ class MovimientosCaja extends StatefulWidget {
 }
 
 class _MovimientosCajaState extends State<MovimientosCaja> {
-  double _saldoEstimado = 1500.0;
+  int _saldoEstimado = 150000;
   final List<MovimientoCaja> _movimientos = [
     MovimientoCaja(
       '1',
       DateTime.now().subtract(const Duration(hours: 2)),
       true,
       'Apertura de caja',
-      1000.0,
+      100000,
     ),
     MovimientoCaja(
       '2',
       DateTime.now().subtract(const Duration(minutes: 45)),
       false,
       'Pago proveedor hielo',
-      250.0,
+      25000,
     ),
     MovimientoCaja(
       '3',
       DateTime.now().subtract(const Duration(minutes: 10)),
       true,
       'Venta efectivo',
-      750.0,
+      75000,
     ),
   ];
 
@@ -141,7 +144,7 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '\$${_saldoEstimado.toStringAsFixed(2)}',
+                        dinero(_saldoEstimado),
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -289,7 +292,7 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                                 Expanded(
                                   flex: 2,
                                   child: Text(
-                                    '\$${mov.monto.toStringAsFixed(2)}',
+                                    dinero(mov.monto),
                                     textAlign: TextAlign.right,
                                     style: TextStyle(
                                       fontWeight: FontWeight.bold,
@@ -317,7 +320,9 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
 // 2.3 Modal de Registro de Movimiento
 class ModalRegistroMovimiento extends StatefulWidget {
   const ModalRegistroMovimiento({super.key, required this.alGuardar});
-  final void Function(bool esIngreso, double monto, String motivo) alGuardar;
+
+  /// [centavos] del movimiento.
+  final void Function(bool esIngreso, int centavos, String motivo) alGuardar;
 
   @override
   State<ModalRegistroMovimiento> createState() =>
@@ -349,8 +354,8 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
     });
   }
 
-  double get _monto =>
-      _montoText.isEmpty ? 0 : (double.tryParse(_montoText) ?? 0);
+  /// Se teclean pesos enteros.
+  int get _monto => _montoText.isEmpty ? 0 : int.parse(_montoText) * 100;
 
   @override
   Widget build(BuildContext context) {

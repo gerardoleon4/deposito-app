@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../app/tema/colores.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
 import '../../caja/pantallas/apertura_caja.dart';
 import '../../pdv/pantallas/punto_venta.dart';
@@ -12,9 +13,41 @@ class EmpleadoLogin {
   final String nombre;
   final String rol;
   final String pinReal;
-  final String avatarUrl;
 
-  EmpleadoLogin(this.id, this.nombre, this.rol, this.pinReal, this.avatarUrl);
+  EmpleadoLogin(this.id, this.nombre, this.rol, this.pinReal);
+
+  /// `Ana Martínez` → `AM`. La app funciona sin internet: nada de fotos
+  /// de la red.
+  String get iniciales => nombre
+      .split(' ')
+      .where((p) => p.isNotEmpty)
+      .take(2)
+      .map((p) => p[0].toUpperCase())
+      .join();
+}
+
+class _Avatar extends StatelessWidget {
+  const _Avatar({required this.empleado, required this.radio});
+
+  final EmpleadoLogin empleado;
+  final double radio;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colores;
+    return CircleAvatar(
+      radius: radio,
+      backgroundColor: c.azul.withValues(alpha: 0.12),
+      child: Text(
+        empleado.iniciales,
+        style: TextStyle(
+          color: c.azul,
+          fontWeight: FontWeight.bold,
+          fontSize: radio * 0.7,
+        ),
+      ),
+    );
+  }
 }
 
 class LoginDiario extends StatefulWidget {
@@ -29,34 +62,10 @@ class _LoginDiarioState extends State<LoginDiario> {
   DateTime _ahora = DateTime.now();
 
   final List<EmpleadoLogin> _empleados = [
-    EmpleadoLogin(
-      '1',
-      'Ana Martínez',
-      'Cajera',
-      '1234',
-      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
-    ),
-    EmpleadoLogin(
-      '2',
-      'Carlos Ruiz',
-      'Cajero',
-      '0000',
-      'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop',
-    ),
-    EmpleadoLogin(
-      '3',
-      'Sofía Vega',
-      'Gerente',
-      '1111',
-      'https://images.unsplash.com/photo-1531123897727-8f129e1bf98c?q=80&w=200&auto=format&fit=crop',
-    ),
-    EmpleadoLogin(
-      '4',
-      'Diego López',
-      'Cajero',
-      '2222',
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
-    ),
+    EmpleadoLogin('1', 'Ana Martínez', 'Cajera', '1234'),
+    EmpleadoLogin('2', 'Carlos Ruiz', 'Cajero', '0000'),
+    EmpleadoLogin('3', 'Sofía Vega', 'Gerente', '1111'),
+    EmpleadoLogin('4', 'Diego López', 'Cajero', '2222'),
   ];
 
   @override
@@ -189,10 +198,7 @@ class _LoginDiarioState extends State<LoginDiario> {
                                   width: 4,
                                 ),
                               ),
-                              child: CircleAvatar(
-                                radius: 40,
-                                backgroundImage: NetworkImage(emp.avatarUrl),
-                              ),
+                              child: _Avatar(empleado: emp, radio: 40),
                             ),
                             const SizedBox(height: 16),
                             Text(
@@ -344,10 +350,7 @@ class _ModalNumpadState extends State<_ModalNumpad> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(
-              radius: 32,
-              backgroundImage: NetworkImage(widget.empleado.avatarUrl),
-            ),
+            _Avatar(empleado: widget.empleado, radio: 32),
             const SizedBox(height: 16),
             Text(
               'Hola, ${widget.empleado.nombre.split(' ')[0]}',

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/tema/colores.dart';
+import '../../../../core/formato/formato.dart';
 import 'arqueo_caja.dart';
 
 class CorteCaja extends StatelessWidget {
@@ -73,19 +74,19 @@ class CorteCaja extends StatelessWidget {
                       children: [
                         _FilaMonto(
                           titulo: 'Ventas Efectivo',
-                          monto: 12500.50,
+                          monto: 1250050,
                           c: c,
                         ),
                         const SizedBox(height: 16),
                         _FilaMonto(
                           titulo: 'Ventas Tarjeta',
-                          monto: 3200.00,
+                          monto: 320000,
                           c: c,
                         ),
                         const SizedBox(height: 16),
                         _FilaMonto(
                           titulo: 'Envases / Extra',
-                          monto: -150.00,
+                          monto: -15000,
                           c: c,
                         ),
                         const SizedBox(height: 32),
@@ -155,7 +156,9 @@ class _FilaMonto extends StatelessWidget {
     required this.c,
   });
   final String titulo;
-  final double monto;
+
+  /// Centavos.
+  final int monto;
   final ColoresAnaquel c;
 
   @override
@@ -165,7 +168,7 @@ class _FilaMonto extends StatelessWidget {
       children: [
         Text(titulo, style: TextStyle(fontSize: 16, color: c.tinta)),
         Text(
-          '\$${monto.toStringAsFixed(2)}',
+          dinero(monto),
           style: TextStyle(
             fontSize: 18,
             fontWeight: FontWeight.w600,

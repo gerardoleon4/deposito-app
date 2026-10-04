@@ -23,6 +23,15 @@ abstract interface class Api {
   Future<List<Terminal>> listarTerminales();
 
   Future<void> revocarTerminal(String id);
+
+  /// Cobra en la caja. Reintentar con la misma [claveIdempotencia] regresa
+  /// la misma venta en lugar de cobrar otra vez.
+  Future<VentaRegistrada> registrarVenta({
+    required List<LineaVenta> lineas,
+    required String metodo,
+    int? recibido,
+    required String claveIdempotencia,
+  });
 }
 
 class ApiHttp implements Api {
@@ -112,6 +121,25 @@ class ApiHttp implements Api {
   @override
   Future<void> revocarTerminal(String id) =>
       _pedir(() => _dio.delete<void>('/api/v1/terminales/$id'));
+
+  @override
+  Future<VentaRegistrada> registrarVenta({
+    required List<LineaVenta> lineas,
+    required String metodo,
+    int? recibido,
+    required String claveIdempotencia,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/ventas',
+      data: {
+        'metodo': metodo,
+        'recibido': ?recibido,
+        'lineas': [for (final l in lineas) l.toJson()],
+      },
+      options: Options(headers: {cabeceraIdempotencia: claveIdempotencia}),
+    );
+    return VentaRegistrada.fromJson(r.data!);
+  });
 
   Future<T> _pedir<T>(Future<T> Function() accion) async {
     try {

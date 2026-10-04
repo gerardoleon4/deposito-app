@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/tema/colores.dart';
+import '../../../../core/formato/formato.dart';
 import 'recibo_cierre.dart';
 
+/// Billete o moneda del arqueo. Todo en centavos.
 class Denominacion {
-  final double valor;
+  final int valor;
   int cantidad;
 
   Denominacion(this.valor, {this.cantidad = 0});
 
-  double get subtotal => valor * cantidad;
+  int get subtotal => valor * cantidad;
 }
 
 class ArqueoCaja extends StatefulWidget {
@@ -21,24 +23,24 @@ class ArqueoCaja extends StatefulWidget {
 
 class _ArqueoCajaState extends State<ArqueoCaja> {
   final List<Denominacion> _denominaciones = [
+    Denominacion(100000),
+    Denominacion(50000),
+    Denominacion(20000),
+    Denominacion(10000),
+    Denominacion(5000),
+    Denominacion(2000),
     Denominacion(1000),
     Denominacion(500),
     Denominacion(200),
     Denominacion(100),
     Denominacion(50),
-    Denominacion(20),
-    Denominacion(10),
-    Denominacion(5),
-    Denominacion(2),
-    Denominacion(1),
-    Denominacion(0.5),
   ];
 
-  double get _totalContado {
+  int get _totalContado {
     return _denominaciones.fold(0, (sum, item) => sum + item.subtotal);
   }
 
-  final double _esperado = 12350.50; // Hardcoded para el demo
+  final int _esperado = 1235050; // Fijo para el demo, hasta que exista el corte
 
   void _calcularDiscrepancia() {
     showDialog(
@@ -104,7 +106,7 @@ class _ArqueoCajaState extends State<ArqueoCaja> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          '\$${den.valor == den.valor.toInt() ? den.valor.toInt() : den.valor.toStringAsFixed(1)}',
+                          dinero(den.valor),
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
@@ -149,7 +151,7 @@ class _ArqueoCajaState extends State<ArqueoCaja> {
                       SizedBox(
                         width: 100,
                         child: Text(
-                          '\$${den.subtotal.toStringAsFixed(2)}',
+                          dinero(den.subtotal),
                           textAlign: TextAlign.right,
                           style: TextStyle(
                             fontSize: 18,
@@ -193,7 +195,7 @@ class _ArqueoCajaState extends State<ArqueoCaja> {
                           ),
                         ),
                         Text(
-                          '\$${_totalContado.toStringAsFixed(2)}',
+                          dinero(_totalContado),
                           style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.bold,
@@ -244,8 +246,9 @@ class ModalDiscrepancia extends StatefulWidget {
     required this.alConfirmar,
   });
 
-  final double esperado;
-  final double contado;
+  /// Centavos.
+  final int esperado;
+  final int contado;
   final VoidCallback alConfirmar;
 
   @override
@@ -255,7 +258,7 @@ class ModalDiscrepancia extends StatefulWidget {
 class _ModalDiscrepanciaState extends State<ModalDiscrepancia> {
   final _justificacionCtrl = TextEditingController();
 
-  double get diferencia => widget.contado - widget.esperado;
+  int get diferencia => widget.contado - widget.esperado;
   bool get tieneDiscrepancia => diferencia != 0;
 
   @override
@@ -332,7 +335,7 @@ class _ModalDiscrepanciaState extends State<ModalDiscrepancia> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '\$${widget.esperado.toStringAsFixed(2)}',
+                      dinero(widget.esperado),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -350,7 +353,7 @@ class _ModalDiscrepanciaState extends State<ModalDiscrepancia> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      '\$${widget.contado.toStringAsFixed(2)}',
+                      dinero(widget.contado),
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -388,7 +391,7 @@ class _ModalDiscrepanciaState extends State<ModalDiscrepancia> {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    '\$${diferencia.abs().toStringAsFixed(2)}',
+                    dinero(diferencia.abs()),
                     style: TextStyle(
                       fontSize: 40,
                       fontWeight: FontWeight.bold,

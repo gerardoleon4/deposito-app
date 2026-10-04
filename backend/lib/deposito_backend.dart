@@ -15,4 +15,5 @@ export 'src/db/base_datos.dart' show enMemoria;
 export 'src/modelos/evento.dart';
 export 'src/modelos/producto.dart';
 export 'src/modelos/terminal.dart';
+export 'src/modelos/venta.dart';
 export 'src/servidor.dart' show DepositoServer, versionServidor;
