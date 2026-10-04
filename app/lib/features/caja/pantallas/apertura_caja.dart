@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../../app/tema/colores.dart';
+import '../../../../core/formato/formato.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
 
 class AperturaCaja extends StatefulWidget {
@@ -13,7 +14,9 @@ class AperturaCaja extends StatefulWidget {
 
   final String nombreCajero;
   final String inicialesCajero;
-  final void Function(double monto) alAbrir;
+
+  /// Fondo de caja en centavos.
+  final void Function(int centavos) alAbrir;
 
   @override
   State<AperturaCaja> createState() => _AperturaCajaState();
@@ -22,10 +25,8 @@ class AperturaCaja extends StatefulWidget {
 class _AperturaCajaState extends State<AperturaCaja> {
   String _montoText = '';
 
-  double get _monto {
-    if (_montoText.isEmpty) return 0;
-    return double.tryParse(_montoText) ?? 0;
-  }
+  /// Se teclean pesos enteros; el fondo se maneja en centavos.
+  int get _centavos => _montoText.isEmpty ? 0 : int.parse(_montoText) * 100;
 
   void _teclear(String tecla) {
     setState(() {
@@ -43,22 +44,10 @@ class _AperturaCajaState extends State<AperturaCaja> {
     });
   }
 
-  String _formatearMonto() {
-    if (_montoText.isEmpty) return '0.00';
-    final numero = double.parse(_montoText);
-    // Simple format without intl for now to avoid complexity, just as an example
-    return numero
-        .toStringAsFixed(2)
-        .replaceAllMapped(
-          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
-          (Match m) => '${m[1]},',
-        );
-  }
-
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final bool puedeAbrir = _montoText.isNotEmpty && _monto > 0;
+    final bool puedeAbrir = _centavos > 0;
 
     return PopScope(
       canPop: false, // Evita cerrar el modal (sin botón back)
@@ -138,7 +127,8 @@ class _AperturaCajaState extends State<AperturaCaja> {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    _formatearMonto(),
+                    // El signo de pesos va aparte, más chico.
+                    dinero(_centavos).replaceFirst(r'$', ''),
                     style: TextStyle(
                       fontSize: 64,
                       fontWeight: FontWeight.w700,
@@ -168,7 +158,9 @@ class _AperturaCajaState extends State<AperturaCaja> {
                 child: SizedBox(
                   width: double.infinity,
                   child: ElevatedButton(
-                    onPressed: puedeAbrir ? () => widget.alAbrir(_monto) : null,
+                    onPressed: puedeAbrir
+                        ? () => widget.alAbrir(_centavos)
+                        : null,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: c.azul,
                       foregroundColor: Colors.white,
