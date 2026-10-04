@@ -59,7 +59,7 @@ class ReciboCierre extends StatelessWidget {
                           _FilaTicket(etiqueta: 'Cajero:', valor: 'Sofía Vega'),
                           
                           const SizedBox(height: 16),
-                          const Divider(color: Colors.black54, style: BorderStyle.solid), // No hay estilo dash nativo simple, uso solid
+                          const Divider(color: Colors.black54), // No hay estilo dash nativo simple, uso solid
                           const SizedBox(height: 16),
                           
                           const Text('DESGLOSE DE VENTAS', style: TextStyle(fontWeight: FontWeight.bold)),

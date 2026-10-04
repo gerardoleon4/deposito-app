@@ -163,7 +163,7 @@ class _LoginDiarioState extends State<LoginDiario> {
                   ],
                 ),
                 Text(
-                  DateFormat('EEEE, d MMMM', 'es').format(_ahora).toUpperCase(),
+                  DateFormat('EEEE, d MMMM').format(_ahora).toUpperCase(),
                   style: TextStyle(
                     fontSize: 16,
                     fontWeight: FontWeight.w600,
