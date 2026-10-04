@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/tema/colores.dart';
 import '../../core/config/configuracion.dart';
+import '../terminal/pantallas/vinculacion_terminal.dart';
 import 'pantallas/crear_cuenta_maestra.dart';
 import 'pantallas/inicializando_bd.dart';
 import 'pantallas/restaurar_respaldo.dart';
@@ -118,7 +119,12 @@ class ElegirModo extends ConsumerWidget {
                     icono: Icons.smartphone_outlined,
                     titulo: 'Conectar Celular como Terminal',
                     descripcion: 'Vincula este equipo a un Servidor Host existente.',
-                    alPresionar: () => notificador.elegirModo(ModoDispositivo.terminal),
+                    alPresionar: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const VinculacionTerminal()),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                   _OpcionConfiguracion(
