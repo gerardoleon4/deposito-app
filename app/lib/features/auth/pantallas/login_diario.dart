@@ -5,6 +5,7 @@ import '../../../../app/tema/colores.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
 import '../../caja/pantallas/apertura_caja.dart';
 import '../../caja/pantallas/movimientos_caja.dart';
+import '../../pdv/pantallas/punto_venta.dart';
 
 class EmpleadoLogin {
   final String id;
@@ -92,7 +93,7 @@ class _LoginDiarioState extends State<LoginDiario> {
               alAbrir: (monto) {
                 Navigator.pushReplacement(
                   context,
-                  MaterialPageRoute(builder: (_) => const MovimientosCaja()),
+                  MaterialPageRoute(builder: (_) => const PuntoVenta()),
                 );
               },
             ),
