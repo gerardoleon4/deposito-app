@@ -486,7 +486,7 @@ class _PuntoVentaState extends State<PuntoVenta>
                                   vertical: 8,
                                 ),
                                 itemCount: _carrito.length,
-                                separatorBuilder: (_, __) =>
+                                separatorBuilder: (_, _) =>
                                     const Divider(height: 1),
                                 itemBuilder: (context, i) {
                                   final item = _carrito[i];

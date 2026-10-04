@@ -45,7 +45,7 @@ class ResumenCompra extends StatelessWidget {
                   vertical: 16,
                 ),
                 itemCount: carrito.length,
-                separatorBuilder: (_, __) => const Divider(height: 32),
+                separatorBuilder: (_, _) => const Divider(height: 32),
                 itemBuilder: (context, i) {
                   final item = carrito[i];
                   return Row(
