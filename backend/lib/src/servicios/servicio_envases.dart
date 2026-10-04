@@ -1,4 +1,5 @@
 import 'package:sqlite3/sqlite3.dart';
+
 import '../comun/errores.dart';
 import '../comun/fechas.dart';
 import '../comun/json.dart';
@@ -10,14 +11,11 @@ import '../ws/hub.dart';
 
 class ServicioEnvases {
   ServicioEnvases({
-    required Database db,
+    required this._db,
     required RepositorioEnvases repositorio,
-    required Hub hub,
-    Reloj reloj = relojSistema,
-  }) : _db = db,
-       _repo = repositorio,
-       _hub = hub,
-       _reloj = reloj;
+    required this._hub,
+    this._reloj = relojSistema,
+  }) : _repo = repositorio;
 
   final Database _db;
   final RepositorioEnvases _repo;
