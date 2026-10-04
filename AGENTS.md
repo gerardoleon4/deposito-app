@@ -73,6 +73,8 @@ Versiones fijas: **Flutter 3.47.5, Dart 3.13.4**.
 - Escribir SQL fuera de `db/` o lógica dentro de `rutas/`.
 - Emitir eventos de WebSocket dentro de una transacción.
 - Cambiar la API sin actualizar `docs/API.md`.
+- Bajar versiones del SDK o de dependencias, o usar `any`, para que compile: se actualiza Flutter. El CI lo revisa.
+- Saltar o borrar pruebas (`skip: true`) para que pase el CI.
 - Subir bases de datos, logs, claves o keystores.
 
 ## Git

@@ -53,11 +53,10 @@ class DepositoServer {
     String? claveCaja,
     this.datosEjemplo = false,
     Bitacora? bitacora,
-    Reloj reloj = relojSistema,
+    this._reloj = relojSistema,
   }) : direccion = direccion ?? InternetAddress.anyIPv4,
        claveCaja = claveCaja ?? generarClave(),
-       bitacora = bitacora ?? Bitacora(),
-       _reloj = reloj;
+       bitacora = bitacora ?? Bitacora();
 
   /// Archivo SQLite, o [enMemoria].
   final String rutaBaseDatos;
@@ -185,7 +184,7 @@ class DepositoServer {
       // Limpieza integral en caso de error durante el arranque
       await _hub?.cerrar();
       await _http?.close(force: true);
-      db.dispose();
+      db.close();
       _http = null;
       _db = null;
       _hub = null;
@@ -198,7 +197,7 @@ class DepositoServer {
   Future<void> detener() async {
     await _hub?.cerrar();
     await _http?.close(force: true);
-    _db?.dispose();
+    _db?.close();
     _http = null;
     _db = null;
     _hub = null;

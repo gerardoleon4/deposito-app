@@ -88,8 +88,7 @@ class ElegirModo extends ConsumerWidget {
                       _OpcionConfiguracion(
                         icono: Icons.dns_outlined,
                         titulo: 'Crear Nuevo Servidor POS',
-                        descripcion:
-                            'Configura este dispositivo como la caja principal.',
+                        descripcion: 'Configura este dispositivo como la caja principal.',
                         alPresionar: () {
                           Navigator.push(
                             context,

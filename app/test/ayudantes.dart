@@ -1,4 +1,5 @@
 import 'dart:io';
+
 import 'package:network_image_mock/network_image_mock.dart';
 
 import 'package:deposito_app/app/app.dart';
@@ -84,9 +85,14 @@ Future<void> cargarFuentes() async {
   await cargar('Barlow Condensed', [
     for (final p in ['SemiBold', 'Bold']) 'assets/fonts/BarlowCondensed-$p.ttf',
   ]);
-  final flutterRaiz = File(
-    Platform.resolvedExecutable,
-  ).parent.parent.parent.parent.parent.parent.path;
+  final flutterRaiz = File(Platform.resolvedExecutable)
+      .parent
+      .parent
+      .parent
+      .parent
+      .parent
+      .parent
+      .path;
   final iconos = File(
     '$flutterRaiz/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf',
   );
