@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../../../app/tema/colores.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
+import '../../caja/pantallas/apertura_caja.dart';
+import '../../caja/pantallas/movimientos_caja.dart';
 
 class EmpleadoLogin {
   final String id;
@@ -79,11 +81,23 @@ class _LoginDiarioState extends State<LoginDiario> {
     if (_pin.length == 4) {
       // Auto-validar en milisegundos
       if (_pin == _empleadoSeleccionado!.pinReal) {
-        // Correcto -> entrar
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Bienvenido, ${_empleadoSeleccionado!.nombre}')),
+        // Correcto -> Navegar a Apertura de Caja
+        final emp = _empleadoSeleccionado!;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => AperturaCaja(
+              nombreCajero: emp.nombre,
+              inicialesCajero: emp.iniciales,
+              alAbrir: (monto) {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (_) => const MovimientosCaja()),
+                );
+              },
+            ),
+          ),
         );
-        _cerrarNumpad();
       } else {
         // Incorrecto
         setState(() => _errorPin = true);

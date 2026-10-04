@@ -120,42 +120,52 @@ class _ConstruirPaso1 extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 120,
-          height: 120,
-          decoration: BoxDecoration(
-            color: c.azul.withValues(alpha: 0.05),
-            shape: BoxShape.circle,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 120,
+            height: 120,
+            decoration: BoxDecoration(
+              color: c.azul.withValues(alpha: 0.05),
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(Icons.description_outlined, size: 48, color: c.azul),
           ),
-          child: Icon(Icons.upload_file_rounded, size: 48, color: c.azul),
-        ),
-        const SizedBox(height: 32),
-        Text(
-          'Importar Respaldo',
-          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w700, color: c.tinta, letterSpacing: -0.5),
-        ),
-        const SizedBox(height: 12),
-        Text(
-          'Selecciona un archivo .sqlite previamente generado\npara recuperar toda la información del negocio.',
-          style: TextStyle(fontSize: 16, color: c.tinta2, height: 1.4),
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 48),
-        ElevatedButton(
-          onPressed: alSeleccionar,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: c.azul,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            elevation: 0,
+          const SizedBox(height: 32),
+          Text(
+            'Selecciona tu archivo de respaldo .sqlite',
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w700,
+              color: c.tinta,
+              letterSpacing: -0.5,
+              height: 1.2,
+            ),
+            textAlign: TextAlign.center,
           ),
-          child: const Text('Seleccionar archivo .sqlite', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Text(
+            'El archivo será verificado antes de modificar este dispositivo.',
+            style: TextStyle(fontSize: 16, color: c.tinta2, height: 1.4),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 48),
+          ElevatedButton(
+            onPressed: alSeleccionar,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: c.azul,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 0,
+            ),
+            child: const Text('Explorar Archivos del iPad', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+          ),
+        ],
+      ),
     );
   }
 }
