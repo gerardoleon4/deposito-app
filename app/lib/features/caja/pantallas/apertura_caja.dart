@@ -46,8 +46,12 @@ class _AperturaCajaState extends State<AperturaCaja> {
     if (_montoText.isEmpty) return '0.00';
     final numero = double.parse(_montoText);
     // Simple format without intl for now to avoid complexity, just as an example
-    return numero.toStringAsFixed(2).replaceAllMapped(
-        RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (Match m) => '${m[1]},');
+    return numero
+        .toStringAsFixed(2)
+        .replaceAllMapped(
+          RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'),
+          (Match m) => '${m[1]},',
+        );
   }
 
   @override
@@ -75,7 +79,10 @@ class _AperturaCajaState extends State<AperturaCaja> {
               ),
               const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
                 decoration: BoxDecoration(
                   color: c.superficie,
                   borderRadius: BorderRadius.circular(32),
@@ -89,19 +96,26 @@ class _AperturaCajaState extends State<AperturaCaja> {
                       backgroundColor: c.azul.withValues(alpha: 0.1),
                       child: Text(
                         widget.inicialesCajero,
-                        style: TextStyle(color: c.azul, fontWeight: FontWeight.w700, fontSize: 12),
+                        style: TextStyle(
+                          color: c.azul,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
                     const SizedBox(width: 12),
                     Text(
                       widget.nombreCajero,
-                      style: TextStyle(fontWeight: FontWeight.w600, color: c.tinta),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: c.tinta,
+                      ),
                     ),
                   ],
                 ),
               ),
               const Spacer(),
-              
+
               // Input Principal Gigante
               Text(
                 'Efectivo Inicial en Caja',
@@ -133,9 +147,9 @@ class _AperturaCajaState extends State<AperturaCaja> {
                   ),
                 ],
               ),
-              
+
               const Spacer(),
-              
+
               // Teclado
               SizedBox(
                 width: 320,
@@ -144,9 +158,9 @@ class _AperturaCajaState extends State<AperturaCaja> {
                   alBorrar: _borrar,
                 ),
               ),
-              
+
               const SizedBox(height: 48),
-              
+
               // Botón inferior
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -167,7 +181,10 @@ class _AperturaCajaState extends State<AperturaCaja> {
                     ),
                     child: const Text(
                       'Abrir Caja y Comenzar',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                   ),
                 ),

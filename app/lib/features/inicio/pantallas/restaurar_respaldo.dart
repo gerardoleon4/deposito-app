@@ -26,7 +26,7 @@ class _RestaurarRespaldoState extends State<RestaurarRespaldo> {
 
   void _teclear(String tecla) {
     if (_restaurando || _pin.length >= 6) return;
-    
+
     setState(() {
       _pin += tecla;
       _errorPin = false;
@@ -39,7 +39,7 @@ class _RestaurarRespaldoState extends State<RestaurarRespaldo> {
 
   void _borrar() {
     if (_restaurando || _pin.isEmpty) return;
-    
+
     setState(() {
       _pin = _pin.substring(0, _pin.length - 1);
       _errorPin = false;
@@ -83,7 +83,10 @@ class _RestaurarRespaldoState extends State<RestaurarRespaldo> {
             : TextButton.icon(
                 onPressed: () => Navigator.pop(context),
                 icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-                label: const Text('Volver', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                label: const Text(
+                  'Volver',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
                 style: TextButton.styleFrom(
                   foregroundColor: c.azul,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -98,14 +101,14 @@ class _RestaurarRespaldoState extends State<RestaurarRespaldo> {
             child: _restaurando
                 ? _ConstruirEstadoRestaurando(c: c)
                 : (!_archivoSeleccionado)
-                    ? _ConstruirPaso1(c: c, alSeleccionar: _seleccionarArchivo)
-                    : _ConstruirPaso2(
-                        c: c,
-                        pin: _pin,
-                        errorPin: _errorPin,
-                        alTeclear: _teclear,
-                        alBorrar: _borrar,
-                      ),
+                ? _ConstruirPaso1(c: c, alSeleccionar: _seleccionarArchivo)
+                : _ConstruirPaso2(
+                    c: c,
+                    pin: _pin,
+                    errorPin: _errorPin,
+                    alTeclear: _teclear,
+                    alBorrar: _borrar,
+                  ),
           ),
         ),
       ),
@@ -159,10 +162,15 @@ class _ConstruirPaso1 extends StatelessWidget {
               backgroundColor: c.azul,
               foregroundColor: Colors.white,
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 18),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12),
+              ),
               elevation: 0,
             ),
-            child: const Text('Explorar Archivos del iPad', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            child: const Text(
+              'Explorar Archivos del iPad',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
           ),
         ],
       ),
@@ -195,7 +203,11 @@ class _ConstruirPaso2 extends StatelessWidget {
             children: [
               Text(
                 'Desencriptar Respaldo',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700, color: c.tinta),
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.w700,
+                  color: c.tinta,
+                ),
               ),
               const SizedBox(height: 8),
               Text(
@@ -204,24 +216,20 @@ class _ConstruirPaso2 extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 48),
-              CampoPin(
-                longitud: 6,
-                valor: pin,
-                conError: errorPin,
-              ),
+              CampoPin(longitud: 6, valor: pin, conError: errorPin),
               const SizedBox(height: 24),
               if (errorPin)
                 Text(
                   'PIN incorrecto',
-                  style: TextStyle(color: c.alerta, fontWeight: FontWeight.w600),
+                  style: TextStyle(
+                    color: c.alerta,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
             ],
           ),
         ),
-        TecladoNumerico(
-          alPresionarTecla: alTeclear,
-          alBorrar: alBorrar,
-        ),
+        TecladoNumerico(alPresionarTecla: alTeclear, alBorrar: alBorrar),
         const SizedBox(height: 32),
       ],
     );

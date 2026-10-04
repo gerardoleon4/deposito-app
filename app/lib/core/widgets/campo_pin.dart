@@ -42,7 +42,7 @@ class _CirculoPin extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    
+
     final colorLleno = conError ? c.alerta : c.azul;
     final colorVacio = conError ? c.alerta.withValues(alpha: 0.3) : c.linea;
 
@@ -53,20 +53,14 @@ class _CirculoPin extends StatelessWidget {
       decoration: BoxDecoration(
         shape: BoxShape.circle,
         color: lleno ? colorLleno : Colors.transparent,
-        border: Border.all(
-          color: lleno ? colorLleno : colorVacio,
-          width: 2,
-        ),
+        border: Border.all(color: lleno ? colorLleno : colorVacio, width: 2),
       ),
     );
   }
 }
 
 class _ShakeWidget extends StatefulWidget {
-  const _ShakeWidget({
-    required this.child,
-    required this.shaking,
-  });
+  const _ShakeWidget({required this.child, required this.shaking});
 
   final Widget child;
   final bool shaking;
@@ -111,11 +105,8 @@ class _ShakeWidgetState extends State<_ShakeWidget>
         // Desvanecer la vibración hacia el final
         final fade = 1.0 - _controller.value;
         final dx = sine * 8 * fade;
-        
-        return Transform.translate(
-          offset: Offset(dx, 0),
-          child: child,
-        );
+
+        return Transform.translate(offset: Offset(dx, 0), child: child);
       },
       child: widget.child,
     );

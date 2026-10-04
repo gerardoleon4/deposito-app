@@ -1,12 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../../app/tema/colores.dart';
-import '../../../../core/widgets/campo_pin.dart';
 
 class ModalAltaEmpleado extends StatefulWidget {
-  const ModalAltaEmpleado({
-    super.key,
-    required this.alGuardar,
-  });
+  const ModalAltaEmpleado({super.key, required this.alGuardar});
 
   final void Function(String nombre, String rol, String pin) alGuardar;
 
@@ -30,12 +26,12 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
   void _guardar() {
     final nombre = _nombreCtrl.text.trim();
     final pin = _pinCtrl.text.trim();
-    
+
     if (nombre.isEmpty || pin.length < 4) {
       setState(() => _errorFormulario = true);
       return;
     }
-    
+
     Navigator.pop(context);
     widget.alGuardar(nombre, _rol, pin);
   }
@@ -63,11 +59,15 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
-            
+
             // Nombre
             Text(
               'Nombre o apodo',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.tinta),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: c.tinta,
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -75,24 +75,39 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
               decoration: InputDecoration(
                 filled: true,
                 fillColor: c.fondo,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _errorFormulario && _nombreCtrl.text.trim().isEmpty ? c.alerta : c.linea),
+                  borderSide: BorderSide(
+                    color: _errorFormulario && _nombreCtrl.text.trim().isEmpty
+                        ? c.alerta
+                        : c.linea,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _errorFormulario && _nombreCtrl.text.trim().isEmpty ? c.alerta : c.linea),
+                  borderSide: BorderSide(
+                    color: _errorFormulario && _nombreCtrl.text.trim().isEmpty
+                        ? c.alerta
+                        : c.linea,
+                  ),
                 ),
               ),
               onChanged: (_) => setState(() => _errorFormulario = false),
             ),
             const SizedBox(height: 16),
-            
+
             // Dropdown Rol
             Text(
               'Rol',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.tinta),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: c.tinta,
+              ),
             ),
             const SizedBox(height: 8),
             Container(
@@ -106,7 +121,10 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
                 child: DropdownButton<String>(
                   value: _rol,
                   isExpanded: true,
-                  icon: Icon(Icons.keyboard_arrow_down_rounded, color: c.tinta2),
+                  icon: Icon(
+                    Icons.keyboard_arrow_down_rounded,
+                    color: c.tinta2,
+                  ),
                   items: const [
                     DropdownMenuItem(value: 'Cajero', child: Text('Cajero')),
                     DropdownMenuItem(value: 'Gerente', child: Text('Gerente')),
@@ -118,11 +136,15 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
               ),
             ),
             const SizedBox(height: 16),
-            
+
             // PIN Oculto nativo
             Text(
               'Crear PIN',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: c.tinta),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: c.tinta,
+              ),
             ),
             const SizedBox(height: 8),
             TextField(
@@ -136,19 +158,30 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
                 counterText: '',
                 filled: true,
                 fillColor: c.fondo,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _errorFormulario && _pinCtrl.text.length < 4 ? c.alerta : c.linea),
+                  borderSide: BorderSide(
+                    color: _errorFormulario && _pinCtrl.text.length < 4
+                        ? c.alerta
+                        : c.linea,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: _errorFormulario && _pinCtrl.text.length < 4 ? c.alerta : c.linea),
+                  borderSide: BorderSide(
+                    color: _errorFormulario && _pinCtrl.text.length < 4
+                        ? c.alerta
+                        : c.linea,
+                  ),
                 ),
               ),
               onChanged: (_) => setState(() => _errorFormulario = false),
             ),
-            
+
             if (_errorFormulario)
               Padding(
                 padding: const EdgeInsets.only(top: 8),
@@ -158,9 +191,9 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
                   textAlign: TextAlign.center,
                 ),
               ),
-              
+
             const SizedBox(height: 32),
-            
+
             ElevatedButton(
               onPressed: _guardar,
               style: ElevatedButton.styleFrom(
@@ -174,10 +207,7 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
               ),
               child: const Text(
                 'Guardar Empleado',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
           ],

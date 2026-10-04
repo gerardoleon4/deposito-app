@@ -6,7 +6,7 @@ class SeguridadRespaldo extends StatelessWidget {
 
   void _mostrarAlertaExportar(BuildContext context) {
     final c = context.colores;
-    
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
@@ -20,10 +20,19 @@ class SeguridadRespaldo extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: c.alertaSuave.withValues(alpha: 0.2), // Yellowish/amber background
+                color: c.alertaSuave.withValues(
+                  alpha: 0.2,
+                ), // Yellowish/amber background
                 shape: BoxShape.circle,
               ),
-              child: const Text('!', style: TextStyle(color: Colors.amber, fontSize: 24, fontWeight: FontWeight.bold)),
+              child: const Text(
+                '!',
+                style: TextStyle(
+                  color: Colors.amber,
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
             const SizedBox(height: 24),
             Text(
@@ -70,7 +79,10 @@ class SeguridadRespaldo extends StatelessWidget {
                     borderRadius: BorderRadius.circular(12),
                   ),
                 ),
-                child: const Text('Continuar', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                child: const Text(
+                  'Continuar',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
               ),
             ),
             const SizedBox(height: 8),
@@ -78,9 +90,7 @@ class SeguridadRespaldo extends StatelessWidget {
               width: double.infinity,
               child: TextButton(
                 onPressed: () => Navigator.pop(context),
-                style: TextButton.styleFrom(
-                  foregroundColor: c.tinta2,
-                ),
+                style: TextButton.styleFrom(foregroundColor: c.tinta2),
                 child: const Text('Cancelar'),
               ),
             ),
@@ -92,7 +102,7 @@ class SeguridadRespaldo extends StatelessWidget {
 
   void _mostrarBottomSheetCompartir(BuildContext context) {
     final c = context.colores;
-    
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -127,10 +137,7 @@ class SeguridadRespaldo extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 'respaldo_pos.sqlite',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: c.tinta2,
-                ),
+                style: TextStyle(fontSize: 14, color: c.tinta2),
               ),
               const SizedBox(height: 32),
               Row(
@@ -188,17 +195,29 @@ class SeguridadRespaldo extends StatelessWidget {
                 children: [
                   TextButton.icon(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-                    label: const Text('Volver', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                    icon: const Icon(
+                      Icons.arrow_back_ios_new_rounded,
+                      size: 16,
+                    ),
+                    label: const Text(
+                      'Volver',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        fontSize: 16,
+                      ),
+                    ),
                     style: TextButton.styleFrom(
                       foregroundColor: c.azul,
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 8,
+                      ),
                     ),
                   ),
                 ],
               ),
             ),
-            
+
             Expanded(
               child: ListView(
                 padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -234,7 +253,7 @@ class SeguridadRespaldo extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 32),
-                  
+
                   // Tarjeta de estado
                   Container(
                     padding: const EdgeInsets.all(24),
@@ -252,7 +271,11 @@ class SeguridadRespaldo extends StatelessWidget {
                             color: c.azul.withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(16),
                           ),
-                          child: Icon(Icons.storage_rounded, color: c.azul, size: 28),
+                          child: Icon(
+                            Icons.storage_rounded,
+                            color: c.azul,
+                            size: 28,
+                          ),
                         ),
                         const SizedBox(width: 16),
                         Expanded(
@@ -278,9 +301,9 @@ class SeguridadRespaldo extends StatelessWidget {
                       ],
                     ),
                   ),
-                  
+
                   const SizedBox(height: 24),
-                  
+
                   ElevatedButton(
                     onPressed: () => _mostrarAlertaExportar(context),
                     style: ElevatedButton.styleFrom(
@@ -292,7 +315,13 @@ class SeguridadRespaldo extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text('Generar Respaldo Manual', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+                    child: const Text(
+                      'Generar Respaldo Manual',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -318,7 +347,7 @@ class _OpcionCompartir extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    
+
     return GestureDetector(
       onTap: alPresionar,
       child: Column(
@@ -335,10 +364,7 @@ class _OpcionCompartir extends StatelessWidget {
           const SizedBox(height: 12),
           Text(
             texto,
-            style: TextStyle(
-              fontSize: 12,
-              color: c.tinta,
-            ),
+            style: TextStyle(fontSize: 12, color: c.tinta),
             textAlign: TextAlign.center,
           ),
         ],

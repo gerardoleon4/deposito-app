@@ -3,10 +3,7 @@ import '../../../../app/tema/colores.dart';
 import '../../../../core/widgets/cargador_nexo.dart';
 
 class InicializandoBD extends StatefulWidget {
-  const InicializandoBD({
-    super.key,
-    required this.alTerminar,
-  });
+  const InicializandoBD({super.key, required this.alTerminar});
 
   final VoidCallback alTerminar;
 
@@ -48,10 +45,8 @@ class _InicializandoBDState extends State<InicializandoBD> {
           children: [
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 300),
-              transitionBuilder: (child, animation) => ScaleTransition(
-                scale: animation,
-                child: child,
-              ),
+              transitionBuilder: (child, animation) =>
+                  ScaleTransition(scale: animation, child: child),
               child: _terminado
                   ? Container(
                       key: const ValueKey('check'),
@@ -71,9 +66,7 @@ class _InicializandoBDState extends State<InicializandoBD> {
                       key: ValueKey('spinner'),
                       width: 120,
                       height: 120,
-                      child: Center(
-                        child: CargadorNexo(tamano: 40),
-                      ),
+                      child: Center(child: CargadorNexo(tamano: 40)),
                     ),
             ),
             const SizedBox(height: 32),

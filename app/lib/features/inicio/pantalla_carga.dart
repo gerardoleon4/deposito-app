@@ -40,10 +40,7 @@ class PantallaCarga extends StatelessWidget {
                 children: [
                   const Spacer(flex: 3),
                   // LogoNexPOS
-                  const LogoNexo(
-                    tamanoBase: 44,
-                    mostrarSubtitulo: true,
-                  ),
+                  const LogoNexo(tamanoBase: 44, mostrarSubtitulo: true),
                   const SizedBox(height: 64),
                   // Loader animado fluido metaball
                   const CargadorNexo(tamano: 64),

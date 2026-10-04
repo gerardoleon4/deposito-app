@@ -5,11 +5,7 @@ import '../../app/tema/colores.dart';
 
 /// Cargador fluido animado con efecto metaball de dos gotas que interactúan.
 class CargadorNexo extends StatefulWidget {
-  const CargadorNexo({
-    super.key,
-    this.tamano = 60.0,
-    this.color,
-  });
+  const CargadorNexo({super.key, this.tamano = 60.0, this.color});
 
   final double tamano;
   final Color? color;
@@ -51,10 +47,7 @@ class _CargadorNexoState extends State<CargadorNexo>
 
         return CustomPaint(
           size: Size(widget.tamano * 2.4, widget.tamano),
-          painter: _MetaballPainter(
-            progreso: progreso,
-            color: colorEfectivo,
-          ),
+          painter: _MetaballPainter(progreso: progreso, color: colorEfectivo),
         );
       },
     );
@@ -62,10 +55,7 @@ class _CargadorNexoState extends State<CargadorNexo>
 }
 
 class _MetaballPainter extends CustomPainter {
-  _MetaballPainter({
-    required this.progreso,
-    required this.color,
-  });
+  _MetaballPainter({required this.progreso, required this.color});
 
   final double progreso;
   final Color color;
@@ -118,11 +108,23 @@ class _MetaballPainter extends CustomPainter {
         final b1 = angle + math.pi - spread2;
         final b2 = angle + math.pi + spread2;
 
-        final p1a = Offset(c1.dx + r1 * math.cos(a1), c1.dy + r1 * math.sin(a1));
-        final p1b = Offset(c1.dx + r1 * math.cos(a2), c1.dy + r1 * math.sin(a2));
+        final p1a = Offset(
+          c1.dx + r1 * math.cos(a1),
+          c1.dy + r1 * math.sin(a1),
+        );
+        final p1b = Offset(
+          c1.dx + r1 * math.cos(a2),
+          c1.dy + r1 * math.sin(a2),
+        );
 
-        final p2a = Offset(c2.dx + r2 * math.cos(b1), c2.dy + r2 * math.sin(b1));
-        final p2b = Offset(c2.dx + r2 * math.cos(b2), c2.dy + r2 * math.sin(b2));
+        final p2a = Offset(
+          c2.dx + r2 * math.cos(b1),
+          c2.dy + r2 * math.sin(b1),
+        );
+        final p2b = Offset(
+          c2.dx + r2 * math.cos(b2),
+          c2.dy + r2 * math.sin(b2),
+        );
 
         final midX = (c1.dx + c2.dx) / 2;
         final midY = (c1.dy + c2.dy) / 2;

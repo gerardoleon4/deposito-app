@@ -87,7 +87,8 @@ final seccionesCaja = <SeccionCaja>[
     () => const Proximamente(
       icono: Icons.point_of_sale_outlined,
       titulo: 'Corte de caja',
-      descripcion: 'Apertura con fondo, arqueo y cierre del turno con respaldo automático.',
+      descripcion:
+          'Apertura con fondo, arqueo y cierre del turno con respaldo automático.',
       sprint: 3,
       responsable: 'Daniel',
     ),
@@ -100,7 +101,8 @@ final seccionesCaja = <SeccionCaja>[
     () => const Proximamente(
       icono: Icons.notifications_none_rounded,
       titulo: 'Alertas',
-      descripcion: 'Productos bajo su mínimo y próximos a caducar. Mientras tanto, el Inicio ya los muestra.',
+      descripcion:
+          'Productos bajo su mínimo y próximos a caducar. Mientras tanto, el Inicio ya los muestra.',
       sprint: 4,
       responsable: 'Luis',
     ),
@@ -113,7 +115,8 @@ final seccionesCaja = <SeccionCaja>[
     () => const Proximamente(
       icono: Icons.local_shipping_outlined,
       titulo: 'Resurtido',
-      descripcion: 'Cuánto comprar según lo vendido, con pedido al proveedor por WhatsApp.',
+      descripcion:
+          'Cuánto comprar según lo vendido, con pedido al proveedor por WhatsApp.',
       sprint: 4,
       responsable: 'Luis',
     ),

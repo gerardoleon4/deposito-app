@@ -13,11 +13,7 @@ import 'package:deposito_app/app/app.dart';
 
 void main() {
   testWidgets('Carga inicial de AnaquelApp', (WidgetTester tester) async {
-    await tester.pumpWidget(
-      const ProviderScope(
-        child: AnaquelApp(),
-      ),
-    );
+    await tester.pumpWidget(const ProviderScope(child: AnaquelApp()));
     expect(find.byType(MaterialApp), findsOneWidget);
   });
 }

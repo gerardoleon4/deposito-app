@@ -23,10 +23,19 @@ class TecladoNumerico extends StatelessWidget {
       mainAxisSpacing: 8,
       crossAxisSpacing: 8,
       children: [
-        for (var i = 1; i <= 9; i++) _Tecla(numero: i.toString(), alPresionar: alPresionarTecla, color: c.tinta),
+        for (var i = 1; i <= 9; i++)
+          _Tecla(
+            numero: i.toString(),
+            alPresionar: alPresionarTecla,
+            color: c.tinta,
+          ),
         const SizedBox.shrink(),
         _Tecla(numero: '0', alPresionar: alPresionarTecla, color: c.tinta),
-        _TeclaIcono(icono: Icons.backspace_outlined, alPresionar: alBorrar, color: c.tinta),
+        _TeclaIcono(
+          icono: Icons.backspace_outlined,
+          alPresionar: alBorrar,
+          color: c.tinta,
+        ),
       ],
     );
   }
@@ -84,11 +93,7 @@ class _TeclaIcono extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         onTap: alPresionar,
         child: Center(
-          child: Icon(
-            icono,
-            size: 28,
-            color: color.withValues(alpha: 0.7),
-          ),
+          child: Icon(icono, size: 28, color: color.withValues(alpha: 0.7)),
         ),
       ),
     );

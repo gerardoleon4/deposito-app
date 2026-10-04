@@ -12,7 +12,7 @@ class EscanerContinuo extends StatefulWidget {
 class _EscanerContinuoState extends State<EscanerContinuo> {
   void _simularEscaneoExitoso() {
     HapticFeedback.vibrate();
-    
+
     // Mostrar Toast flotante verde sin bloquear
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -20,7 +20,13 @@ class _EscanerContinuoState extends State<EscanerContinuo> {
           children: [
             const Icon(Icons.check_circle_rounded, color: Colors.white),
             const SizedBox(width: 8),
-            const Text('Agregado: Modelo Especial', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            const Text(
+              'Agregado: Modelo Especial',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ],
         ),
         backgroundColor: Colors.green[600],
@@ -46,17 +52,23 @@ class _EscanerContinuoState extends State<EscanerContinuo> {
           Container(
             color: Colors.grey[900],
             child: const Center(
-              child: Text('Cámara Activa', style: TextStyle(color: Colors.white54, fontSize: 24)),
+              child: Text(
+                'Cámara Activa',
+                style: TextStyle(color: Colors.white54, fontSize: 24),
+              ),
             ),
           ),
-          
+
           // Retícula central
           Center(
             child: Container(
               width: 250,
               height: 250,
               decoration: BoxDecoration(
-                border: Border.all(color: Colors.white.withValues(alpha: 0.5), width: 2),
+                border: Border.all(
+                  color: Colors.white.withValues(alpha: 0.5),
+                  width: 2,
+                ),
                 borderRadius: BorderRadius.circular(16),
               ),
               child: Stack(
@@ -69,7 +81,7 @@ class _EscanerContinuoState extends State<EscanerContinuo> {
               ),
             ),
           ),
-          
+
           // Botón Cerrar Superior
           Positioned(
             top: 48,
@@ -85,7 +97,7 @@ class _EscanerContinuoState extends State<EscanerContinuo> {
               ),
             ),
           ),
-          
+
           // Botón Simular Escaneo
           Positioned(
             bottom: 48,
@@ -99,8 +111,13 @@ class _EscanerContinuoState extends State<EscanerContinuo> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
                   foregroundColor: Colors.black,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(32),
+                  ),
                 ),
               ),
             ),
@@ -122,10 +139,18 @@ class _Esquina extends StatelessWidget {
       height: 30,
       decoration: BoxDecoration(
         border: Border(
-          top: (index == 0 || index == 1) ? const BorderSide(color: Colors.greenAccent, width: 4) : BorderSide.none,
-          bottom: (index == 2 || index == 3) ? const BorderSide(color: Colors.greenAccent, width: 4) : BorderSide.none,
-          left: (index == 0 || index == 3) ? const BorderSide(color: Colors.greenAccent, width: 4) : BorderSide.none,
-          right: (index == 1 || index == 2) ? const BorderSide(color: Colors.greenAccent, width: 4) : BorderSide.none,
+          top: (index == 0 || index == 1)
+              ? const BorderSide(color: Colors.greenAccent, width: 4)
+              : BorderSide.none,
+          bottom: (index == 2 || index == 3)
+              ? const BorderSide(color: Colors.greenAccent, width: 4)
+              : BorderSide.none,
+          left: (index == 0 || index == 3)
+              ? const BorderSide(color: Colors.greenAccent, width: 4)
+              : BorderSide.none,
+          right: (index == 1 || index == 2)
+              ? const BorderSide(color: Colors.greenAccent, width: 4)
+              : BorderSide.none,
         ),
       ),
     );

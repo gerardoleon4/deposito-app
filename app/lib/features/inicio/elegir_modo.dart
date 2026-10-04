@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/tema/colores.dart';
-import '../../core/config/configuracion.dart';
 import '../terminal/pantallas/vinculacion_terminal.dart';
 import 'pantallas/crear_cuenta_maestra.dart';
 import 'pantallas/inicializando_bd.dart';
@@ -17,7 +16,7 @@ class ElegirModo extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colores;
-    final notificador = ref.read(configuracionProvider.notifier);
+    // notificador ya no es necesario aquí
 
     return Scaffold(
       backgroundColor: c.fondo,
@@ -47,117 +46,128 @@ class ElegirModo extends ConsumerWidget {
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 600),
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 32,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const SizedBox(height: 48),
-                  Text(
-                    'Configura tu punto de venta',
-                    style: TextStyle(
-                      fontSize: 28,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.5,
-                      color: c.tinta,
-                      height: 1.2,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'Elige qué deseas hacer en este dispositivo.',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: c.tinta2,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                  const SizedBox(height: 40),
-                  Text(
-                    'Selecciona una opción',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: c.tinta,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  
-                  // Opciones
-                  _OpcionConfiguracion(
-                    icono: Icons.dns_outlined,
-                    titulo: 'Crear Nuevo Servidor POS',
-                    descripcion: 'Configura este dispositivo como la caja principal.',
-                    alPresionar: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (_) => CrearCuentaMaestra(
-                            alCompletar: (n, p) {
-                              Navigator.pushReplacement(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => InicializandoBD(
-                                    alTerminar: () {
-                                      Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) => const GestionPersonal(),
-                                        ),
-                                      );
-                                    },
-                                  ),
-                                ),
-                              );
-                            },
+                    children: [
+                      const SizedBox(height: 48),
+                      Text(
+                        'Configura tu punto de venta',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                          color: c.tinta,
+                          height: 1.2,
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Elige qué deseas hacer en este dispositivo.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: c.tinta2,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      Text(
+                        'Selecciona una opción',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: c.tinta,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Opciones
+                      _OpcionConfiguracion(
+                        icono: Icons.dns_outlined,
+                        titulo: 'Crear Nuevo Servidor POS',
+                        descripcion:
+                            'Configura este dispositivo como la caja principal.',
+                        alPresionar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CrearCuentaMaestra(
+                                alCompletar: (n, p) {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => InicializandoBD(
+                                        alTerminar: () {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const GestionPersonal(),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _OpcionConfiguracion(
+                        icono: Icons.smartphone_outlined,
+                        titulo: 'Conectar Celular como Terminal',
+                        descripcion:
+                            'Vincula este equipo a un Servidor Host existente.',
+                        alPresionar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const VinculacionTerminal(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _OpcionConfiguracion(
+                        icono: Icons.restore_outlined,
+                        titulo: 'Restaurar Servidor desde Respaldo',
+                        descripcion:
+                            'Recupera inventario, personal y cortes de caja.',
+                        alPresionar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RestaurarRespaldo(),
+                            ),
+                          );
+                        },
+                      ),
+
+                      const Spacer(),
+
+                      // Footer
+                      Center(
+                        child: Text(
+                          'Desarrollado por Equipo Umizommi',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: c.tinta2,
+                            fontWeight: FontWeight.w500,
                           ),
                         ),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _OpcionConfiguracion(
-                    icono: Icons.smartphone_outlined,
-                    titulo: 'Conectar Celular como Terminal',
-                    descripcion: 'Vincula este equipo a un Servidor Host existente.',
-                    alPresionar: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const VinculacionTerminal()),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  _OpcionConfiguracion(
-                    icono: Icons.restore_outlined,
-                    titulo: 'Restaurar Servidor desde Respaldo',
-                    descripcion: 'Recupera inventario, personal y cortes de caja.',
-                    alPresionar: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => const RestaurarRespaldo()),
-                      );
-                    },
-                  ),
-
-                  const Spacer(),
-                  
-                  // Footer
-                  Center(
-                    child: Text(
-                      'Desarrollado por Equipo Umizommi',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: c.tinta2,
-                        fontWeight: FontWeight.w500,
                       ),
-                    ),
+                      const SizedBox(height: 16),
+                    ],
                   ),
-                  const SizedBox(height: 16),
-                ],
+                ),
               ),
             ),
-          ),
-        ),
           ), // Closes SafeArea
         ], // Closes Stack children
       ), // Closes Stack
@@ -181,7 +191,7 @@ class _OpcionConfiguracion extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    
+
     return Material(
       type: MaterialType.transparency,
       child: Ink(
@@ -238,11 +248,7 @@ class _OpcionConfiguracion extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(width: 12),
-                Icon(
-                  Icons.chevron_right_rounded,
-                  color: c.tinta,
-                  size: 24,
-                ),
+                Icon(Icons.chevron_right_rounded, color: c.tinta, size: 24),
               ],
             ),
           ),

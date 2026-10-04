@@ -24,7 +24,10 @@ class CorteCaja extends StatelessWidget {
         leading: TextButton.icon(
           onPressed: () => Navigator.pop(context),
           icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-          label: const Text('Volver', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+          label: const Text(
+            'Volver',
+            style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+          ),
           style: TextButton.styleFrom(
             foregroundColor: c.azul,
             padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -43,7 +46,11 @@ class CorteCaja extends StatelessWidget {
                 children: [
                   Text(
                     'Corte de Caja',
-                    style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: c.tinta),
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: c.tinta,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -51,7 +58,7 @@ class CorteCaja extends StatelessWidget {
                     style: TextStyle(fontSize: 16, color: c.tinta2),
                   ),
                   const SizedBox(height: 48),
-                  
+
                   // Contenedor tipo recibo
                   Container(
                     padding: const EdgeInsets.all(32),
@@ -63,30 +70,51 @@ class CorteCaja extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        _FilaMonto(titulo: 'Ventas Efectivo', monto: 12500.50, c: c),
+                        _FilaMonto(
+                          titulo: 'Ventas Efectivo',
+                          monto: 12500.50,
+                          c: c,
+                        ),
                         const SizedBox(height: 16),
-                        _FilaMonto(titulo: 'Ventas Tarjeta', monto: 3200.00, c: c),
+                        _FilaMonto(
+                          titulo: 'Ventas Tarjeta',
+                          monto: 3200.00,
+                          c: c,
+                        ),
                         const SizedBox(height: 16),
-                        _FilaMonto(titulo: 'Envases / Extra', monto: -150.00, c: c),
+                        _FilaMonto(
+                          titulo: 'Envases / Extra',
+                          monto: -150.00,
+                          c: c,
+                        ),
                         const SizedBox(height: 32),
                         const Divider(),
                         const SizedBox(height: 32),
-                        
+
                         Text(
                           'Efectivo Esperado en Caja',
-                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: c.tinta2),
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: c.tinta2,
+                          ),
                         ),
                         const SizedBox(height: 8),
                         Text(
                           '\$12,350.50',
-                          style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: c.azul, letterSpacing: -1),
+                          style: TextStyle(
+                            fontSize: 48,
+                            fontWeight: FontWeight.bold,
+                            color: c.azul,
+                            letterSpacing: -1,
+                          ),
                           textAlign: TextAlign.right,
                         ),
                       ],
                     ),
                   ),
                   const SizedBox(height: 48),
-                  
+
                   SizedBox(
                     width: double.infinity,
                     child: ElevatedButton(
@@ -95,10 +123,18 @@ class CorteCaja extends StatelessWidget {
                         backgroundColor: c.azul,
                         foregroundColor: Colors.white,
                         padding: const EdgeInsets.symmetric(vertical: 20),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(16),
+                        ),
                         elevation: 0,
                       ),
-                      child: const Text('Proceder a Conteo Físico', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600)),
+                      child: const Text(
+                        'Proceder a Conteo Físico',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -112,7 +148,11 @@ class CorteCaja extends StatelessWidget {
 }
 
 class _FilaMonto extends StatelessWidget {
-  const _FilaMonto({required this.titulo, required this.monto, required this.c});
+  const _FilaMonto({
+    required this.titulo,
+    required this.monto,
+    required this.c,
+  });
   final String titulo;
   final double monto;
   final ColoresAnaquel c;
@@ -125,7 +165,11 @@ class _FilaMonto extends StatelessWidget {
         Text(titulo, style: TextStyle(fontSize: 16, color: c.tinta)),
         Text(
           '\$${monto.toStringAsFixed(2)}',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: c.tinta),
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: c.tinta,
+          ),
         ),
       ],
     );

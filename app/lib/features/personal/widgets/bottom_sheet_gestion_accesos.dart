@@ -15,13 +15,16 @@ class BottomSheetGestionAccesos extends StatelessWidget {
 
   void _confirmarSuspension(BuildContext context) {
     final c = context.colores;
-    
+
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
         backgroundColor: c.superficie,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Text('¿Estás seguro?', style: TextStyle(color: c.tinta, fontWeight: FontWeight.bold)),
+        title: Text(
+          '¿Estás seguro?',
+          style: TextStyle(color: c.tinta, fontWeight: FontWeight.bold),
+        ),
         content: Text(
           '¿Estás seguro de revocar el acceso a este usuario?',
           style: TextStyle(color: c.tinta2),
@@ -36,7 +39,10 @@ class BottomSheetGestionAccesos extends StatelessWidget {
               Navigator.pop(context); // Cierra alerta
               alSuspender();
             },
-            child: Text('Suspender', style: TextStyle(color: c.alerta, fontWeight: FontWeight.bold)),
+            child: Text(
+              'Suspender',
+              style: TextStyle(color: c.alerta, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),
@@ -68,16 +74,13 @@ class BottomSheetGestionAccesos extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Cabecera
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'Gestionar acceso',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: c.tinta2,
-                  ),
+                  style: TextStyle(fontSize: 13, color: c.tinta2),
                 ),
               ),
               const SizedBox(height: 4),
@@ -93,7 +96,7 @@ class BottomSheetGestionAccesos extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               // Opción 1: Ver Ventas
               _OpcionBottomSheet(
                 icono: Icons.bar_chart_rounded,
@@ -101,7 +104,7 @@ class BottomSheetGestionAccesos extends StatelessWidget {
                 alPresionar: () => Navigator.pop(context),
               ),
               const SizedBox(height: 16),
-              
+
               // Opción 2: Cambiar PIN
               _OpcionBottomSheet(
                 icono: Icons.vpn_key_outlined,
@@ -109,7 +112,7 @@ class BottomSheetGestionAccesos extends StatelessWidget {
                 alPresionar: () => Navigator.pop(context),
               ),
               const SizedBox(height: 16),
-              
+
               // Opción 3 Destructiva
               SizedBox(
                 width: double.infinity,
@@ -127,15 +130,12 @@ class BottomSheetGestionAccesos extends StatelessWidget {
                   ),
                   child: const Text(
                     'Suspender Acceso / Dar de Baja',
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
               const SizedBox(height: 24),
-              
+
               SizedBox(
                 width: double.infinity,
                 child: TextButton(

@@ -87,7 +87,8 @@ class PantallaAjustes extends ConsumerWidget {
                               final ok = await confirmar(
                                 context,
                                 titulo: '¿Desvincular de la caja?',
-                                mensaje: 'Para volver a usar esta terminal hay que escanear un código nuevo en la caja.',
+                                mensaje:
+                                    'Para volver a usar esta terminal hay que escanear un código nuevo en la caja.',
                                 accion: 'Desvincular',
                                 peligrosa: true,
                               );

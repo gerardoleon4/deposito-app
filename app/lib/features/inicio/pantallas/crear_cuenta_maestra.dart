@@ -4,10 +4,7 @@ import '../../../../core/widgets/campo_pin.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
 
 class CrearCuentaMaestra extends StatefulWidget {
-  const CrearCuentaMaestra({
-    super.key,
-    required this.alCompletar,
-  });
+  const CrearCuentaMaestra({super.key, required this.alCompletar});
 
   final void Function(String nombre, String pin) alCompletar;
 
@@ -18,7 +15,7 @@ class CrearCuentaMaestra extends StatefulWidget {
 class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
   final _negocioCtrl = TextEditingController();
   final _nombreCtrl = TextEditingController();
-  
+
   String _pin = '';
   String _pinConfirmacion = '';
   bool _confirmando = false;
@@ -60,7 +57,10 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
     } else {
       if (_pinConfirmacion.isNotEmpty) {
         setState(() {
-          _pinConfirmacion = _pinConfirmacion.substring(0, _pinConfirmacion.length - 1);
+          _pinConfirmacion = _pinConfirmacion.substring(
+            0,
+            _pinConfirmacion.length - 1,
+          );
           _errorPin = false;
         });
       }
@@ -70,11 +70,13 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
   void _continuar() {
     if (_negocioCtrl.text.trim().isEmpty || _nombreCtrl.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Por favor completa todos los campos de texto')),
+        const SnackBar(
+          content: Text('Por favor completa todos los campos de texto'),
+        ),
       );
       return;
     }
-    
+
     if (!_confirmando) {
       if (_pin.length == 6) {
         setState(() {
@@ -123,7 +125,10 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
               children: [
                 // Custom AppBar
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   child: Row(
                     children: [
                       TextButton.icon(
@@ -138,17 +143,29 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                             Navigator.pop(context);
                           }
                         },
-                        icon: const Icon(Icons.arrow_back_ios_new_rounded, size: 16),
-                        label: const Text('Volver', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16)),
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new_rounded,
+                          size: 16,
+                        ),
+                        label: const Text(
+                          'Volver',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
+                            fontSize: 16,
+                          ),
+                        ),
                         style: TextButton.styleFrom(
                           foregroundColor: c.azul,
-                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 8,
+                          ),
                         ),
                       ),
                     ],
                   ),
                 ),
-                
+
                 Expanded(
                   child: ListView(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -184,7 +201,7 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                         ),
                       ),
                       const SizedBox(height: 32),
-                      
+
                       // Campos de Texto solo si no estamos confirmando
                       if (!_confirmando) ...[
                         Text(
@@ -200,10 +217,15 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                           controller: _negocioCtrl,
                           decoration: InputDecoration(
                             hintText: 'Ej. Café Central',
-                            hintStyle: TextStyle(color: c.tinta2.withValues(alpha: 0.5)),
+                            hintStyle: TextStyle(
+                              color: c.tinta2.withValues(alpha: 0.5),
+                            ),
                             filled: true,
                             fillColor: c.fondo,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(color: c.linea),
@@ -215,7 +237,7 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        
+
                         Text(
                           'Nombre del Dueño',
                           style: TextStyle(
@@ -229,10 +251,15 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                           controller: _nombreCtrl,
                           decoration: InputDecoration(
                             hintText: 'Nombre completo',
-                            hintStyle: TextStyle(color: c.tinta2.withValues(alpha: 0.5)),
+                            hintStyle: TextStyle(
+                              color: c.tinta2.withValues(alpha: 0.5),
+                            ),
                             filled: true,
                             fillColor: c.fondo,
-                            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 16,
+                            ),
                             border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
                               borderSide: BorderSide(color: c.linea),
@@ -247,9 +274,11 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                       ] else ...[
                         const SizedBox(height: 32),
                       ],
-                      
+
                       Text(
-                        _confirmando ? 'Confirma tu PIN Maestro' : 'Crea un PIN Maestro',
+                        _confirmando
+                            ? 'Confirma tu PIN Maestro'
+                            : 'Crea un PIN Maestro',
                         style: TextStyle(
                           fontSize: 20,
                           fontWeight: FontWeight.w700,
@@ -259,30 +288,29 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        _confirmando ? 'Vuelve a escribir el PIN para confirmar.' : 'Usa seis dígitos que puedas recordar.',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: c.tinta2,
-                        ),
+                        _confirmando
+                            ? 'Vuelve a escribir el PIN para confirmar.'
+                            : 'Usa seis dígitos que puedas recordar.',
+                        style: TextStyle(fontSize: 14, color: c.tinta2),
                         textAlign: TextAlign.center,
                       ),
                       const SizedBox(height: 24),
-                      
+
                       CampoPin(
                         longitud: 6,
                         valor: pinActual,
                         conError: _errorPin,
                       ),
-                      
+
                       const SizedBox(height: 32),
-                      
+
                       TecladoNumerico(
                         alPresionarTecla: _teclear,
                         alBorrar: _borrar,
                       ),
-                      
+
                       const SizedBox(height: 24),
-                      
+
                       ElevatedButton(
                         onPressed: puedeContinuar ? _continuar : null,
                         style: ElevatedButton.styleFrom(

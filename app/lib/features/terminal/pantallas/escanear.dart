@@ -111,7 +111,8 @@ class _PantallaEscanearState extends ConsumerState<PantallaEscanear> {
           (_, null) => const EstadoVacio(
             icono: Icons.inventory_2_outlined,
             titulo: 'Listo para escanear',
-            mensaje: 'Escanea un producto para ver su precio y existencia en tiempo real.',
+            mensaje:
+                'Escanea un producto para ver su precio y existencia en tiempo real.',
           ),
           (AsyncData(:final value), final String codigo) => switch (porCodigo(
             value,

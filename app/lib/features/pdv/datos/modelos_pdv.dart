@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 class Producto {
   final String id;
@@ -9,7 +8,15 @@ class Producto {
   final bool tieneVariantes;
   final String? urlImagen;
 
-  Producto(this.id, this.nombre, this.precio, this.categoria, this.stock, {this.tieneVariantes = false, this.urlImagen});
+  Producto(
+    this.id,
+    this.nombre,
+    this.precio,
+    this.categoria,
+    this.stock, {
+    this.tieneVariantes = false,
+    this.urlImagen,
+  });
 }
 
 class ItemCarrito {

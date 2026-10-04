@@ -13,7 +13,14 @@ class EmpleadoPrueba {
   final bool activo;
   final bool esDueno;
 
-  EmpleadoPrueba(this.id, this.nombre, this.iniciales, this.rol, this.activo, this.esDueno);
+  EmpleadoPrueba(
+    this.id,
+    this.nombre,
+    this.iniciales,
+    this.rol,
+    this.activo,
+    this.esDueno,
+  );
 }
 
 class GestionPersonal extends StatefulWidget {
@@ -56,9 +63,9 @@ class _GestionPersonalState extends State<GestionPersonal> {
 
   void _abrirGestion(EmpleadoPrueba emp) {
     if (emp.esDueno) return;
-    
+
     setState(() => _empleadoSeleccionado = emp);
-    
+
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
@@ -118,26 +125,44 @@ class _GestionPersonalState extends State<GestionPersonal> {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: c.azul,
                     side: BorderSide(color: c.azul.withValues(alpha: 0.5)),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  child: const Text('Salir', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Salir',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 OutlinedButton(
                   onPressed: () {
                     Navigator.push(
                       context,
-                      MaterialPageRoute(builder: (_) => const SeguridadRespaldo()),
+                      MaterialPageRoute(
+                        builder: (_) => const SeguridadRespaldo(),
+                      ),
                     );
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: c.tinta,
                     side: BorderSide(color: c.linea),
-                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 24,
+                      vertical: 14,
+                    ),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10),
+                    ),
                   ),
-                  child: const Text('Seguridad y respaldo', style: TextStyle(fontWeight: FontWeight.w600)),
+                  child: const Text(
+                    'Seguridad y respaldo',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
                 ),
               ],
             ),
@@ -149,16 +174,24 @@ class _GestionPersonalState extends State<GestionPersonal> {
                 style: ElevatedButton.styleFrom(
                   backgroundColor: c.azul,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 16,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
                   elevation: 0,
                 ),
                 icon: const Icon(Icons.add, size: 20),
-                label: const Text('Agregar Empleado', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15)),
+                label: const Text(
+                  'Agregar Empleado',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 15),
+                ),
               ),
             ),
             const SizedBox(height: 32),
-            
+
             // Tabla
             Container(
               decoration: BoxDecoration(
@@ -170,18 +203,45 @@ class _GestionPersonalState extends State<GestionPersonal> {
                 children: [
                   // Header
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 16,
+                    ),
                     child: Row(
                       children: [
                         Expanded(
                           flex: 3,
-                          child: Text('NOMBRE', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.tinta2, letterSpacing: 1)),
+                          child: Text(
+                            'NOMBRE',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: c.tinta2,
+                              letterSpacing: 1,
+                            ),
+                          ),
                         ),
                         Expanded(
                           flex: 2,
-                          child: Text('ROL', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.tinta2, letterSpacing: 1)),
+                          child: Text(
+                            'ROL',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w700,
+                              color: c.tinta2,
+                              letterSpacing: 1,
+                            ),
+                          ),
                         ),
-                        Text('ESTADO', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: c.tinta2, letterSpacing: 1)),
+                        Text(
+                          'ESTADO',
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w700,
+                            color: c.tinta2,
+                            letterSpacing: 1,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -191,7 +251,7 @@ class _GestionPersonalState extends State<GestionPersonal> {
                     final isLast = entry.key == _empleados.length - 1;
                     final emp = entry.value;
                     final isSelected = emp == _empleadoSeleccionado;
-                    
+
                     return Column(
                       children: [
                         Container(
@@ -202,12 +262,19 @@ class _GestionPersonalState extends State<GestionPersonal> {
                                   borderRadius: BorderRadius.circular(8),
                                 )
                               : null,
-                          margin: isSelected ? const EdgeInsets.all(4) : EdgeInsets.zero,
+                          margin: isSelected
+                              ? const EdgeInsets.all(4)
+                              : EdgeInsets.zero,
                           child: InkWell(
-                            onTap: emp.esDueno ? null : () => _abrirGestion(emp),
+                            onTap: emp.esDueno
+                                ? null
+                                : () => _abrirGestion(emp),
                             borderRadius: BorderRadius.circular(8),
                             child: Padding(
-                              padding: EdgeInsets.symmetric(horizontal: isSelected ? 16 : 20, vertical: 16),
+                              padding: EdgeInsets.symmetric(
+                                horizontal: isSelected ? 16 : 20,
+                                vertical: 16,
+                              ),
                               child: Row(
                                 children: [
                                   // Nombre
@@ -219,13 +286,19 @@ class _GestionPersonalState extends State<GestionPersonal> {
                                           width: 40,
                                           height: 40,
                                           decoration: BoxDecoration(
-                                            color: c.azul.withValues(alpha: 0.08),
+                                            color: c.azul.withValues(
+                                              alpha: 0.08,
+                                            ),
                                             shape: BoxShape.circle,
                                           ),
                                           child: Center(
                                             child: Text(
                                               emp.iniciales,
-                                              style: TextStyle(color: c.azul, fontWeight: FontWeight.w700, fontSize: 13),
+                                              style: TextStyle(
+                                                color: c.azul,
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 13,
+                                              ),
                                             ),
                                           ),
                                         ),
@@ -233,7 +306,11 @@ class _GestionPersonalState extends State<GestionPersonal> {
                                         Expanded(
                                           child: Text(
                                             emp.nombre,
-                                            style: TextStyle(fontWeight: FontWeight.w600, color: c.tinta, fontSize: 15),
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.w600,
+                                              color: c.tinta,
+                                              fontSize: 15,
+                                            ),
                                           ),
                                         ),
                                       ],
@@ -242,19 +319,39 @@ class _GestionPersonalState extends State<GestionPersonal> {
                                   // Rol
                                   Expanded(
                                     flex: 2,
-                                    child: emp.esDueno 
-                                      ? Align(
-                                          alignment: Alignment.centerLeft,
-                                          child: Container(
-                                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                    child: emp.esDueno
+                                        ? Align(
+                                            alignment: Alignment.centerLeft,
+                                            child: Container(
+                                              padding:
+                                                  const EdgeInsets.symmetric(
+                                                    horizontal: 10,
+                                                    vertical: 4,
+                                                  ),
                                               decoration: BoxDecoration(
-                                                color: c.azul.withValues(alpha: 0.08),
-                                                borderRadius: BorderRadius.circular(12),
+                                                color: c.azul.withValues(
+                                                  alpha: 0.08,
+                                                ),
+                                                borderRadius:
+                                                    BorderRadius.circular(12),
                                               ),
-                                              child: Text('Dueño/Admin', style: TextStyle(color: c.azul, fontSize: 12, fontWeight: FontWeight.w600)),
+                                              child: Text(
+                                                'Dueño/Admin',
+                                                style: TextStyle(
+                                                  color: c.azul,
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.w600,
+                                                ),
+                                              ),
                                             ),
-                                        )
-                                      : Text(emp.rol, style: TextStyle(color: c.tinta, fontSize: 15)),
+                                          )
+                                        : Text(
+                                            emp.rol,
+                                            style: TextStyle(
+                                              color: c.tinta,
+                                              fontSize: 15,
+                                            ),
+                                          ),
                                   ),
                                   // Estado
                                   Text(
@@ -277,7 +374,7 @@ class _GestionPersonalState extends State<GestionPersonal> {
                 ],
               ),
             ),
-            
+
             const SizedBox(height: 48),
             Center(
               child: Text(

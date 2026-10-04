@@ -176,7 +176,8 @@ class _Tablero extends ConsumerWidget {
                             child: EstadoVacio(
                               icono: Icons.check_circle_outline_rounded,
                               titulo: 'Todo en orden',
-                              mensaje: 'Ningún producto está bajo su mínimo ni por caducar.',
+                              mensaje:
+                                  'Ningún producto está bajo su mínimo ni por caducar.',
                             ),
                           )
                         : Column(

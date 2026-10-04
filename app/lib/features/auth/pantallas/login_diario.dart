@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
-import '../../../../app/tema/colores.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
 import '../../caja/pantallas/apertura_caja.dart';
 import '../../pdv/pantallas/punto_venta.dart';
@@ -28,10 +27,34 @@ class _LoginDiarioState extends State<LoginDiario> {
   DateTime _ahora = DateTime.now();
 
   final List<EmpleadoLogin> _empleados = [
-    EmpleadoLogin('1', 'Ana Martínez', 'Cajera', '1234', 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop'),
-    EmpleadoLogin('2', 'Carlos Ruiz', 'Cajero', '0000', 'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop'),
-    EmpleadoLogin('3', 'Sofía Vega', 'Gerente', '1111', 'https://images.unsplash.com/photo-1531123897727-8f129e1bf98c?q=80&w=200&auto=format&fit=crop'),
-    EmpleadoLogin('4', 'Diego López', 'Cajero', '2222', 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop'),
+    EmpleadoLogin(
+      '1',
+      'Ana Martínez',
+      'Cajera',
+      '1234',
+      'https://images.unsplash.com/photo-1494790108377-be9c29b29330?q=80&w=200&auto=format&fit=crop',
+    ),
+    EmpleadoLogin(
+      '2',
+      'Carlos Ruiz',
+      'Cajero',
+      '0000',
+      'https://images.unsplash.com/photo-1599566150163-29194dcaad36?q=80&w=200&auto=format&fit=crop',
+    ),
+    EmpleadoLogin(
+      '3',
+      'Sofía Vega',
+      'Gerente',
+      '1111',
+      'https://images.unsplash.com/photo-1531123897727-8f129e1bf98c?q=80&w=200&auto=format&fit=crop',
+    ),
+    EmpleadoLogin(
+      '4',
+      'Diego López',
+      'Cajero',
+      '2222',
+      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?q=80&w=200&auto=format&fit=crop',
+    ),
   ];
 
   @override
@@ -60,10 +83,31 @@ class _LoginDiarioState extends State<LoginDiario> {
   @override
   Widget build(BuildContext context) {
     final hora = DateFormat('HH:mm').format(_ahora);
-    
+
     // Fallback simple si intl no tiene es_MX. Usaremos código propio para asegurar.
-    final List<String> dias = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
-    final List<String> meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    final List<String> dias = [
+      'Lunes',
+      'Martes',
+      'Miércoles',
+      'Jueves',
+      'Viernes',
+      'Sábado',
+      'Domingo',
+    ];
+    final List<String> meses = [
+      'Enero',
+      'Febrero',
+      'Marzo',
+      'Abril',
+      'Mayo',
+      'Junio',
+      'Julio',
+      'Agosto',
+      'Septiembre',
+      'Octubre',
+      'Noviembre',
+      'Diciembre',
+    ];
     final diaSemana = dias[_ahora.weekday - 1];
     final mes = meses[_ahora.month - 1];
     final fechaStr = '$diaSemana, ${_ahora.day} De $mes';
@@ -75,14 +119,32 @@ class _LoginDiarioState extends State<LoginDiario> {
           children: [
             const SizedBox(height: 32),
             // Header Reloj
-            Text(hora, style: const TextStyle(fontSize: 64, fontWeight: FontWeight.w300, color: Colors.black, letterSpacing: -2)),
+            Text(
+              hora,
+              style: const TextStyle(
+                fontSize: 64,
+                fontWeight: FontWeight.w300,
+                color: Colors.black,
+                letterSpacing: -2,
+              ),
+            ),
             const SizedBox(height: 8),
-            Text(fechaStr, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.black87)),
+            Text(
+              fechaStr,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+                color: Colors.black87,
+              ),
+            ),
             const SizedBox(height: 32),
-            const Text('Selecciona tu usuario para comenzar', style: TextStyle(fontSize: 18, color: Colors.black54)),
-            
+            const Text(
+              'Selecciona tu usuario para comenzar',
+              style: TextStyle(fontSize: 18, color: Colors.black54),
+            ),
+
             const SizedBox(height: 48),
-            
+
             // Grid de Usuarios
             Expanded(
               child: Padding(
@@ -105,7 +167,13 @@ class _LoginDiarioState extends State<LoginDiario> {
                           color: Colors.white,
                           borderRadius: BorderRadius.circular(24),
                           border: Border.all(color: Colors.grey[200]!),
-                          boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 16, offset: const Offset(0, 8))],
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.03),
+                              blurRadius: 16,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
@@ -114,7 +182,10 @@ class _LoginDiarioState extends State<LoginDiario> {
                               padding: const EdgeInsets.all(4),
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: Colors.blue[100]!, width: 4),
+                                border: Border.all(
+                                  color: Colors.blue[100]!,
+                                  width: 4,
+                                ),
                               ),
                               child: CircleAvatar(
                                 radius: 40,
@@ -122,9 +193,22 @@ class _LoginDiarioState extends State<LoginDiario> {
                               ),
                             ),
                             const SizedBox(height: 16),
-                            Text(emp.nombre, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
+                            Text(
+                              emp.nombre,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black87,
+                              ),
+                            ),
                             const SizedBox(height: 4),
-                            Text(emp.rol, style: const TextStyle(fontSize: 14, color: Colors.black54)),
+                            Text(
+                              emp.rol,
+                              style: const TextStyle(
+                                fontSize: 14,
+                                color: Colors.black54,
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -133,7 +217,7 @@ class _LoginDiarioState extends State<LoginDiario> {
                 ),
               ),
             ),
-            
+
             // Footer
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 24),
@@ -145,18 +229,43 @@ class _LoginDiarioState extends State<LoginDiario> {
                     children: [
                       TextButton.icon(
                         onPressed: () {},
-                        icon: const Icon(Icons.access_time_rounded, color: Colors.black87),
-                        label: const Text('Reloj Checador', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                        icon: const Icon(
+                          Icons.access_time_rounded,
+                          color: Colors.black87,
+                        ),
+                        label: const Text(
+                          'Reloj Checador',
+                          style: TextStyle(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                       TextButton.icon(
                         onPressed: () {},
-                        icon: const Icon(Icons.settings_outlined, color: Colors.black87),
-                        label: const Text('Ajustes', style: TextStyle(color: Colors.black87, fontWeight: FontWeight.w600)),
+                        icon: const Icon(
+                          Icons.settings_outlined,
+                          color: Colors.black87,
+                        ),
+                        label: const Text(
+                          'Ajustes',
+                          style: TextStyle(
+                            color: Colors.black87,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                   const SizedBox(height: 16),
-                  const Text('Desarrollado por Equipo Umizommi', style: TextStyle(color: Colors.black38, fontSize: 12, fontWeight: FontWeight.w500)),
+                  const Text(
+                    'Desarrollado por Equipo Umizommi',
+                    style: TextStyle(
+                      color: Colors.black38,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -194,7 +303,9 @@ class _ModalNumpadState extends State<_ModalNumpad> {
           MaterialPageRoute(
             builder: (_) => AperturaCaja(
               nombreCajero: widget.empleado.nombre,
-              inicialesCajero: widget.empleado.nombre.substring(0,2).toUpperCase(),
+              inicialesCajero: widget.empleado.nombre
+                  .substring(0, 2)
+                  .toUpperCase(),
               alAbrir: (monto) {
                 Navigator.pushReplacement(
                   context,
@@ -231,13 +342,26 @@ class _ModalNumpadState extends State<_ModalNumpad> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            CircleAvatar(radius: 32, backgroundImage: NetworkImage(widget.empleado.avatarUrl)),
+            CircleAvatar(
+              radius: 32,
+              backgroundImage: NetworkImage(widget.empleado.avatarUrl),
+            ),
             const SizedBox(height: 16),
-            Text('Hola, ${widget.empleado.nombre.split(' ')[0]}', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: Colors.black)),
+            Text(
+              'Hola, ${widget.empleado.nombre.split(' ')[0]}',
+              style: const TextStyle(
+                fontSize: 24,
+                fontWeight: FontWeight.bold,
+                color: Colors.black,
+              ),
+            ),
             const SizedBox(height: 8),
-            const Text('Ingresa tu PIN', style: TextStyle(fontSize: 16, color: Colors.black54)),
+            const Text(
+              'Ingresa tu PIN',
+              style: TextStyle(fontSize: 16, color: Colors.black54),
+            ),
             const SizedBox(height: 24),
-            
+
             // Dots PIN
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -248,25 +372,36 @@ class _ModalNumpadState extends State<_ModalNumpad> {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    color: _error ? Colors.red : (activo ? Colors.blue : Colors.grey[200]),
+                    color: _error
+                        ? Colors.red
+                        : (activo ? Colors.blue : Colors.grey[200]),
                     shape: BoxShape.circle,
                   ),
                 );
               }),
             ),
-            
+
             if (_error)
               const Padding(
                 padding: EdgeInsets.only(top: 16),
-                child: Text('PIN Incorrecto', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+                child: Text(
+                  'PIN Incorrecto',
+                  style: TextStyle(
+                    color: Colors.red,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
               ),
-              
+
             const SizedBox(height: 48),
-            
+
             // Teclado
             SizedBox(
               width: 300,
-              child: TecladoNumerico(alPresionarTecla: _teclear, alBorrar: _borrar),
+              child: TecladoNumerico(
+                alPresionarTecla: _teclear,
+                alBorrar: _borrar,
+              ),
             ),
           ],
         ),

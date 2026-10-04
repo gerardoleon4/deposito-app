@@ -23,9 +23,27 @@ class MovimientosCaja extends StatefulWidget {
 class _MovimientosCajaState extends State<MovimientosCaja> {
   double _saldoEstimado = 1500.0;
   final List<MovimientoCaja> _movimientos = [
-    MovimientoCaja('1', DateTime.now().subtract(const Duration(hours: 2)), true, 'Apertura de caja', 1000.0),
-    MovimientoCaja('2', DateTime.now().subtract(const Duration(minutes: 45)), false, 'Pago proveedor hielo', 250.0),
-    MovimientoCaja('3', DateTime.now().subtract(const Duration(minutes: 10)), true, 'Venta efectivo', 750.0),
+    MovimientoCaja(
+      '1',
+      DateTime.now().subtract(const Duration(hours: 2)),
+      true,
+      'Apertura de caja',
+      1000.0,
+    ),
+    MovimientoCaja(
+      '2',
+      DateTime.now().subtract(const Duration(minutes: 45)),
+      false,
+      'Pago proveedor hielo',
+      250.0,
+    ),
+    MovimientoCaja(
+      '3',
+      DateTime.now().subtract(const Duration(minutes: 10)),
+      true,
+      'Venta efectivo',
+      750.0,
+    ),
   ];
 
   void _abrirRegistroMovimiento() {
@@ -36,7 +54,13 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
           setState(() {
             _movimientos.insert(
               0,
-              MovimientoCaja(DateTime.now().toString(), DateTime.now(), esIngreso, motivo, monto),
+              MovimientoCaja(
+                DateTime.now().toString(),
+                DateTime.now(),
+                esIngreso,
+                motivo,
+                monto,
+              ),
             );
             if (esIngreso) {
               _saldoEstimado += monto;
@@ -65,7 +89,10 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
       appBar: AppBar(
         backgroundColor: c.fondo,
         elevation: 0,
-        title: Text('Historial de Movimientos', style: TextStyle(color: c.tinta, fontWeight: FontWeight.w700)),
+        title: Text(
+          'Historial de Movimientos',
+          style: TextStyle(color: c.tinta, fontWeight: FontWeight.w700),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 16),
@@ -74,10 +101,15 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
               style: TextButton.styleFrom(
                 backgroundColor: c.azul.withValues(alpha: 0.1),
                 foregroundColor: c.azul,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
               ),
               icon: const Icon(Icons.add_rounded, size: 20),
-              label: const Text('Registrar Movimiento', style: TextStyle(fontWeight: FontWeight.w600)),
+              label: const Text(
+                'Registrar Movimiento',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
             ),
           ),
         ],
@@ -99,11 +131,21 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Saldo actual estimado', style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 14)),
+                      Text(
+                        'Saldo actual estimado',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 14,
+                        ),
+                      ),
                       const SizedBox(height: 8),
                       Text(
                         '\$${_saldoEstimado.toStringAsFixed(2)}',
-                        style: const TextStyle(color: Colors.white, fontSize: 32, fontWeight: FontWeight.bold),
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 32,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ],
                   ),
@@ -113,21 +155,28 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                       backgroundColor: Colors.white,
                       foregroundColor: c.azul,
                       elevation: 0,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
                     ),
-                    child: const Text('Corte de Caja', style: TextStyle(fontWeight: FontWeight.bold)),
+                    child: const Text(
+                      'Corte de Caja',
+                      style: TextStyle(fontWeight: FontWeight.bold),
+                    ),
                   ),
                 ],
               ),
             ),
-            
+
             // Tabla
             Expanded(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 24),
                 decoration: BoxDecoration(
                   color: c.superficie,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                  borderRadius: const BorderRadius.vertical(
+                    top: Radius.circular(16),
+                  ),
                   border: Border.all(color: c.linea),
                 ),
                 child: Column(
@@ -137,10 +186,51 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                       padding: const EdgeInsets.all(16),
                       child: Row(
                         children: [
-                          Expanded(flex: 2, child: Text('HORA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.tinta2))),
-                          Expanded(flex: 2, child: Text('TIPO', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.tinta2))),
-                          Expanded(flex: 4, child: Text('MOTIVO', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.tinta2))),
-                          Expanded(flex: 2, child: Text('MONTO', textAlign: TextAlign.right, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.tinta2))),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'HORA',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: c.tinta2,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'TIPO',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: c.tinta2,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 4,
+                            child: Text(
+                              'MOTIVO',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: c.tinta2,
+                              ),
+                            ),
+                          ),
+                          Expanded(
+                            flex: 2,
+                            child: Text(
+                              'MONTO',
+                              textAlign: TextAlign.right,
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: c.tinta2,
+                              ),
+                            ),
+                          ),
                         ],
                       ),
                     ),
@@ -157,29 +247,53 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                               children: [
                                 Expanded(
                                   flex: 2,
-                                  child: Text('${mov.hora.hour}:${mov.hora.minute.toString().padLeft(2, '0')}', style: TextStyle(color: c.tinta)),
+                                  child: Text(
+                                    '${mov.hora.hour}:${mov.hora.minute.toString().padLeft(2, '0')}',
+                                    style: TextStyle(color: c.tinta),
+                                  ),
                                 ),
                                 Expanded(
                                   flex: 2,
                                   child: Row(
                                     children: [
                                       Icon(
-                                        mov.esIngreso ? Icons.arrow_upward_rounded : Icons.arrow_downward_rounded,
+                                        mov.esIngreso
+                                            ? Icons.arrow_upward_rounded
+                                            : Icons.arrow_downward_rounded,
                                         size: 16,
-                                        color: mov.esIngreso ? Colors.green[600] : c.tinta2,
+                                        color: mov.esIngreso
+                                            ? Colors.green[600]
+                                            : c.tinta2,
                                       ),
                                       const SizedBox(width: 4),
-                                      Text(mov.esIngreso ? 'Ingreso' : 'Retiro', style: TextStyle(color: mov.esIngreso ? Colors.green[600] : c.tinta2, fontWeight: FontWeight.w600)),
+                                      Text(
+                                        mov.esIngreso ? 'Ingreso' : 'Retiro',
+                                        style: TextStyle(
+                                          color: mov.esIngreso
+                                              ? Colors.green[600]
+                                              : c.tinta2,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
                                     ],
                                   ),
                                 ),
-                                Expanded(flex: 4, child: Text(mov.motivo, style: TextStyle(color: c.tinta))),
+                                Expanded(
+                                  flex: 4,
+                                  child: Text(
+                                    mov.motivo,
+                                    style: TextStyle(color: c.tinta),
+                                  ),
+                                ),
                                 Expanded(
                                   flex: 2,
                                   child: Text(
                                     '\$${mov.monto.toStringAsFixed(2)}',
                                     textAlign: TextAlign.right,
-                                    style: TextStyle(fontWeight: FontWeight.bold, color: c.tinta),
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: c.tinta,
+                                    ),
                                   ),
                                 ),
                               ],
@@ -205,7 +319,8 @@ class ModalRegistroMovimiento extends StatefulWidget {
   final void Function(bool esIngreso, double monto, String motivo) alGuardar;
 
   @override
-  State<ModalRegistroMovimiento> createState() => _ModalRegistroMovimientoState();
+  State<ModalRegistroMovimiento> createState() =>
+      _ModalRegistroMovimientoState();
 }
 
 class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
@@ -233,7 +348,8 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
     });
   }
 
-  double get _monto => _montoText.isEmpty ? 0 : (double.tryParse(_montoText) ?? 0);
+  double get _monto =>
+      _montoText.isEmpty ? 0 : (double.tryParse(_montoText) ?? 0);
 
   @override
   Widget build(BuildContext context) {
@@ -249,9 +365,17 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Registrar Movimiento', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: c.tinta), textAlign: TextAlign.center),
+            Text(
+              'Registrar Movimiento',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+                color: c.tinta,
+              ),
+              textAlign: TextAlign.center,
+            ),
             const SizedBox(height: 24),
-            
+
             // Toggle
             Container(
               decoration: BoxDecoration(
@@ -267,11 +391,27 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         decoration: BoxDecoration(
-                          color: !_esIngreso ? c.superficie : Colors.transparent,
+                          color: !_esIngreso
+                              ? c.superficie
+                              : Colors.transparent,
                           borderRadius: BorderRadius.circular(11),
-                          boxShadow: !_esIngreso ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)] : null,
+                          boxShadow: !_esIngreso
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                  ),
+                                ]
+                              : null,
                         ),
-                        child: Text('Retiro', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: !_esIngreso ? c.tinta : c.tinta2)),
+                        child: Text(
+                          'Retiro',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: !_esIngreso ? c.tinta : c.tinta2,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -283,9 +423,23 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
                         decoration: BoxDecoration(
                           color: _esIngreso ? c.superficie : Colors.transparent,
                           borderRadius: BorderRadius.circular(11),
-                          boxShadow: _esIngreso ? [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4)] : null,
+                          boxShadow: _esIngreso
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.black.withValues(alpha: 0.05),
+                                    blurRadius: 4,
+                                  ),
+                                ]
+                              : null,
                         ),
-                        child: Text('Ingreso', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold, color: _esIngreso ? c.tinta : c.tinta2)),
+                        child: Text(
+                          'Ingreso',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: _esIngreso ? c.tinta : c.tinta2,
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -293,16 +447,20 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Monto display
             Center(
               child: Text(
                 '\$${_montoText.isEmpty ? '0' : _montoText}',
-                style: TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: c.tinta),
+                style: TextStyle(
+                  fontSize: 48,
+                  fontWeight: FontWeight.bold,
+                  color: c.tinta,
+                ),
               ),
             ),
             const SizedBox(height: 24),
-            
+
             // Input motivo
             TextField(
               controller: _motivoCtrl,
@@ -310,33 +468,53 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
                 hintText: 'Motivo del movimiento...',
                 filled: true,
                 fillColor: c.fondo,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.linea)),
-                enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide(color: c.linea)),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: c.linea),
+                ),
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide(color: c.linea),
+                ),
               ),
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 24),
-            
+
             // Teclado miniatura (simplificado)
             SizedBox(
               width: 250,
-              child: TecladoNumerico(alPresionarTecla: _teclear, alBorrar: _borrar),
+              child: TecladoNumerico(
+                alPresionarTecla: _teclear,
+                alBorrar: _borrar,
+              ),
             ),
             const SizedBox(height: 24),
-            
+
             // Guardar
             ElevatedButton(
-              onPressed: puedeGuardar ? () {
-                Navigator.pop(context);
-                widget.alGuardar(_esIngreso, _monto, _motivoCtrl.text.trim());
-              } : null,
+              onPressed: puedeGuardar
+                  ? () {
+                      Navigator.pop(context);
+                      widget.alGuardar(
+                        _esIngreso,
+                        _monto,
+                        _motivoCtrl.text.trim(),
+                      );
+                    }
+                  : null,
               style: ElevatedButton.styleFrom(
                 backgroundColor: c.azul,
                 foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
-              child: const Text('Guardar Movimiento', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+              child: const Text(
+                'Guardar Movimiento',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
         ),
