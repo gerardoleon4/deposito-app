@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../../app/tema/colores.dart';
 import '../datos/modelos_pdv.dart';
 import 'escaner_continuo.dart';
+import 'flujo_cobro.dart';
 
 class PuntoVenta extends StatefulWidget {
   const PuntoVenta({super.key});
@@ -455,7 +456,12 @@ class _PuntoVentaState extends State<PuntoVenta> with SingleTickerProviderStateM
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
-                                onPressed: _carrito.isEmpty ? null : () {},
+                                onPressed: _carrito.isEmpty ? null : () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(builder: (_) => ResumenCompra(carrito: _carrito, total: _total)),
+                                  );
+                                },
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: c.azul,
                                   foregroundColor: Colors.white,
