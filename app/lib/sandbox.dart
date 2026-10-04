@@ -54,7 +54,11 @@ class _Vitrina extends StatelessWidget {
   const _Vitrina();
 
   static final _pantallas = <(String, String, Widget Function())>[
-    ('Pantalla de carga', 'Animación al abrir la app', PantallaCarga.new),
+    (
+      'Pantalla de carga',
+      'Animación al abrir la app (regresa sola en 4 s)',
+      _CargaDemo.new,
+    ),
     ('Punto de venta', 'Conectado (aquí con ApiFalsa)', PuntoVenta.new),
     ('Personal', 'Sin endpoint todavía', GestionPersonal.new),
     ('Login diario', 'Sin endpoint todavía', LoginDiario.new),
@@ -96,4 +100,26 @@ class _Vitrina extends StatelessWidget {
       ),
     );
   }
+}
+
+/// La pantalla de carga no tiene botón de regresar: en la app dura lo que
+/// tarda en arrancar. Aquí regresa sola a la vitrina.
+class _CargaDemo extends StatefulWidget {
+  const _CargaDemo();
+
+  @override
+  State<_CargaDemo> createState() => _CargaDemoState();
+}
+
+class _CargaDemoState extends State<_CargaDemo> {
+  @override
+  void initState() {
+    super.initState();
+    Future.delayed(const Duration(seconds: 4), () {
+      if (mounted) Navigator.pop(context);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => const PantallaCarga();
 }
