@@ -27,7 +27,7 @@ class _CargadorNexoState extends State<CargadorNexo>
     super.initState();
     _controlador = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1600),
+      duration: const Duration(milliseconds: 700),
     )..repeat(reverse: true);
   }
 
@@ -96,7 +96,7 @@ class _MetaballPainter extends CustomPainter {
     final dy = c2.dy - c1.dy;
     final d = math.sqrt(dx * dx + dy * dy);
 
-    final maxBridgeDistance = r1 + r2 + (size.height * 0.45);
+    final maxBridgeDistance = r1 + r2 + (size.height * 0.15);
 
     // Dibujar circulo 1 y 2 siempre
     final pathCombinado = Path();
