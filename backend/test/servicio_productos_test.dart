@@ -25,7 +25,7 @@ void main() {
       reloj: () => ahora,
     );
   });
-  tearDown(() => db.dispose());
+  tearDown(() => db.close());
 
   Map<String, String> camposConError(void Function() accion) {
     try {
