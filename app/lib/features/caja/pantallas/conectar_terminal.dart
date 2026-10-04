@@ -343,7 +343,8 @@ class _FilaTerminal extends ConsumerWidget {
               final ok = await confirmar(
                 context,
                 titulo: '¿Desvincular ${terminal.nombre}?',
-                mensaje: 'Dejará de ver productos y mandar pedidos hasta que se vuelva a conectar con un código nuevo.',
+                mensaje:
+                    'Dejará de ver productos y mandar pedidos hasta que se vuelva a conectar con un código nuevo.',
                 accion: 'Desvincular',
                 peligrosa: true,
               );

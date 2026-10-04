@@ -13,7 +13,7 @@ void main() {
 
   test('todas las migraciones aplican sobre una base vacía', () {
     final db = abrirBaseDatos(enMemoria);
-    addTearDown(db.close);
+    addTearDown(db.dispose);
     final aplicadas = aplicarMigraciones(db);
     expect(aplicadas, [for (final m in migraciones) m.numero]);
     expect(versionEsquema(db), migraciones.last.numero);
@@ -21,7 +21,7 @@ void main() {
 
   test('volver a aplicar no hace nada ni pide respaldo', () {
     final db = abrirBaseDatos(enMemoria);
-    addTearDown(db.close);
+    addTearDown(db.dispose);
     aplicarMigraciones(db);
     var pidioRespaldo = false;
     final aplicadas = aplicarMigraciones(
@@ -37,7 +37,7 @@ void main() {
 
   test('el código de barras es único solo entre productos activos', () {
     final db = abrirBaseDatos(enMemoria);
-    addTearDown(db.close);
+    addTearDown(db.dispose);
     aplicarMigraciones(db);
     void insertar(String id, int eliminado) => db.execute(
       "INSERT INTO productos (id, codigo, nombre, nombre_busqueda, categoria, precio, eliminado, creado, actualizado) "
@@ -51,7 +51,7 @@ void main() {
 
   test('la base rechaza existencias negativas y precioCaja sin piezasPorCaja', () {
     final db = abrirBaseDatos(enMemoria);
-    addTearDown(db.close);
+    addTearDown(db.dispose);
     aplicarMigraciones(db);
     const sql =
         'INSERT INTO productos (id, codigo, nombre, nombre_busqueda, categoria, precio, '

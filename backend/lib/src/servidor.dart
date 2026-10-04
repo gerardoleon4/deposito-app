@@ -185,7 +185,7 @@ class DepositoServer {
       // Limpieza integral en caso de error durante el arranque
       await _hub?.cerrar();
       await _http?.close(force: true);
-      db.close();
+      db.dispose();
       _http = null;
       _db = null;
       _hub = null;
@@ -198,7 +198,7 @@ class DepositoServer {
   Future<void> detener() async {
     await _hub?.cerrar();
     await _http?.close(force: true);
-    _db?.close();
+    _db?.dispose();
     _http = null;
     _db = null;
     _hub = null;

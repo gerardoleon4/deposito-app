@@ -2,332 +2,257 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/tema/colores.dart';
-import '../../core/config/configuracion.dart';
-import '../../core/widgets/marca.dart';
+import '../terminal/pantallas/vinculacion_terminal.dart';
+import 'pantallas/crear_cuenta_maestra.dart';
+import 'pantallas/inicializando_bd.dart';
+import 'pantallas/restaurar_respaldo.dart';
+import '../personal/pantallas/gestion_personal.dart';
 
-/// Primera pantalla: ¿este dispositivo es la caja o una terminal?
+/// Pantalla "Configura tu punto de venta".
+/// Permite elegir entre crear servidor, conectar terminal o restaurar respaldo.
 class ElegirModo extends ConsumerWidget {
   const ElegirModo({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colores;
-    final textos = Theme.of(context).textTheme;
-    final notificador = ref.read(configuracionProvider.notifier);
+    // notificador ya no es necesario aquí
 
     return Scaffold(
-      body: SafeArea(
-        child: LayoutBuilder(
-          builder: (context, medidas) {
-            final ancho = medidas.maxWidth >= 760;
-            final opciones = [
-              _Opcion(
-                icono: Icons.point_of_sale_rounded,
-                titulo: 'Caja',
-                texto: 'Guarda la base de datos, cobra y recibe a las terminales. Debe quedarse encendida con la app abierta.',
-                alElegir: () => notificador.elegirModo(ModoDispositivo.caja),
+      backgroundColor: c.fondo,
+      body: Stack(
+        children: [
+          // Degradado azul elegante desde arriba
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 300,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    c.azul.withValues(alpha: 0.08),
+                    c.fondo.withValues(alpha: 0.0),
+                  ],
+                ),
               ),
-              _Opcion(
-                icono: Icons.smartphone_rounded,
-                titulo: 'Terminal',
-                texto: 'Escanea productos, arma pedidos y consulta existencias en los pasillos. Se conecta a la caja por Wi-Fi.',
-                alElegir: () =>
-                    notificador.elegirModo(ModoDispositivo.terminal),
-              ),
-            ];
-            return SingleChildScrollView(
-              padding: EdgeInsets.symmetric(
-                horizontal: ancho ? 48 : 22,
-                vertical: 40,
-              ),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 880),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 600),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 32,
+                  ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          const LogoAnaquel(tamano: 52),
-                          const SizedBox(width: 14),
-                          Text('Anaquel', style: textos.headlineLarge),
-                        ],
+                      const SizedBox(height: 48),
+                      Text(
+                        'Configura tu punto de venta',
+                        style: TextStyle(
+                          fontSize: 28,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: -0.5,
+                          color: c.tinta,
+                          height: 1.2,
+                        ),
                       ),
-                      const SizedBox(height: 36),
-                      Flex(
-                        direction: ancho ? Axis.horizontal : Axis.vertical,
-                        crossAxisAlignment: ancho
-                            ? CrossAxisAlignment.center
-                            : CrossAxisAlignment.start,
-                        children: [
-                          Flexible(
-                            fit: FlexFit.loose,
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Punto de venta\ndel depósito',
-                                  style: ancho
-                                      ? textos.displayLarge
-                                      : textos.displayMedium,
-                                ),
-                                const SizedBox(height: 14),
-                                Text(
-                                  'Ventas, inventario y envases en tiempo real entre la caja y los teléfonos del equipo. '
-                                  'Para empezar, dinos cómo se usará este dispositivo; puedes cambiarlo después en Ajustes.',
-                                  style: textos.bodyLarge?.copyWith(
-                                    color: c.tinta2,
-                                  ),
-                                ),
-                              ],
+                      const SizedBox(height: 12),
+                      Text(
+                        'Elige qué deseas hacer en este dispositivo.',
+                        style: TextStyle(
+                          fontSize: 16,
+                          color: c.tinta2,
+                          fontWeight: FontWeight.w400,
+                        ),
+                      ),
+                      const SizedBox(height: 40),
+                      Text(
+                        'Selecciona una opción',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: c.tinta,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Opciones
+                      _OpcionConfiguracion(
+                        icono: Icons.dns_outlined,
+                        titulo: 'Crear Nuevo Servidor POS',
+                        descripcion:
+                            'Configura este dispositivo como la caja principal.',
+                        alPresionar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => CrearCuentaMaestra(
+                                alCompletar: (n, p) {
+                                  Navigator.pushReplacement(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => InicializandoBD(
+                                        alTerminar: () {
+                                          Navigator.pushReplacement(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) =>
+                                                  const GestionPersonal(),
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
                             ),
-                          ),
-                          if (ancho) ...[
-                            const SizedBox(width: 40),
-                            const _Escena(),
-                          ],
-                        ],
+                          );
+                        },
                       ),
-                      const SizedBox(height: 36),
-                      if (ancho)
-                        IntrinsicHeight(
-                          child: Row(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            children: [
-                              Expanded(child: opciones[0]),
-                              const SizedBox(width: 18),
-                              Expanded(child: opciones[1]),
-                            ],
+                      const SizedBox(height: 16),
+                      _OpcionConfiguracion(
+                        icono: Icons.smartphone_outlined,
+                        titulo: 'Conectar Celular como Terminal',
+                        descripcion:
+                            'Vincula este equipo a un Servidor Host existente.',
+                        alPresionar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const VinculacionTerminal(),
+                            ),
+                          );
+                        },
+                      ),
+                      const SizedBox(height: 16),
+                      _OpcionConfiguracion(
+                        icono: Icons.restore_outlined,
+                        titulo: 'Restaurar Servidor desde Respaldo',
+                        descripcion:
+                            'Recupera inventario, personal y cortes de caja.',
+                        alPresionar: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const RestaurarRespaldo(),
+                            ),
+                          );
+                        },
+                      ),
+
+                      const Spacer(),
+
+                      // Footer
+                      Center(
+                        child: Text(
+                          'Desarrollado por Equipo Umizommi',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: c.tinta2,
+                            fontWeight: FontWeight.w500,
                           ),
-                        )
-                      else
-                        Column(spacing: 14, children: opciones),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
                     ],
                   ),
                 ),
               ),
-            );
-          },
-        ),
-      ),
-    );
+            ),
+          ), // Closes SafeArea
+        ], // Closes Stack children
+      ), // Closes Stack
+    ); // Closes Scaffold
   }
 }
 
-class _Opcion extends StatelessWidget {
-  const _Opcion({
+class _OpcionConfiguracion extends StatelessWidget {
+  const _OpcionConfiguracion({
     required this.icono,
     required this.titulo,
-    required this.texto,
-    required this.alElegir,
+    required this.descripcion,
+    required this.alPresionar,
   });
 
   final IconData icono;
   final String titulo;
-  final String texto;
-  final VoidCallback alElegir;
+  final String descripcion;
+  final VoidCallback alPresionar;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final textos = Theme.of(context).textTheme;
+
     return Material(
       type: MaterialType.transparency,
       child: Ink(
         decoration: BoxDecoration(
           color: c.superficie,
-          borderRadius: BorderRadius.circular(18),
+          borderRadius: BorderRadius.circular(14),
           border: Border.all(color: c.linea),
-          boxShadow: c.sombra,
         ),
         child: InkWell(
-          onTap: alElegir,
-          borderRadius: BorderRadius.circular(18),
+          onTap: alPresionar,
+          borderRadius: BorderRadius.circular(14),
           child: Padding(
-            padding: const EdgeInsets.all(22),
+            padding: const EdgeInsets.all(20),
             child: Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
-                  width: 56,
-                  height: 56,
+                  width: 52,
+                  height: 52,
                   decoration: BoxDecoration(
-                    color: c.lager,
-                    borderRadius: BorderRadius.circular(16),
+                    color: c.azul.withValues(alpha: 0.1), // Fondo azul clarito
+                    borderRadius: BorderRadius.circular(18), // Más redondito
                   ),
-                  child: Icon(icono, color: c.lagerTinta, size: 28),
+                  child: Icon(
+                    icono,
+                    color: c.azul, // Ícono azul
+                    size: 26,
+                  ),
                 ),
                 const SizedBox(width: 16),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(titulo, style: textos.headlineMedium),
-                          ),
-                          Icon(Icons.arrow_forward_rounded, color: c.tinta2),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
                       Text(
-                        texto,
-                        style: textos.bodyMedium?.copyWith(color: c.tinta2),
+                        titulo,
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: c.tinta,
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        descripcion,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w400,
+                          color: c.tinta2,
+                          height: 1.3,
+                        ),
                       ),
                     ],
                   ),
                 ),
+                const SizedBox(width: 12),
+                Icon(Icons.chevron_right_rounded, color: c.tinta, size: 24),
               ],
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Dibujo de un iPad y un teléfono conectados por Wi-Fi.
-class _Escena extends StatelessWidget {
-  const _Escena();
-
-  @override
-  Widget build(BuildContext context) {
-    final c = context.colores;
-    Widget celda() => Container(
-      decoration: BoxDecoration(
-        color: c.superficie2,
-        borderRadius: BorderRadius.circular(5),
-      ),
-      child: Center(
-        child: Container(
-          width: 6,
-          height: 16,
-          decoration: BoxDecoration(
-            color: c.lager,
-            borderRadius: BorderRadius.circular(3),
-          ),
-        ),
-      ),
-    );
-    return SizedBox(
-      width: 300,
-      height: 200,
-      child: Stack(
-        children: [
-          Positioned(
-            left: 0,
-            top: 24,
-            child: Container(
-              width: 210,
-              height: 150,
-              padding: const EdgeInsets.all(7),
-              decoration: BoxDecoration(
-                color: c.tinta,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: c.sombra,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 38,
-                      color: c.vidrio,
-                      padding: const EdgeInsets.all(6),
-                      child: Column(
-                        spacing: 6,
-                        children: [
-                          Container(
-                            height: 6,
-                            decoration: BoxDecoration(
-                              color: c.lager,
-                              borderRadius: BorderRadius.circular(3),
-                            ),
-                          ),
-                          for (var i = 0; i < 4; i++)
-                            Container(
-                              height: 4,
-                              decoration: BoxDecoration(
-                                color: c.vidrioTinta2,
-                                borderRadius: BorderRadius.circular(2),
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                    Expanded(
-                      child: Container(
-                        color: c.fondo,
-                        padding: const EdgeInsets.all(7),
-                        child: GridView.count(
-                          crossAxisCount: 3,
-                          mainAxisSpacing: 6,
-                          crossAxisSpacing: 6,
-                          physics: const NeverScrollableScrollPhysics(),
-                          children: List.generate(6, (_) => celda()),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 8,
-            top: 60,
-            child: Container(
-              width: 72,
-              height: 132,
-              padding: const EdgeInsets.all(5),
-              decoration: BoxDecoration(
-                color: c.tinta,
-                borderRadius: BorderRadius.circular(14),
-                boxShadow: c.sombra,
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(10),
-                child: Column(
-                  children: [
-                    Container(height: 20, color: c.vidrio),
-                    Expanded(
-                      child: Container(
-                        color: c.fondo,
-                        padding: const EdgeInsets.all(8),
-                        child: Column(
-                          spacing: 6,
-                          children: [
-                            Expanded(child: celda()),
-                            Container(
-                              height: 7,
-                              decoration: BoxDecoration(
-                                color: c.lager,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                            Container(
-                              height: 5,
-                              decoration: BoxDecoration(
-                                color: c.superficie3,
-                                borderRadius: BorderRadius.circular(3),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Positioned(
-            right: 26,
-            top: 14,
-            child: Icon(Icons.wifi_rounded, size: 40, color: c.verde),
-          ),
-        ],
       ),
     );
   }

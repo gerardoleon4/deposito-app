@@ -54,7 +54,8 @@ class _VincularTerminalState extends ConsumerState<VincularTerminal> {
       _codigo.text = datos['codigo'] as String;
     } on Object {
       setState(
-        () => _error = 'Ese no es el código de la caja. Escanea el QR de "Conectar terminal".',
+        () => _error =
+            'Ese no es el código de la caja. Escanea el QR de "Conectar terminal".',
       );
       return;
     }
