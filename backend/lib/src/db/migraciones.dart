@@ -4,6 +4,7 @@ import '../comun/fechas.dart';
 import 'base_datos.dart';
 import 'migraciones/m001_inicial.dart';
 import 'migraciones/m002_ventas_pedidos_envases.dart';
+import 'migraciones/m003_idempotencia_prestamos_venta.dart';
 
 class Migracion {
   const Migracion(this.numero, this.nombre, this.sql);
@@ -20,7 +21,11 @@ class Migracion {
 /// - El número es consecutivo y no se repite (lo comprueba una prueba).
 /// - Viven como texto en Dart y no como archivos .sql porque la app de
 ///   Flutter no puede leer archivos sueltos del paquete del backend.
-const migraciones = <Migracion>[m001Inicial, m002VentasPedidosEnvases];
+const migraciones = <Migracion>[
+  m001Inicial,
+  m002VentasPedidosEnvases,
+  m003IdempotenciaPrestamosVenta,
+];
 
 /// Aplica las migraciones pendientes, cada una en su transacción.
 ///

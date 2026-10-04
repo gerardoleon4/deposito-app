@@ -2,6 +2,7 @@ import 'package:shelf/shelf.dart';
 import 'package:shelf_router/shelf_router.dart';
 
 import '../comun/json.dart';
+import '../comun/middleware.dart';
 import '../comun/sesion.dart';
 import '../servicios/servicio_ventas.dart';
 
@@ -20,6 +21,7 @@ void montarRutasVentas(Router r, ServicioVentas ventas) {
     final venta = ventas.registrar(
       await leerObjetoJson(p),
       origen: sesion.nombre,
+      claveIdempotencia: p.headers[cabeceraIdempotencia],
     );
     return respuestaJson(venta, estado: 201);
   });

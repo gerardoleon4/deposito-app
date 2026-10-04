@@ -135,7 +135,12 @@ class DepositoServer {
         reloj: _reloj,
       );
 
-      final pedidos = ServicioPedidos(db: db, hub: hub, reloj: _reloj);
+      final pedidos = ServicioPedidos(
+        db: db,
+        repoProductos: repoProductos,
+        hub: hub,
+        reloj: _reloj,
+      );
 
       if (datosEjemplo && repoProductos.contar() == 0) {
         cargarDatosEjemplo(
@@ -158,8 +163,6 @@ class DepositoServer {
                 pingInterval: const Duration(seconds: 20),
               )(peticion);
             });
-      montarRutasTerminales(router, terminales);
-      montarRutasProductos(router, productos);
       montarRutasTerminales(router, terminales);
       montarRutasProductos(router, productos);
       montarRutasEnvases(router, envases);

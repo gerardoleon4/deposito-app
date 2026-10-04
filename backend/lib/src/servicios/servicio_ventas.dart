@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:sqlite3/sqlite3.dart';
 
 import '../comun/errores.dart';
@@ -32,11 +34,14 @@ class ServicioVentas {
   final Hub _hub;
   final Reloj _reloj;
 
-  // backend/lib/src/servicios/servicio_ventas.dart
-
+  /// Registra un cobro de la caja.
+  ///
+  /// [claveIdempotencia] viene del encabezado `X-Clave-Idempotencia`: si ya
+  /// se usó, regresa la misma venta sin cobrar ni descontar otra vez.
   Map<String, Object?> registrar(
     Map<String, Object?> datos, {
     required String origen,
+    required String? claveIdempotencia,
   }) {
     final v = Validador(datos);
     final metodo = v.opcion('metodo', {'efectivo', 'tarjeta'});
@@ -50,105 +55,89 @@ class ServicioVentas {
         }, requerido: false) ??
         'na';
     final envCliente = v.texto('envCliente', requerido: false, max: 80);
-    final lineasRaw = datos['lineas'];
-    if (lineasRaw is! List || lineasRaw.isEmpty) {
-      v.error('lineas', 'Debe incluir al menos un producto');
+    final recibidoPedido = v.entero('recibido', requerido: false, min: 0);
+    final lineas = _leerLineas(datos['lineas'], v);
+    final clave = claveIdempotencia?.trim() ?? '';
+    if (clave.length < 8 || clave.length > 100) {
+      v.error(
+        'X-Clave-Idempotencia',
+        'Es obligatorio para cobrar: de 8 a 100 caracteres',
+      );
     }
     v.comprobar();
 
     final ahora = _reloj();
     final fecha = instanteIso(ahora);
     final dia = diaNegocio(ahora, _repoAjustes.zonaHoraria);
-    final ventaId = generarId('v');
 
     final productosActualizados = <Producto>[];
-    var total = 0;
-    var envN = 0;
-    var envMonto = 0;
     final envPorFormato = <String, int>{};
+    var repetida = false;
 
     final resultado = transaccion(_db, () {
+      final guardada = _repoVentas.respuestaGuardada(clave);
+      if (guardada != null) {
+        repetida = true;
+        return (jsonDecode(guardada) as Map).cast<String, Object?>();
+      }
+
+      final ventaId = generarId('v');
       final folio = _repoVentas.siguienteFolio();
-      final lineasProcesadas = <Map<String, Object?>>[];
 
-      // PASO 1: Validar inventario y calcular totales (sin insertar líneas aún)
-      for (final item in (lineasRaw as List)) {
-        if (item is! Map) {
-          throw ErrorApi.datosInvalidos({'lineas': 'Estructura inválida'});
+      // PASO 1: Precios y existencias. Un producto puede venir en varias
+      // líneas (piezas y cajas), así que las piezas se suman por producto.
+      final procesadas = <_LineaVenta>[];
+      final piezasPorProducto = <String, int>{};
+      var total = 0;
+      var envN = 0;
+      for (final l in lineas) {
+        final p = _repoProductos.porId(l.productoId);
+        if (p == null) {
+          throw ErrorApi.noEncontrado('el producto ${l.productoId}');
         }
-        final pid = item['productoId'] as String?;
-        final unidad = item['unidad'] as String?;
-        final cantidad = item['cantidad'] as int?;
-
-        if (pid == null ||
-            unidad == null ||
-            cantidad == null ||
-            cantidad <= 0) {
+        final porCaja = l.unidad == 'caja';
+        if (porCaja && (p.precioCaja == null || p.piezasPorCaja == null)) {
           throw ErrorApi.datosInvalidos({
-            'lineas': 'Faltan datos obligatorios en línea',
+            'lineas': '${p.nombre} no se vende por caja',
           });
         }
-
-        final p = _repoProductos.porId(pid);
-        if (p == null) throw ErrorApi.noEncontrado('el producto $pid');
-
-        final piezas = unidad == 'caja'
-            ? (cantidad * (p.piezasPorCaja ?? 1))
-            : cantidad;
-        if (p.existenciaPiezas < piezas) {
-          throw ErrorApi.datosInvalidos({
-            'existencias':
-                'Existencias insuficientes para ${p.nombre}. Disponibles: ${p.existenciaPiezas}',
-          });
-        }
-
-        final precioUnit = unidad == 'caja'
-            ? (p.precioCaja ??
-                  (throw ErrorApi.datosInvalidos({
-                    'unidad': 'El producto no se vende por caja',
-                  })))
-            : p.precio;
-
-        final subtotal = precioUnit * cantidad;
+        final piezas = porCaja ? l.cantidad * p.piezasPorCaja! : l.cantidad;
+        final precioUnit = porCaja ? p.precioCaja! : p.precio;
+        final subtotal = precioUnit * l.cantidad;
         total += subtotal;
-
+        piezasPorProducto[p.id] = (piezasPorProducto[p.id] ?? 0) + piezas;
         if (p.envase != null) {
           envN += piezas;
           envPorFormato[p.envase!] = (envPorFormato[p.envase!] ?? 0) + piezas;
         }
-
-        lineasProcesadas.add({
-          'p': p,
-          'unidad': unidad,
-          'cantidad': cantidad,
-          'piezas': piezas,
-          'precioUnit': precioUnit,
-          'subtotal': subtotal,
-        });
+        procesadas.add(_LineaVenta(p, l, piezas, precioUnit, subtotal));
+      }
+      for (final e in piezasPorProducto.entries) {
+        final p = _repoProductos.porId(e.key)!;
+        if (p.existenciaPiezas < e.value) {
+          throw ErrorApi.stockInsuficiente(p.nombre, p.existenciaPiezas);
+        }
       }
 
-      // PASO 2: Cálculo final de envases y validación de cobro
-      final balance = _repoEnvases.obtenerBalance();
+      // PASO 2: Envases y pago.
+      var envMonto = 0;
       if (envModo == 'cobrar') {
-        for (final entry in envPorFormato.entries) {
-          final precioEnv = balance[entry.key]?['precio'] ?? 0;
-          envMonto += entry.value * precioEnv;
+        final balance = _repoEnvases.obtenerBalance();
+        for (final e in envPorFormato.entries) {
+          envMonto += e.value * (balance[e.key]?['precio'] ?? 0);
         }
         total += envMonto;
       }
-
-      final recibido = (datos['recibido'] is int)
-          ? (datos['recibido'] as int)
-          : total;
-      if (metodo == 'efectivo' && recibido < total) {
+      // Con tarjeta se cobra exacto; en efectivo, sin monto se asume exacto.
+      final recibido = metodo == 'tarjeta' ? total : (recibidoPedido ?? total);
+      if (recibido < total) {
         throw ErrorApi.datosInvalidos({
-          'recibido':
-              'El monto recibido ($recibido) es menor al total ($total)',
+          'recibido': 'Recibido ($recibido) es menor que el total ($total)',
         });
       }
-      final cambio = (metodo == 'efectivo') ? (recibido - total) : 0;
+      final cambio = recibido - total;
 
-      // PASO 3: Insertar el registro maestro (ventas) PRIMERO
+      // PASO 3: Venta, líneas, existencias y movimientos.
       _repoVentas.insertarVenta(
         id: ventaId,
         folio: folio,
@@ -165,75 +154,74 @@ class ServicioVentas {
         envCliente: envCliente,
         origen: origen,
       );
-
-      // PASO 4: Insertar líneas, actualizar inventario y registrar movimientos
-      for (final lp in lineasProcesadas) {
-        final p = lp['p'] as Producto;
-        final piezas = lp['piezas'] as int;
-
+      for (final lp in procesadas) {
         _repoVentas.insertarLinea(
           ventaId: ventaId,
-          productoId: p.id,
-          nombre: p.nombre,
-          unidad: lp['unidad'] as String,
-          cantidad: lp['cantidad'] as int,
-          piezas: piezas,
-          precioUnit: lp['precioUnit'] as int,
-          subtotal: lp['subtotal'] as int,
+          productoId: lp.producto.id,
+          nombre: lp.producto.nombre,
+          unidad: lp.linea.unidad,
+          cantidad: lp.linea.cantidad,
+          piezas: lp.piezas,
+          precioUnit: lp.precioUnit,
+          subtotal: lp.subtotal,
         );
-
-        final nuevaExistencia = p.existenciaPiezas - piezas;
+        // Se relee: otra línea del mismo producto pudo haberlo cambiado.
+        final actual = _repoProductos.porId(lp.producto.id)!;
+        final nuevaExistencia = actual.existenciaPiezas - lp.piezas;
         _db.execute(
           'UPDATE productos SET existencia_piezas = ?, actualizado = ? WHERE id = ?',
-          [nuevaExistencia, fecha, p.id],
+          [nuevaExistencia, fecha, actual.id],
         );
-
         _repoProductos.registrarMovimiento(
-          productoId: p.id,
+          productoId: actual.id,
           tipo: 'venta',
-          piezas: -piezas,
+          piezas: -lp.piezas,
           existenciaResultante: nuevaExistencia,
           referencia: 'Folio $folio',
           origen: origen,
           fecha: fecha,
         );
-
-        final actualizado = _repoProductos.porId(p.id);
-        if (actualizado != null) {
-          productosActualizados.add(actualizado);
-        }
+      }
+      for (final id in piezasPorProducto.keys) {
+        productosActualizados.add(_repoProductos.porId(id)!);
       }
 
-      // PASO 5: Actualizar bodega o préstamos de envases
+      // PASO 4: Bodega o préstamos de envases.
       if (envModo == 'trae') {
-        for (final entry in envPorFormato.entries) {
-          _repoEnvases.actualizarBodega(entry.key, entry.value);
+        for (final e in envPorFormato.entries) {
+          _repoEnvases.actualizarBodega(e.key, e.value);
         }
       } else if (envModo == 'prestamo') {
-        for (final entry in envPorFormato.entries) {
-          _repoEnvases.actualizarPrestados(entry.key, entry.value);
+        for (final e in envPorFormato.entries) {
+          _repoEnvases.actualizarPrestados(e.key, e.value);
           _repoEnvases.registrarPrestamo(
             id: generarId('pre'),
             cliente: envCliente ?? 'Cliente Mostrador',
-            formato: entry.key,
-            cantidad: entry.value,
+            formato: e.key,
+            cantidad: e.value,
             fecha: fecha,
+            ventaId: ventaId,
           );
         }
       }
 
-      return {
+      final respuesta = <String, Object?>{
         'id': ventaId,
         'folio': folio,
         'fecha': fecha,
         'diaNegocio': dia,
         'total': total,
         'metodo': metodo,
+        'recibido': recibido,
         'cambio': cambio,
       };
+      _repoVentas.guardarRespuesta(clave, jsonEncode(respuesta), fecha);
+      return respuesta;
     });
 
-    // Notificar por WebSocket fuera de la transacción para no enviar eventos si falla la BD
+    if (repetida) return resultado;
+
+    // Fuera de la transacción: si la base falla no se avisa nada.
     for (final prod in productosActualizados) {
       _hub.emitir(TiposEvento.productoActualizado, {'producto': prod.toJson()});
     }
@@ -242,8 +230,42 @@ class ServicioVentas {
         'balance': _repoEnvases.obtenerBalance(),
       });
     }
-
     return resultado;
+  }
+
+  /// Valida la forma de cada línea; los errores quedan en [v].
+  List<({String productoId, String unidad, int cantidad})> _leerLineas(
+    Object? crudo,
+    Validador v,
+  ) {
+    if (crudo is! List || crudo.isEmpty) {
+      v.error('lineas', 'Debe incluir al menos un producto');
+      return const [];
+    }
+    final lineas = <({String productoId, String unidad, int cantidad})>[];
+    for (var i = 0; i < crudo.length; i++) {
+      final l = crudo[i];
+      final pid = l is Map ? l['productoId'] : null;
+      final unidad = l is Map ? l['unidad'] : null;
+      final cantidad = l is Map ? l['cantidad'] : null;
+      if (pid is! String ||
+          (unidad != 'pieza' && unidad != 'caja') ||
+          cantidad is! int ||
+          cantidad < 1) {
+        v.error(
+          'lineas',
+          'La línea ${i + 1} necesita productoId, unidad (pieza o caja) '
+              'y cantidad entera mayor que 0',
+        );
+        continue;
+      }
+      lineas.add((
+        productoId: pid,
+        unidad: unidad as String,
+        cantidad: cantidad,
+      ));
+    }
+    return lineas;
   }
 
   void cancelar(String id, {required String origen}) {
@@ -261,39 +283,47 @@ class ServicioVentas {
       final fecha = instanteIso(_reloj());
       final folio = v['folio'] as int;
 
-      // Reversar existencias
+      // Regresar existencias
       for (final l in lineas) {
-        final pid = l['producto_id'] as String;
+        final p = _repoProductos.porId(l['producto_id'] as String);
+        if (p == null) continue;
         final piezas = l['piezas'] as int;
+        final restock = p.existenciaPiezas + piezas;
+        _db.execute(
+          'UPDATE productos SET existencia_piezas = ?, actualizado = ? WHERE id = ?',
+          [restock, fecha, p.id],
+        );
+        _repoProductos.registrarMovimiento(
+          productoId: p.id,
+          tipo: 'cancelacion',
+          piezas: piezas,
+          existenciaResultante: restock,
+          referencia: 'Cancelación Folio $folio',
+          origen: origen,
+          fecha: fecha,
+        );
+      }
+      for (final pid in {for (final l in lineas) l['producto_id'] as String}) {
         final p = _repoProductos.porId(pid);
-        if (p != null) {
-          final restock = p.existenciaPiezas + piezas;
-          _db.execute(
-            'UPDATE productos SET existencia_piezas = ?, actualizado = ? WHERE id = ?',
-            [restock, fecha, p.id],
-          );
-          _repoProductos.registrarMovimiento(
-            productoId: p.id,
-            tipo: 'cancelacion',
-            piezas: piezas,
-            existenciaResultante: restock,
-            referencia: 'Cancelación Folio $folio',
-            origen: origen,
-            fecha: fecha,
-          );
-          prods.add(_repoProductos.porId(p.id)!);
-        }
+        if (p != null) prods.add(p);
       }
 
-      // Reversar envases si se ingresaron a bodega
+      // Revertir envases
       final modo = v['env_modo'] as String;
       if (modo == 'trae') {
-        // Descontar los que se habían sumado
         for (final l in lineas) {
           final p = _repoProductos.porId(l['producto_id'] as String);
           if (p?.envase != null) {
             _repoEnvases.actualizarBodega(p!.envase!, -(l['piezas'] as int));
           }
+        }
+      } else if (modo == 'prestamo') {
+        for (final pre in _repoEnvases.prestamosPendientesDeVenta(id)) {
+          _repoEnvases.actualizarPrestados(
+            pre['formato'] as String,
+            -(pre['cantidad'] as int),
+          );
+          _repoEnvases.borrarPrestamo(pre['id'] as String);
         }
       }
 
@@ -358,4 +388,20 @@ class ServicioVentas {
         )
         .toList();
   }
+}
+
+class _LineaVenta {
+  _LineaVenta(
+    this.producto,
+    this.linea,
+    this.piezas,
+    this.precioUnit,
+    this.subtotal,
+  );
+
+  final Producto producto;
+  final ({String productoId, String unidad, int cantidad}) linea;
+  final int piezas;
+  final int precioUnit;
+  final int subtotal;
 }

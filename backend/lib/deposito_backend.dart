@@ -9,7 +9,7 @@ library;
 export 'src/comun/bitacora.dart' show Bitacora;
 export 'src/comun/fechas.dart'
     show Reloj, diaNegocio, instanteIso, rangoDiaNegocio;
-export 'src/comun/middleware.dart' show cabeceraClave;
+export 'src/comun/middleware.dart' show cabeceraClave, cabeceraIdempotencia;
 export 'src/comun/texto.dart' show normalizarBusqueda;
 export 'src/db/base_datos.dart' show enMemoria;
 export 'src/modelos/evento.dart';
