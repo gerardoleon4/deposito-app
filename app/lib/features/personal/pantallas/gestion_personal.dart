@@ -3,6 +3,7 @@ import '../../../../app/tema/colores.dart';
 import '../widgets/modal_alta_empleado.dart';
 import '../widgets/bottom_sheet_gestion_accesos.dart';
 import 'seguridad_respaldo.dart';
+import '../../auth/pantallas/login_diario.dart';
 
 class EmpleadoPrueba {
   final String id;
@@ -108,7 +109,12 @@ class _GestionPersonalState extends State<GestionPersonal> {
             Row(
               children: [
                 OutlinedButton(
-                  onPressed: () => Navigator.pop(context),
+                  onPressed: () {
+                    Navigator.pushReplacement(
+                      context,
+                      MaterialPageRoute(builder: (_) => const LoginDiario()),
+                    );
+                  },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: c.azul,
                     side: BorderSide(color: c.azul.withValues(alpha: 0.5)),

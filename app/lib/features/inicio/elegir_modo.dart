@@ -5,6 +5,7 @@ import '../../app/tema/colores.dart';
 import '../../core/config/configuracion.dart';
 import 'pantallas/crear_cuenta_maestra.dart';
 import 'pantallas/inicializando_bd.dart';
+import 'pantallas/restaurar_respaldo.dart';
 import '../personal/pantallas/gestion_personal.dart';
 
 /// Pantalla "Configura tu punto de venta".
@@ -125,7 +126,10 @@ class ElegirModo extends ConsumerWidget {
                     titulo: 'Restaurar Servidor desde Respaldo',
                     descripcion: 'Recupera inventario, personal y cortes de caja.',
                     alPresionar: () {
-                      // Por implementar: flujo de restauración
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const RestaurarRespaldo()),
+                      );
                     },
                   ),
 
