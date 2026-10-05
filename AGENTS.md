@@ -38,7 +38,7 @@ flutter test
 dart format lib test && flutter analyze
 ```
 
-Versiones fijas: **Flutter 3.47.5, Dart 3.13.4**.
+Versiones fijas: **Flutter 3.47.6, Dart 3.13.5**.
 
 ## Cómo agregar...
 
