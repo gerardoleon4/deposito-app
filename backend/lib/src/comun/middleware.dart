@@ -7,11 +7,9 @@ import 'errores.dart';
 import 'json.dart';
 import 'seguridad.dart';
 import 'sesion.dart';
-
 import 'constantes.dart';
 
-/// Clave que la app genera por cobro para que un reintento no cobre dos veces.
-const cabeceraIdempotencia = 'x-clave-idempotencia';
+export 'constantes.dart' show cabeceraClave, cabeceraIdempotencia;
 
 /// Rutas que no piden clave (relativas, sin `/` inicial).
 const _rutasPublicas = {'salud', 'api/v1/terminales/registro'};
