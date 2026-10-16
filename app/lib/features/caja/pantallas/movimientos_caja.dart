@@ -1,73 +1,29 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/tema/colores.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
+import '../estado/movimientos_caja_provider.dart';
 import 'corte_caja.dart';
 
-class MovimientoCaja {
-  final String id;
-  final DateTime hora;
-  final bool esIngreso;
-  final String motivo;
-  final double monto;
+export '../estado/movimientos_caja_provider.dart'
+    show MovimientoCaja, movimientosCajaProvider;
 
-  MovimientoCaja(this.id, this.hora, this.esIngreso, this.motivo, this.monto);
-}
-
-class MovimientosCaja extends StatefulWidget {
+class MovimientosCaja extends ConsumerStatefulWidget {
   const MovimientosCaja({super.key});
 
   @override
-  State<MovimientosCaja> createState() => _MovimientosCajaState();
+  ConsumerState<MovimientosCaja> createState() => _MovimientosCajaState();
 }
 
-class _MovimientosCajaState extends State<MovimientosCaja> {
-  double _saldoEstimado = 1500.0;
-  final List<MovimientoCaja> _movimientos = [
-    MovimientoCaja(
-      '1',
-      DateTime.now().subtract(const Duration(hours: 2)),
-      true,
-      'Apertura de caja',
-      1000.0,
-    ),
-    MovimientoCaja(
-      '2',
-      DateTime.now().subtract(const Duration(minutes: 45)),
-      false,
-      'Pago proveedor hielo',
-      250.0,
-    ),
-    MovimientoCaja(
-      '3',
-      DateTime.now().subtract(const Duration(minutes: 10)),
-      true,
-      'Venta efectivo',
-      750.0,
-    ),
-  ];
-
+class _MovimientosCajaState extends ConsumerState<MovimientosCaja> {
   void _abrirRegistroMovimiento() {
     showDialog(
       context: context,
       builder: (_) => ModalRegistroMovimiento(
         alGuardar: (esIngreso, monto, motivo) {
-          setState(() {
-            _movimientos.insert(
-              0,
-              MovimientoCaja(
-                DateTime.now().toString(),
-                DateTime.now(),
-                esIngreso,
-                motivo,
-                monto,
-              ),
-            );
-            if (esIngreso) {
-              _saldoEstimado += monto;
-            } else {
-              _saldoEstimado -= monto;
-            }
-          });
+          ref
+              .read(movimientosCajaProvider.notifier)
+              .registrar(esIngreso: esIngreso, motivo: motivo, monto: monto);
         },
       ),
     );
@@ -83,6 +39,9 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
+    final estadoCaja = ref.watch(movimientosCajaProvider);
+    final saldoEstimado = estadoCaja.saldoEstimado;
+    final movimientos = estadoCaja.movimientos;
 
     return Scaffold(
       backgroundColor: c.fondo,
@@ -140,7 +99,7 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                       ),
                       const SizedBox(height: 8),
                       Text(
-                        '\$${_saldoEstimado.toStringAsFixed(2)}',
+                        '\$${saldoEstimado.toStringAsFixed(2)}',
                         style: const TextStyle(
                           color: Colors.white,
                           fontSize: 32,
@@ -237,10 +196,10 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                     const Divider(height: 1),
                     Expanded(
                       child: ListView.separated(
-                        itemCount: _movimientos.length,
+                        itemCount: movimientos.length,
                         separatorBuilder: (_, _) => const Divider(height: 1),
                         itemBuilder: (context, i) {
-                          final mov = _movimientos[i];
+                          final mov = movimientos[i];
                           return Padding(
                             padding: const EdgeInsets.all(16),
                             child: Row(

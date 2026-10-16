@@ -108,54 +108,16 @@ class _Tablero extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 20),
-            GridView(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              // Alto fijo: con proporción, una ventana angosta las aplasta.
-              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                crossAxisCount: columnasKpi,
-                crossAxisSpacing: 14,
-                mainAxisSpacing: 14,
-                mainAxisExtent: 112,
-              ),
-              children: [
-                _Kpi(
-                  icono: Icons.inventory_2_outlined,
-                  etiqueta: 'Productos',
-                  valor: '${productos.length}',
-                  detalle: '$piezas piezas en existencia',
-                  fondo: c.lagerSuave,
-                  tinta: c.tinta,
-                ),
-                _Kpi(
-                  icono: Icons.trending_down_rounded,
-                  etiqueta: 'Bajo el mínimo',
-                  valor: '${bajoMinimo.length}',
-                  detalle: bajoMinimo.isEmpty
-                      ? 'Todo en orden'
-                      : 'por resurtir',
-                  fondo: c.alertaSuave,
-                  tinta: c.alerta,
-                ),
-                _Kpi(
-                  icono: Icons.event_busy_outlined,
-                  etiqueta: 'Caducan en 15 días',
-                  valor: '${porCaducar.length}',
-                  detalle: porCaducar.isEmpty ? 'Ninguno' : 'vender primero',
-                  fondo: c.superficie3,
-                  tinta: c.azul,
-                ),
-                _Kpi(
-                  icono: Icons.smartphone_rounded,
-                  etiqueta: 'Terminales',
-                  valor: '$conectadas',
-                  detalle: '${terminales.length} vinculadas',
-                  fondo: c.verdeSuave,
-                  tinta: c.verde,
-                ),
-              ],
+            _PanelMetricas(
+              productos: productos.length,
+              piezas: piezas,
+              bajoMinimo: bajoMinimo.length,
+              porCaducar: porCaducar.length,
+              terminales: terminales.length,
+              conectadas: conectadas,
+              columnas: columnasKpi,
             ),
-            const SizedBox(height: 18),
+            const SizedBox(height: 20),
             Flex(
               direction: dosColumnas ? Axis.horizontal : Axis.vertical,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -266,70 +228,230 @@ class _Tablero extends ConsumerWidget {
   };
 }
 
-class _Kpi extends StatelessWidget {
-  const _Kpi({
-    required this.icono,
-    required this.etiqueta,
-    required this.valor,
-    required this.detalle,
-    required this.fondo,
-    required this.tinta,
+class _PanelMetricas extends StatelessWidget {
+  const _PanelMetricas({
+    required this.productos,
+    required this.piezas,
+    required this.bajoMinimo,
+    required this.porCaducar,
+    required this.terminales,
+    required this.conectadas,
+    required this.columnas,
   });
 
-  final IconData icono;
-  final String etiqueta;
-  final String valor;
-  final String detalle;
-  final Color fondo;
-  final Color tinta;
+  final int productos;
+  final int piezas;
+  final int bajoMinimo;
+  final int porCaducar;
+  final int terminales;
+  final int conectadas;
+  final int columnas;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final textos = Theme.of(context).textTheme;
+    final esCuatroColumnas = columnas >= 4;
+
+    final item1 = _ElementoMetrica(
+      icono: Icons.inventory_2_outlined,
+      etiqueta: 'Catálogo',
+      valor: '$productos',
+      unidad: productos == 1 ? 'producto' : 'productos',
+      detalle: '$piezas piezas en almacén',
+      alTocar: () => context.go('/caja/catalogo'),
+    );
+
+    final item2 = _ElementoMetrica(
+      icono: Icons.trending_down_rounded,
+      etiqueta: 'Bajo mínimo',
+      valor: '$bajoMinimo',
+      unidad: bajoMinimo == 1 ? 'producto' : 'productos',
+      detalle: bajoMinimo == 0 ? 'Inventario en orden' : 'Requiere resurtido',
+      alerta: bajoMinimo > 0,
+      colorAlerta: c.alerta,
+      alTocar: () => context.go('/caja/catalogo'),
+    );
+
+    final item3 = _ElementoMetrica(
+      icono: Icons.event_outlined,
+      etiqueta: 'Por caducar',
+      valor: '$porCaducar',
+      unidad: porCaducar == 1 ? 'producto' : 'productos',
+      detalle: porCaducar == 0 ? 'Sin fechas críticas' : 'Próximos 15 días',
+      alerta: porCaducar > 0,
+      colorAlerta: const Color(0xFFD97706),
+      alTocar: () => context.go('/caja/catalogo'),
+    );
+
+    final item4 = _ElementoMetrica(
+      icono: Icons.smartphone_rounded,
+      etiqueta: 'Terminales',
+      valor: '$conectadas',
+      unidad: conectadas == 1 ? 'activa' : 'activas',
+      detalle: terminales == 0 ? 'Ninguna vinculada' : '$terminales vinculadas',
+      alerta: conectadas > 0,
+      colorAlerta: c.verde,
+      alTocar: () => mostrarConectarTerminal(context),
+    );
+
     return Container(
-      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: c.superficie,
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: c.linea),
         boxShadow: c.sombra,
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 44,
-            height: 44,
-            decoration: BoxDecoration(
-              color: fondo,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Icon(icono, color: tinta, size: 22),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+      clipBehavior: Clip.antiAlias,
+      child: esCuatroColumnas
+          ? IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(child: item1),
+                  VerticalDivider(width: 1, thickness: 1, color: c.linea),
+                  Expanded(child: item2),
+                  VerticalDivider(width: 1, thickness: 1, color: c.linea),
+                  Expanded(child: item3),
+                  VerticalDivider(width: 1, thickness: 1, color: c.linea),
+                  Expanded(child: item4),
+                ],
+              ),
+            )
+          : Column(
               children: [
-                Text(
-                  etiqueta,
-                  style: textos.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      Expanded(child: item1),
+                      VerticalDivider(width: 1, thickness: 1, color: c.linea),
+                      Expanded(child: item2),
+                    ],
+                  ),
                 ),
-                Text(valor, style: textos.headlineLarge),
-                Text(
-                  detalle,
-                  style: textos.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                Divider(height: 1, thickness: 1, color: c.linea),
+                IntrinsicHeight(
+                  child: Row(
+                    children: [
+                      Expanded(child: item3),
+                      VerticalDivider(width: 1, thickness: 1, color: c.linea),
+                      Expanded(child: item4),
+                    ],
+                  ),
                 ),
               ],
             ),
+    );
+  }
+}
+
+class _ElementoMetrica extends StatelessWidget {
+  const _ElementoMetrica({
+    required this.icono,
+    required this.etiqueta,
+    required this.valor,
+    required this.unidad,
+    required this.detalle,
+    required this.alTocar,
+    this.alerta = false,
+    this.colorAlerta,
+  });
+
+  final IconData icono;
+  final String etiqueta;
+  final String valor;
+  final String unidad;
+  final String detalle;
+  final VoidCallback alTocar;
+  final bool alerta;
+  final Color? colorAlerta;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colores;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: alTocar,
+        hoverColor: c.superficie2,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Row(
+                children: [
+                  Icon(icono, size: 15, color: c.tinta2.withValues(alpha: 0.7)),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      etiqueta,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: c.tinta2.withValues(alpha: 0.8),
+                        letterSpacing: 0.1,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (alerta && colorAlerta != null)
+                    Container(
+                      width: 7,
+                      height: 7,
+                      decoration: BoxDecoration(
+                        color: colorAlerta,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.baseline,
+                textBaseline: TextBaseline.alphabetic,
+                children: [
+                  Text(
+                    valor,
+                    style: TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w800,
+                      color: c.tinta,
+                      letterSpacing: -0.5,
+                      height: 1.0,
+                    ),
+                  ),
+                  const SizedBox(width: 5),
+                  Expanded(
+                    child: Text(
+                      unidad,
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w500,
+                        color: c.tinta2.withValues(alpha: 0.65),
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                detalle,
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: alerta ? FontWeight.w600 : FontWeight.w400,
+                  color: alerta && colorAlerta != null
+                      ? colorAlerta
+                      : c.tinta2.withValues(alpha: 0.6),
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

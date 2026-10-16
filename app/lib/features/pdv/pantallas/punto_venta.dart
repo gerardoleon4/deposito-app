@@ -1,22 +1,33 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../app/tema/colores.dart';
+import '../../envases/datos/modelos_envases.dart';
+import '../../envases/estado/envases_provider.dart';
+import '../../envases/pantallas/modal_recepcion_envases.dart';
+import '../../envases/pantallas/modal_registro_prestamo.dart';
+import '../../envases/pantallas/modal_salida_envases.dart';
 import '../datos/modelos_pdv.dart';
 import 'escaner_continuo.dart';
 import 'flujo_cobro.dart';
 
-class PuntoVenta extends StatefulWidget {
+class PuntoVenta extends ConsumerStatefulWidget {
   const PuntoVenta({super.key});
 
   @override
-  State<PuntoVenta> createState() => _PuntoVentaState();
+  ConsumerState<PuntoVenta> createState() => _PuntoVentaState();
 }
 
-class _PuntoVentaState extends State<PuntoVenta>
+class _PuntoVentaState extends ConsumerState<PuntoVenta>
     with SingleTickerProviderStateMixin {
   String _filtroActivo = 'Todas';
   final List<String> _filtros = ['Todas', 'Cervezas', 'Botanas', 'Hielo'];
+  String _busqueda = '';
 
   final List<ItemCarrito> _carrito = [];
+  final List<CreditoEnvase> _creditosEnvases = [];
+  double _cargoDepositosEnvases = 0.0;
+  bool _envasesResueltos = false;
+  String? _clientePrestamo;
   String? _itemRecienteId;
 
   late AnimationController _bounceCtrl;
@@ -37,11 +48,27 @@ class _PuntoVentaState extends State<PuntoVenta>
   }
 
   double get _subtotal => _carrito.fold(0, (sum, item) => sum + item.subtotal);
-  double get _total => _subtotal;
+  double get _totalCreditosEnvases =>
+      _creditosEnvases.fold(0.0, (sum, c) => sum + c.creditoTotal);
+  double get _total =>
+      (_subtotal + _cargoDepositosEnvases - _totalCreditosEnvases).clamp(
+        0.0,
+        999999.0,
+      );
+
+  int get _cantidadRetornablesEnCarrito => _carrito
+      .where((i) => i.producto.esRetornable)
+      .fold(0, (sum, i) => sum + i.piezasTotales);
 
   List<Producto> get _productosFiltrados {
-    if (_filtroActivo == 'Todas') return productosDemo;
-    return productosDemo.where((p) => p.categoria == _filtroActivo).toList();
+    return productosDemo.where((p) {
+      final coincideFiltro =
+          _filtroActivo == 'Todas' || p.categoria == _filtroActivo;
+      final coincideBusqueda =
+          _busqueda.isEmpty ||
+          p.nombre.toLowerCase().contains(_busqueda.toLowerCase());
+      return coincideFiltro && coincideBusqueda;
+    }).toList();
   }
 
   void _mostrarAlertaInventario(String mensaje) {
@@ -112,6 +139,116 @@ class _PuntoVentaState extends State<PuntoVenta>
     } else {
       _agregarAlCarrito(prod);
     }
+  }
+
+  void _abrirRecepcionEnvases({StateSetter? setStateModal}) {
+    ModalRecepcionEnvases.mostrar(
+      context: context,
+      cantidadInicial: _cantidadRetornablesEnCarrito > 0
+          ? _cantidadRetornablesEnCarrito
+          : 1,
+      alConfirmar: (cant, form, credito) {
+        setState(() {
+          _creditosEnvases.add(
+            CreditoEnvase(
+              id: 'cr-${DateTime.now().millisecondsSinceEpoch}',
+              cantidad: cant,
+              formato: form.etiqueta,
+              creditoTotal: credito,
+            ),
+          );
+          _envasesResueltos = true;
+        });
+        setStateModal?.call(() {});
+      },
+    );
+  }
+
+  Future<void> _iniciarCobro({BuildContext? ctxModal}) async {
+    if (_carrito.isEmpty) return;
+
+    if (ctxModal != null) {
+      Navigator.pop(ctxModal);
+    }
+
+    // 5.3: Si hay productos retornables y no se han resuelto envases previos
+    if (_cantidadRetornablesEnCarrito > 0 &&
+        !_envasesResueltos &&
+        _totalCreditosEnvases == 0) {
+      final res = await ModalSalidaEnvases.mostrar(
+        context: context,
+        cantidadRetornables: _cantidadRetornablesEnCarrito,
+      );
+
+      if (res == null) return;
+
+      if (res.accion == AccionSalidaEnvases.cobrarDeposito) {
+        setState(() {
+          _cargoDepositosEnvases = res.montoDeposito;
+          _envasesResueltos = true;
+        });
+      } else if (res.accion == AccionSalidaEnvases.clienteTrajoVacios) {
+        if (!mounted) return;
+        bool confirmado = false;
+        await ModalRecepcionEnvases.mostrar(
+          context: context,
+          cantidadInicial: _cantidadRetornablesEnCarrito,
+          alConfirmar: (cant, form, credito) {
+            confirmado = true;
+            setState(() {
+              _creditosEnvases.add(
+                CreditoEnvase(
+                  id: 'cr-${DateTime.now().millisecondsSinceEpoch}',
+                  cantidad: cant,
+                  formato: form.etiqueta,
+                  creditoTotal: credito,
+                ),
+              );
+              _envasesResueltos = true;
+            });
+          },
+        );
+        if (!confirmado) return;
+      } else if (res.accion == AccionSalidaEnvases.prestarEnvases) {
+        if (!mounted) return;
+        String? clienteRegistrado;
+        final guardado = await ModalRegistroPrestamo.mostrar(
+          context: context,
+          cantidadEnvases: _cantidadRetornablesEnCarrito,
+          alGuardar: (cliente, tel) {
+            clienteRegistrado = cliente;
+            ref
+                .read(envasesProvider.notifier)
+                .registrarPrestamo(
+                  cliente: cliente,
+                  cantidad: _cantidadRetornablesEnCarrito,
+                  formato: TipoFormatoEnvase.media,
+                  telefono: tel,
+                );
+          },
+        );
+        if (guardado != true) return;
+        setState(() {
+          _clientePrestamo = clienteRegistrado;
+          _envasesResueltos = true;
+        });
+      }
+    }
+
+    if (!mounted) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => ResumenCompra(
+          carrito: _carrito,
+          total: _total,
+          creditosEnvases: _creditosEnvases,
+          cargoDepositos: _cargoDepositosEnvases,
+          clientePrestamo: _clientePrestamo,
+        ),
+      ),
+    );
   }
 
   void _mostrarModalVariante(Producto prod) {
@@ -337,6 +474,352 @@ class _PuntoVentaState extends State<PuntoVenta>
     );
   }
 
+  void _abrirCarritoMovil() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) {
+        final c = context.colores;
+        return StatefulBuilder(
+          builder: (context, setStateModal) {
+            return Container(
+              height: MediaQuery.of(context).size.height * 0.75,
+              decoration: BoxDecoration(
+                color: c.superficie,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(24),
+                ),
+              ),
+              child: Column(
+                children: [
+                  const SizedBox(height: 12),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: c.linea,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 20,
+                      vertical: 14,
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Carrito (${_carrito.fold(0, (sum, i) => sum + i.cantidad)} items)',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: c.tinta,
+                          ),
+                        ),
+                        Row(
+                          children: [
+                            TextButton.icon(
+                              onPressed: () => _abrirRecepcionEnvases(
+                                setStateModal: setStateModal,
+                              ),
+                              icon: const Icon(
+                                Icons.recycling_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('+ Vacíos'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: c.verde,
+                                backgroundColor: c.verdeSuave,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            IconButton(
+                              icon: const Icon(Icons.close_rounded),
+                              onPressed: () => Navigator.pop(ctx),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  Expanded(
+                    child: (_carrito.isEmpty && _creditosEnvases.isEmpty)
+                        ? _EmptyStateCarrito(c: c)
+                        : ListView(
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            children: [
+                              for (int i = 0; i < _carrito.length; i++) ...[
+                                Builder(
+                                  builder: (context) {
+                                    final item = _carrito[i];
+                                    return Material(
+                                      color: Colors.transparent,
+                                      child: ListTile(
+                                        title: Text(
+                                          '${item.producto.nombre} ${item.esCaja ? '(Caja)' : ''}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: c.tinta,
+                                          ),
+                                        ),
+                                        subtitle: Text(
+                                          '\$${item.producto.precio.toStringAsFixed(2)} x ${item.cantidad}',
+                                          style: TextStyle(color: c.tinta2),
+                                        ),
+                                        trailing: Text(
+                                          '\$${item.subtotal.toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 16,
+                                            color: c.tinta,
+                                          ),
+                                        ),
+                                        onTap: () {
+                                          _mostrarEdicionCarrito(item);
+                                          setStateModal(() {});
+                                        },
+                                      ),
+                                    );
+                                  },
+                                ),
+                                const Divider(height: 1),
+                              ],
+                              for (final cred in _creditosEnvases) ...[
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 4,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: c.verdeSuave,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: c.verde.withValues(alpha: 0.3),
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(
+                                        Icons.recycling_rounded,
+                                        color: c.verde,
+                                        size: 18,
+                                      ),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Text(
+                                          'Crédito por Envase (${cred.cantidad} ${cred.formato})',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.bold,
+                                            color: c.verde,
+                                            fontSize: 13,
+                                          ),
+                                        ),
+                                      ),
+                                      Text(
+                                        '-\$${cred.creditoTotal.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: c.verde,
+                                        ),
+                                      ),
+                                      const SizedBox(width: 4),
+                                      IconButton(
+                                        icon: Icon(
+                                          Icons.close_rounded,
+                                          size: 16,
+                                          color: c.verde,
+                                        ),
+                                        onPressed: () {
+                                          setState(() {
+                                            _creditosEnvases.remove(cred);
+                                          });
+                                          setStateModal(() {});
+                                        },
+                                        padding: EdgeInsets.zero,
+                                        constraints: const BoxConstraints(),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                              if (_cargoDepositosEnvases > 0)
+                                Container(
+                                  margin: const EdgeInsets.symmetric(
+                                    horizontal: 16,
+                                    vertical: 4,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: c.alerta.withValues(alpha: 0.1),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceBetween,
+                                    children: [
+                                      Text(
+                                        'Depósito de Envases',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          color: c.tinta,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      Text(
+                                        '+\$${_cargoDepositosEnvases.toStringAsFixed(2)}',
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 14,
+                                          color: c.alerta,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ),
+                  ),
+                  Container(
+                    padding: const EdgeInsets.all(24),
+                    decoration: BoxDecoration(
+                      color: c.superficie,
+                      border: Border(top: BorderSide(color: c.linea)),
+                    ),
+                    child: SafeArea(
+                      top: false,
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (_totalCreditosEnvases > 0) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Crédito por Envases',
+                                  style: TextStyle(
+                                    color: c.verde,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  '-\$${_totalCreditosEnvases.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: c.verde,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                          ],
+                          if (_cargoDepositosEnvases > 0) ...[
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                Text(
+                                  'Cargo Depósitos',
+                                  style: TextStyle(
+                                    color: c.alerta,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                                Text(
+                                  '+\$${_cargoDepositosEnvases.toStringAsFixed(2)}',
+                                  style: TextStyle(
+                                    color: c.alerta,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                          ],
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Total',
+                                style: TextStyle(
+                                  color: c.tinta,
+                                  fontSize: 20,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                '\$${_total.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  color: c.azul,
+                                  fontSize: 28,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: -0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton(
+                              onPressed:
+                                  (_carrito.isEmpty && _creditosEnvases.isEmpty)
+                                  ? null
+                                  : () => _iniciarCobro(ctxModal: ctx),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: c.azul,
+                                foregroundColor: Colors.white,
+                                disabledBackgroundColor: c.linea,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 18,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                elevation: 0,
+                              ),
+                              child: const Text(
+                                'Ir al Pago',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
@@ -362,6 +845,8 @@ class _PuntoVentaState extends State<PuntoVenta>
                           children: [
                             Expanded(
                               child: TextField(
+                                onChanged: (val) =>
+                                    setState(() => _busqueda = val),
                                 decoration: InputDecoration(
                                   hintText: 'Buscar productos...',
                                   prefixIcon: const Icon(Icons.search),
@@ -463,65 +948,248 @@ class _PuntoVentaState extends State<PuntoVenta>
                   child: Column(
                     children: [
                       Container(
-                        padding: const EdgeInsets.all(24),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 20,
+                          vertical: 16,
+                        ),
                         width: double.infinity,
                         decoration: BoxDecoration(
                           color: c.superficie,
                           border: Border(bottom: BorderSide(color: c.linea)),
                         ),
-                        child: Text(
-                          'Venta Actual',
-                          style: TextStyle(
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            color: c.tinta,
-                          ),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Text(
+                              'Venta Actual',
+                              style: TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: c.tinta,
+                              ),
+                            ),
+                            TextButton.icon(
+                              onPressed: _abrirRecepcionEnvases,
+                              icon: const Icon(
+                                Icons.recycling_rounded,
+                                size: 16,
+                              ),
+                              label: const Text('+ Recibir Vacíos'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: c.verde,
+                                backgroundColor: c.verdeSuave,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 6,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
                       Expanded(
-                        child: _carrito.isEmpty
+                        child: (_carrito.isEmpty && _creditosEnvases.isEmpty)
                             ? _EmptyStateCarrito(c: c)
-                            : ListView.separated(
+                            : ListView(
                                 padding: const EdgeInsets.symmetric(
                                   vertical: 8,
                                 ),
-                                itemCount: _carrito.length,
-                                separatorBuilder: (_, _) =>
-                                    const Divider(height: 1),
-                                itemBuilder: (context, i) {
-                                  final item = _carrito[i];
-                                  final isHighlighted =
-                                      item.id == _itemRecienteId;
+                                children: [
+                                  for (int i = 0; i < _carrito.length; i++) ...[
+                                    Builder(
+                                      builder: (context) {
+                                        final item = _carrito[i];
+                                        final isHighlighted =
+                                            item.id == _itemRecienteId;
 
-                                  return AnimatedContainer(
-                                    duration: const Duration(milliseconds: 300),
-                                    color: isHighlighted
-                                        ? c.azul.withValues(alpha: 0.1)
-                                        : Colors.transparent,
-                                    child: ListTile(
-                                      title: Text(
-                                        '${item.producto.nombre} ${item.esCaja ? '(Caja)' : ''}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          color: c.tinta,
-                                        ),
-                                      ),
-                                      subtitle: Text(
-                                        '\$${item.producto.precio.toStringAsFixed(2)} x ${item.cantidad}',
-                                        style: TextStyle(color: c.tinta2),
-                                      ),
-                                      trailing: Text(
-                                        '\$${item.subtotal.toStringAsFixed(2)}',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.bold,
-                                          fontSize: 16,
-                                          color: c.tinta,
-                                        ),
-                                      ),
-                                      onTap: () => _mostrarEdicionCarrito(item),
+                                        return AnimatedContainer(
+                                          duration: const Duration(
+                                            milliseconds: 300,
+                                          ),
+                                          color: isHighlighted
+                                              ? c.azul.withValues(alpha: 0.1)
+                                              : Colors.transparent,
+                                          child: ListTile(
+                                            title: Text(
+                                              '${item.producto.nombre} ${item.esCaja ? '(Caja)' : ''}',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: c.tinta,
+                                              ),
+                                            ),
+                                            subtitle: Text(
+                                              '\$${item.producto.precio.toStringAsFixed(2)} x ${item.cantidad}',
+                                              style: TextStyle(color: c.tinta2),
+                                            ),
+                                            trailing: Text(
+                                              '\$${item.subtotal.toStringAsFixed(2)}',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                                color: c.tinta,
+                                              ),
+                                            ),
+                                            onTap: () =>
+                                                _mostrarEdicionCarrito(item),
+                                          ),
+                                        );
+                                      },
                                     ),
-                                  );
-                                },
+                                    const Divider(height: 1),
+                                  ],
+                                  for (final cred in _creditosEnvases) ...[
+                                    Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 4,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: c.verdeSuave,
+                                        borderRadius: BorderRadius.circular(10),
+                                        border: Border.all(
+                                          color: c.verde.withValues(alpha: 0.3),
+                                        ),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.recycling_rounded,
+                                            color: c.verde,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  'Crédito por Envase (${cred.cantidad} ${cred.formato})',
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.bold,
+                                                    color: c.verde,
+                                                    fontSize: 13,
+                                                  ),
+                                                ),
+                                                Text(
+                                                  'Descontado del subtotal',
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: c.verde.withValues(
+                                                      alpha: 0.8,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          Text(
+                                            '-\$${cred.creditoTotal.toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: c.verde,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 4),
+                                          IconButton(
+                                            icon: Icon(
+                                              Icons.close_rounded,
+                                              size: 16,
+                                              color: c.verde,
+                                            ),
+                                            onPressed: () {
+                                              setState(() {
+                                                _creditosEnvases.remove(cred);
+                                              });
+                                            },
+                                            padding: EdgeInsets.zero,
+                                            constraints: const BoxConstraints(),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                  if (_cargoDepositosEnvases > 0)
+                                    Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 4,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: c.alerta.withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Text(
+                                            'Depósito de Envases',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              color: c.tinta,
+                                              fontSize: 13,
+                                            ),
+                                          ),
+                                          Text(
+                                            '+\$${_cargoDepositosEnvases.toStringAsFixed(2)}',
+                                            style: TextStyle(
+                                              fontWeight: FontWeight.bold,
+                                              fontSize: 14,
+                                              color: c.alerta,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  if (_clientePrestamo != null)
+                                    Container(
+                                      margin: const EdgeInsets.symmetric(
+                                        horizontal: 16,
+                                        vertical: 4,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 12,
+                                        vertical: 8,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: c.azul.withValues(alpha: 0.08),
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          Icon(
+                                            Icons.handshake_outlined,
+                                            color: c.azul,
+                                            size: 18,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Expanded(
+                                            child: Text(
+                                              'Préstamo a: $_clientePrestamo',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                color: c.azul,
+                                                fontSize: 13,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                ],
                               ),
                       ),
 
@@ -559,7 +1227,57 @@ class _PuntoVentaState extends State<PuntoVenta>
                                 ),
                               ],
                             ),
-                            const SizedBox(height: 8),
+                            if (_totalCreditosEnvases > 0) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Crédito Envases',
+                                    style: TextStyle(
+                                      color: c.verde,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    '-\$${_totalCreditosEnvases.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: c.verde,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            if (_cargoDepositosEnvases > 0) ...[
+                              const SizedBox(height: 8),
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Text(
+                                    'Depósito Envases',
+                                    style: TextStyle(
+                                      color: c.alerta,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                  Text(
+                                    '+\$${_cargoDepositosEnvases.toStringAsFixed(2)}',
+                                    style: TextStyle(
+                                      color: c.alerta,
+                                      fontSize: 15,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                            const SizedBox(height: 12),
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
@@ -586,19 +1304,11 @@ class _PuntoVentaState extends State<PuntoVenta>
                             SizedBox(
                               width: double.infinity,
                               child: ElevatedButton(
-                                onPressed: _carrito.isEmpty
+                                onPressed:
+                                    (_carrito.isEmpty &&
+                                        _creditosEnvases.isEmpty)
                                     ? null
-                                    : () {
-                                        Navigator.push(
-                                          context,
-                                          MaterialPageRoute(
-                                            builder: (_) => ResumenCompra(
-                                              carrito: _carrito,
-                                              total: _total,
-                                            ),
-                                          ),
-                                        );
-                                      },
+                                    : () => _iniciarCobro(),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: c.azul,
                                   foregroundColor: Colors.white,
@@ -661,9 +1371,7 @@ class _PuntoVentaState extends State<PuntoVenta>
                 CurvedAnimation(parent: _bounceCtrl, curve: Curves.elasticOut),
               ),
               child: FloatingActionButton.extended(
-                onPressed: () {
-                  // En móvil, abriría un Modal con el carrito
-                },
+                onPressed: _abrirCarritoMovil,
                 backgroundColor: c.azul,
                 icon: const Icon(
                   Icons.shopping_cart_rounded,
@@ -709,6 +1417,20 @@ class _TarjetaProducto extends StatelessWidget {
   final Producto producto;
   final VoidCallback alTocar;
 
+  Widget _iconoFallback(ColoresAnaquel c) {
+    return Center(
+      child: Icon(
+        producto.categoria == 'Cervezas'
+            ? Icons.sports_bar_rounded
+            : producto.categoria == 'Botanas'
+            ? Icons.fastfood_rounded
+            : Icons.ac_unit_rounded,
+        size: 48,
+        color: c.azul.withValues(alpha: 0.4),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
@@ -721,8 +1443,8 @@ class _TarjetaProducto extends StatelessWidget {
           border: Border.all(color: c.linea),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.02),
-              blurRadius: 4,
+              color: Colors.black.withValues(alpha: 0.03),
+              blurRadius: 6,
               offset: const Offset(0, 2),
             ),
           ],
@@ -732,23 +1454,27 @@ class _TarjetaProducto extends StatelessWidget {
           children: [
             Expanded(
               child: Container(
-                decoration: BoxDecoration(
-                  color: c.fondo,
-                  borderRadius: const BorderRadius.vertical(
-                    top: Radius.circular(16),
-                  ),
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(15)),
                 ),
-                child: Center(
-                  child: Icon(
-                    producto.categoria == 'Cervezas'
-                        ? Icons.sports_bar_rounded
-                        : producto.categoria == 'Botanas'
-                        ? Icons.fastfood_rounded
-                        : Icons.ac_unit_rounded,
-                    size: 48,
-                    color: c.azul.withValues(alpha: 0.5),
-                  ),
-                ),
+                clipBehavior: Clip.antiAlias,
+                child: producto.urlImagen != null
+                    ? Padding(
+                        padding: const EdgeInsets.all(8),
+                        child: producto.urlImagen!.startsWith('http')
+                            ? Image.network(
+                                producto.urlImagen!,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) => _iconoFallback(c),
+                              )
+                            : Image.asset(
+                                producto.urlImagen!,
+                                fit: BoxFit.contain,
+                                errorBuilder: (_, _, _) => _iconoFallback(c),
+                              ),
+                      )
+                    : _iconoFallback(c),
               ),
             ),
             Padding(

@@ -2,7 +2,11 @@ import 'package:flutter/material.dart';
 
 import '../../ajustes/ajustes.dart';
 import '../../catalogo/pantallas/pantalla_catalogo.dart';
+import '../../envases/pantallas/dashboard_envases.dart';
+import '../../pdv/pantallas/punto_venta.dart';
 import '../../proximamente/proximamente.dart';
+import '../../ventas/pantallas/lista_transacciones.dart';
+import 'corte_caja.dart';
 import 'inicio_caja.dart';
 
 /// Secciones de la caja, en el orden del menú. Las que no están construidas
@@ -27,79 +31,52 @@ final seccionesCaja = <SeccionCaja>[
   SeccionCaja(
     'inicio',
     'Inicio',
-    Icons.home_outlined,
-    Icons.home_rounded,
+    Icons.space_dashboard_outlined,
+    Icons.space_dashboard_rounded,
     InicioCaja.new,
   ),
   SeccionCaja(
     'vender',
     'Vender',
-    Icons.shopping_cart_outlined,
-    Icons.shopping_cart_rounded,
-    () => const Proximamente(
-      icono: Icons.shopping_cart_outlined,
-      titulo: 'Vender',
-      descripcion:
-          'Carrito por pieza o caja, envases y cobro en efectivo o tarjeta.',
-      sprint: 3,
-      responsable: 'Daniel',
-    ),
+    Icons.point_of_sale_outlined,
+    Icons.point_of_sale_rounded,
+    PuntoVenta.new,
   ),
   SeccionCaja(
     'ventas',
     'Ventas',
     Icons.receipt_long_outlined,
     Icons.receipt_long_rounded,
-    () => const Proximamente(
-      icono: Icons.receipt_long_outlined,
-      titulo: 'Ventas',
-      descripcion: 'Historial del turno, tickets en PDF y cancelaciones.',
-      sprint: 3,
-      responsable: 'Daniel',
-    ),
+    ListaTransacciones.new,
   ),
   SeccionCaja(
     'catalogo',
     'Catálogo',
-    Icons.grid_view_outlined,
-    Icons.grid_view_rounded,
+    Icons.inventory_2_outlined,
+    Icons.inventory_2_rounded,
     PantallaCatalogo.new,
   ),
   SeccionCaja(
     'envases',
     'Envases',
-    Icons.liquor_outlined,
-    Icons.liquor_rounded,
-    () => const Proximamente(
-      icono: Icons.liquor_outlined,
-      titulo: 'Envases',
-      descripcion:
-          'Existencias por formato, préstamos a clientes y devoluciones.',
-      sprint: 2,
-      responsable: 'Luis',
-    ),
+    Icons.recycling_outlined,
+    Icons.recycling_rounded,
+    DashboardEnvases.new,
   ),
   SeccionCaja(
     'corte',
     'Corte de caja',
-    Icons.point_of_sale_outlined,
-    Icons.point_of_sale_rounded,
-    () => const Proximamente(
-      icono: Icons.point_of_sale_outlined,
-      titulo: 'Corte de caja',
-      descripcion:
-          'Apertura con fondo, arqueo y cierre del turno con respaldo automático.',
-      sprint: 3,
-      responsable: 'Daniel',
-    ),
+    Icons.account_balance_wallet_outlined,
+    Icons.account_balance_wallet_rounded,
+    CorteCaja.new,
   ),
   SeccionCaja(
     'alertas',
     'Alertas',
-    Icons.notifications_none_rounded,
-    Icons.notifications_rounded,
+    Icons.notifications_active_outlined,
+    Icons.notifications_active_rounded,
     () => const Proximamente(
-      icono: Icons.notifications_none_rounded,
+      icono: Icons.notifications_active_outlined,
       titulo: 'Alertas',
       descripcion:
           'Productos bajo su mínimo y próximos a caducar. Mientras tanto, el Inicio ya los muestra.',
@@ -124,8 +101,8 @@ final seccionesCaja = <SeccionCaja>[
   SeccionCaja(
     'ajustes',
     'Ajustes',
-    Icons.settings_outlined,
-    Icons.settings_rounded,
+    Icons.tune_outlined,
+    Icons.tune_rounded,
     PantallaAjustes.new,
   ),
 ];

@@ -8,7 +8,7 @@ import 'json.dart';
 import 'seguridad.dart';
 import 'sesion.dart';
 
-const cabeceraClave = 'x-clave-terminal';
+import 'constantes.dart';
 
 /// Rutas que no piden clave (relativas, sin `/` inicial).
 const _rutasPublicas = {'salud', 'api/v1/terminales/registro'};

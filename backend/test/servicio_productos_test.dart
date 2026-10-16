@@ -1,4 +1,4 @@
-import 'package:deposito_backend/deposito_backend.dart';
+import 'package:deposito_backend/deposito_backend.dart' hide enMemoria;
 import 'package:deposito_backend/src/comun/errores.dart';
 import 'package:deposito_backend/src/db/base_datos.dart';
 import 'package:deposito_backend/src/db/migraciones.dart';

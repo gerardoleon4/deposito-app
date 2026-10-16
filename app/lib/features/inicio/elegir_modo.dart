@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../app/tema/colores.dart';
+import '../../core/config/configuracion.dart';
 import '../terminal/pantallas/vinculacion_terminal.dart';
 import 'pantallas/crear_cuenta_maestra.dart';
 import 'pantallas/inicializando_bd.dart';
 import 'pantallas/restaurar_respaldo.dart';
-import '../personal/pantallas/gestion_personal.dart';
 
 /// Pantalla "Configura tu punto de venta".
 /// Permite elegir entre crear servidor, conectar terminal o restaurar respaldo.
@@ -100,14 +101,15 @@ class ElegirModo extends ConsumerWidget {
                                     context,
                                     MaterialPageRoute(
                                       builder: (_) => InicializandoBD(
-                                        alTerminar: () {
-                                          Navigator.pushReplacement(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (_) =>
-                                                  const GestionPersonal(),
-                                            ),
-                                          );
+                                        alTerminar: () async {
+                                          await ref
+                                              .read(
+                                                configuracionProvider.notifier,
+                                              )
+                                              .elegirModo(ModoDispositivo.caja);
+                                          if (context.mounted) {
+                                            context.go('/caja/vender');
+                                          }
                                         },
                                       ),
                                     ),
