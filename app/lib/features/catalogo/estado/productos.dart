@@ -39,6 +39,11 @@ class ProductosNotifier extends AsyncNotifier<List<Producto>> {
         final actual = state.value;
         if (actual == null) return;
         state = AsyncData(_ordenar([...actual.where((x) => x.id != p.id), p]));
+      case TiposEvento.productoEliminado:
+        final id = e.datos['id'] as String;
+        final actual = state.value;
+        if (actual == null) return;
+        state = AsyncData(actual.where((x) => x.id != id).toList());
       case eventoReconectado:
         refrescar();
     }

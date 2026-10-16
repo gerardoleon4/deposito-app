@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:shelf/shelf.dart';
 
@@ -20,6 +21,25 @@ Future<Map<String, Object?>> leerObjetoJson(Request peticion) async {
     // Se responde abajo con el mismo error.
   }
   throw ErrorApi.jsonInvalido();
+}
+
+/// Lee el cuerpo como bytes sin pasar de [max]: corta en cuanto lo rebasa,
+/// para que un archivo enorme no llene la memoria del iPad.
+Future<Uint8List> leerBytes(
+  Request peticion, {
+  required int max,
+  required String campo,
+}) async {
+  final demasiado = ErrorApi.datosInvalidos({
+    campo: 'Pasa del máximo de ${max ~/ (1024 * 1024)} MB',
+  });
+  if ((peticion.contentLength ?? 0) > max) throw demasiado;
+  final bytes = BytesBuilder(copy: false);
+  await for (final parte in peticion.read()) {
+    bytes.add(parte);
+    if (bytes.length > max) throw demasiado;
+  }
+  return bytes.takeBytes();
 }
 
 /// Junta los errores de todos los campos para responderlos de una vez.

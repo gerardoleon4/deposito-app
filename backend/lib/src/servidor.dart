@@ -13,6 +13,7 @@ import 'comun/fechas.dart';
 import 'comun/middleware.dart';
 import 'comun/seguridad.dart';
 import 'comun/sesion.dart';
+import 'db/almacen_fotos.dart';
 import 'db/base_datos.dart';
 import 'db/migraciones.dart';
 import 'db/repositorio_ajustes.dart';
@@ -51,13 +52,13 @@ class DepositoServer {
     this.puerto = 8080,
     InternetAddress? direccion,
     String? claveCaja,
+    this.carpetaFotos,
     this.datosEjemplo = false,
     Bitacora? bitacora,
-    Reloj reloj = relojSistema,
+    this._reloj = relojSistema,
   }) : direccion = direccion ?? InternetAddress.anyIPv4,
        claveCaja = claveCaja ?? generarClave(),
-       bitacora = bitacora ?? Bitacora(),
-       _reloj = reloj;
+       bitacora = bitacora ?? Bitacora();
 
   /// Archivo SQLite, o [enMemoria].
   final String rutaBaseDatos;
@@ -69,6 +70,10 @@ class DepositoServer {
   /// Clave con la que la app de la caja se identifica. Nunca sale del iPad.
   final String claveCaja;
 
+  /// Dónde se guardan las fotos de productos. Por omisión, `fotos/` junto a
+  /// la base; con [enMemoria], una carpeta temporal que se borra al detener.
+  final String? carpetaFotos;
+
   /// Carga los productos del prototipo si la base está vacía.
   final bool datosEjemplo;
   final Bitacora bitacora;
@@ -77,6 +82,7 @@ class DepositoServer {
   HttpServer? _http;
   Database? _db;
   Hub? _hub;
+  Directory? _fotosTemporales;
 
   bool get iniciado => _http != null;
 
@@ -84,8 +90,6 @@ class DepositoServer {
       _http?.port ?? (throw StateError('El servidor no está iniciado'));
 
   /// Abre la base, aplica migraciones (con respaldo previo) y empieza a escuchar.
-  // backend/lib/src/servidor.dart
-
   Future<void> iniciar() async {
     if (iniciado) return;
     final db = abrirBaseDatos(rutaBaseDatos);
@@ -112,6 +116,7 @@ class DepositoServer {
         db: db,
         repositorio: repoProductos,
         hub: hub,
+        fotos: AlmacenFotos(_carpetaDeFotos()),
         reloj: _reloj,
       );
       final terminales = ServicioTerminales(
@@ -136,7 +141,12 @@ class DepositoServer {
         reloj: _reloj,
       );
 
-      final pedidos = ServicioPedidos(db: db, hub: hub, reloj: _reloj);
+      final pedidos = ServicioPedidos(
+        db: db,
+        repoProductos: repoProductos,
+        hub: hub,
+        reloj: _reloj,
+      );
 
       if (datosEjemplo && repoProductos.contar() == 0) {
         cargarDatosEjemplo(
@@ -161,9 +171,7 @@ class DepositoServer {
             });
       montarRutasTerminales(router, terminales);
       montarRutasProductos(router, productos);
-      montarRutasTerminales(router, terminales);
-      montarRutasProductos(router, productos);
-      montarRutasEnvases(router, envases);
+      montarRutasEnvases(router, envases, ventas);
       montarRutasVentas(router, ventas);
       montarRutasPedidos(router, pedidos);
 
@@ -185,7 +193,8 @@ class DepositoServer {
       // Limpieza integral en caso de error durante el arranque
       await _hub?.cerrar();
       await _http?.close(force: true);
-      db.dispose();
+      db.close();
+      _borrarFotosTemporales();
       _http = null;
       _db = null;
       _hub = null;
@@ -198,11 +207,30 @@ class DepositoServer {
   Future<void> detener() async {
     await _hub?.cerrar();
     await _http?.close(force: true);
-    _db?.dispose();
+    _db?.close();
+    _borrarFotosTemporales();
     _http = null;
     _db = null;
     _hub = null;
     bitacora.info('Servidor detenido');
+  }
+
+  String _carpetaDeFotos() {
+    if (carpetaFotos != null) return carpetaFotos!;
+    if (rutaBaseDatos != enMemoria) {
+      return p.join(p.dirname(rutaBaseDatos), 'fotos');
+    }
+    return (_fotosTemporales = Directory.systemTemp.createTempSync(
+      'anaquel_fotos_',
+    )).path;
+  }
+
+  void _borrarFotosTemporales() {
+    final carpeta = _fotosTemporales;
+    _fotosTemporales = null;
+    if (carpeta != null && carpeta.existsSync()) {
+      carpeta.deleteSync(recursive: true);
+    }
   }
 
   String? _rutaRespaldoMigracion(int versionActual) {

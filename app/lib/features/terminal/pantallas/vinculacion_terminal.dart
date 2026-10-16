@@ -1,5 +1,7 @@
 import 'dart:async';
+
 import 'package:flutter/material.dart';
+
 import '../../../../app/tema/colores.dart';
 import '../../auth/pantallas/login_diario.dart';
 
@@ -55,17 +57,8 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          // Fondo oscurecido
-          Container(
-            color: Colors.black87,
-            child: Opacity(
-              opacity: 0.3,
-              child: Image.network(
-                'https://images.unsplash.com/photo-1604719312566-8912e9227c6a?q=80&w=1000&auto=format&fit=crop',
-                fit: BoxFit.cover,
-              ),
-            ),
-          ),
+          // Fondo oscuro (sin imágenes de la red: la app funciona sin internet)
+          Container(color: Colors.black87),
 
           SafeArea(
             child: Column(

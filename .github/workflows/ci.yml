@@ -12,6 +12,17 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  versiones:
+    name: Versiones fijas (SDK y dependencias)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: dart-lang/setup-dart@v1
+        with: { sdk: 3.13.4 }
+      - name: Revisar pubspec.yaml
+        run: dart .github/scripts/verificar_versiones.dart ${{ github.base_ref && format('origin/{0}', github.base_ref) || '' }}
+
   backend:
     name: Backend (formato, análisis y pruebas)
     runs-on: ubuntu-latest

@@ -5,16 +5,13 @@ void main() {
   const mexico = Duration(hours: -6);
 
   group('diaNegocio', () {
-    test(
-      'una venta a las 23:59 del local cuenta en ese día, aunque en UTC ya sea el siguiente',
-      () {
-        // 2 de octubre 23:59 en México = 3 de octubre 05:59 UTC.
-        expect(
-          diaNegocio(DateTime.utc(2026, 10, 3, 5, 59), mexico),
-          '2026-10-02',
-        );
-      },
-    );
+    test('una venta a las 23:59 del local cuenta en ese día, aunque en UTC ya sea el siguiente', () {
+      // 2 de octubre 23:59 en México = 3 de octubre 05:59 UTC.
+      expect(
+        diaNegocio(DateTime.utc(2026, 10, 3, 5, 59), mexico),
+        '2026-10-02',
+      );
+    });
 
     test('una venta a las 00:01 del local cuenta en el día nuevo', () {
       expect(diaNegocio(DateTime.utc(2026, 10, 3, 6, 1), mexico), '2026-10-03');

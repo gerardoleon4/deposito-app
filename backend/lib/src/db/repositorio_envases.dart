@@ -38,11 +38,23 @@ class RepositorioEnvases {
     required String formato,
     required int cantidad,
     required String fecha,
+    String? ventaId,
   }) {
     _db.execute(
-      'INSERT INTO prestamos_envases (id, cliente, formato, cantidad, fecha) VALUES (?, ?, ?, ?, ?)',
-      [id, cliente, formato, cantidad, fecha],
+      'INSERT INTO prestamos_envases (id, cliente, formato, cantidad, fecha, venta_id) '
+      'VALUES (?, ?, ?, ?, ?, ?)',
+      [id, cliente, formato, cantidad, fecha, ventaId],
     );
+  }
+
+  /// Préstamos sin devolver que salieron con esa venta.
+  List<Row> prestamosPendientesDeVenta(String ventaId) => _db.select(
+    'SELECT * FROM prestamos_envases WHERE venta_id = ? AND devuelto = 0',
+    [ventaId],
+  );
+
+  void borrarPrestamo(String id) {
+    _db.execute('DELETE FROM prestamos_envases WHERE id = ?', [id]);
   }
 
   List<Map<String, Object?>> listarPrestamosActivos() {

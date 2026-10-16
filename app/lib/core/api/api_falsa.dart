@@ -1,6 +1,9 @@
+import 'dart:typed_data';
+
 import 'package:deposito_backend/deposito_backend.dart';
 
 import 'api.dart';
+import 'fallo_api.dart';
 
 /// Datos de prueba con la forma exacta del contrato. Sirve para pruebas de
 /// widgets y para programar pantallas antes de que exista su endpoint.
@@ -35,6 +38,151 @@ class ApiFalsa implements Api {
     return p;
   }
 
+  /// Movimientos registrados por las operaciones de esta API falsa.
+  final movimientos = <String, List<Movimiento>>{};
+
+  @override
+  Future<Producto?> buscarPorCodigo(String codigo) async =>
+      productos.where((p) => p.codigo == codigo).firstOrNull;
+
+  @override
+  Future<Producto> editarProducto(String id, Map<String, Object?> datos) async {
+    final p = _producto(id);
+    return _reemplazar({
+      ...p.toJson(),
+      ...datos,
+      'id': id,
+      'existenciaPiezas': p.existenciaPiezas,
+      'foto': p.foto,
+    });
+  }
+
+  @override
+  Future<void> eliminarProducto(String id) async {
+    _producto(id);
+    productos.removeWhere((p) => p.id == id);
+  }
+
+  @override
+  Future<Producto> registrarEntrada(
+    String id, {
+    int cajas = 0,
+    int piezas = 0,
+    String? caducidad,
+    String? nota,
+  }) async {
+    final p = _producto(id);
+    final total = cajas * (p.piezasPorCaja ?? 0) + piezas;
+    if (total <= 0) {
+      throw const FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {'piezas': 'La entrada debe tener al menos una pieza'},
+        estado: 400,
+      );
+    }
+    final antes = p.caducidad;
+    final usarNueva =
+        caducidad != null &&
+        (p.existenciaPiezas == 0 ||
+            antes == null ||
+            caducidad.compareTo(antes) < 0);
+    return _moverExistencia(
+      p,
+      'entrada',
+      total,
+      nota: nota,
+      caducidad: usarNueva ? caducidad : antes,
+    );
+  }
+
+  @override
+  Future<Producto> registrarConteo(
+    String id, {
+    required int existenciaPiezas,
+    String? nota,
+  }) async {
+    final p = _producto(id);
+    final diferencia = existenciaPiezas - p.existenciaPiezas;
+    if (diferencia == 0) return p;
+    return _moverExistencia(p, 'ajuste', diferencia, nota: nota);
+  }
+
+  @override
+  Future<Producto> registrarMerma(
+    String id, {
+    required int piezas,
+    String? nota,
+  }) async {
+    final p = _producto(id);
+    if (piezas > p.existenciaPiezas) {
+      throw FalloApi(
+        'stock_insuficiente',
+        'No hay suficiente ${p.nombre}: quedan ${p.existenciaPiezas} piezas',
+        estado: 409,
+      );
+    }
+    return _moverExistencia(p, 'merma', -piezas, nota: nota);
+  }
+
+  @override
+  Future<List<Movimiento>> listarMovimientos(String id) async {
+    _producto(id);
+    return List.of(movimientos[id] ?? const <Movimiento>[]).reversed.toList();
+  }
+
+  @override
+  Future<Producto> subirFoto(String id, Uint8List bytes, String tipo) async =>
+      _reemplazar({
+        ..._producto(id).toJson(),
+        'foto': '/api/v1/productos/$id/foto?v=${bytes.length}',
+      });
+
+  @override
+  Future<Producto> borrarFoto(String id) async =>
+      _reemplazar({..._producto(id).toJson(), 'foto': null});
+
+  Producto _producto(String id) =>
+      productos.where((p) => p.id == id).firstOrNull ??
+      (throw const FalloApi(
+        'no_encontrado',
+        'No existe el producto',
+        estado: 404,
+      ));
+
+  Producto _reemplazar(Map<String, Object?> json) {
+    final p = Producto.fromJson(json);
+    productos[productos.indexWhere((x) => x.id == p.id)] = p;
+    return p;
+  }
+
+  Producto _moverExistencia(
+    Producto p,
+    String tipo,
+    int piezas, {
+    String? nota,
+    String? caducidad,
+  }) {
+    final nueva = p.existenciaPiezas + piezas;
+    final lista = movimientos.putIfAbsent(p.id, () => []);
+    lista.add(
+      Movimiento(
+        id: lista.length + 1,
+        tipo: tipo,
+        piezas: piezas,
+        existenciaResultante: nueva,
+        origen: 'Caja',
+        nota: nota,
+        fecha: '2026-10-02T18:30:00Z',
+      ),
+    );
+    return _reemplazar({
+      ...p.toJson(),
+      'existenciaPiezas': nueva,
+      if (tipo == 'entrada') 'caducidad': caducidad,
+    });
+  }
+
   @override
   Future<CodigoEmparejamiento> crearCodigoEmparejamiento() async =>
       CodigoEmparejamiento(
@@ -48,6 +196,57 @@ class ApiFalsa implements Api {
   @override
   Future<void> revocarTerminal(String id) async =>
       terminales.removeWhere((t) => t.id == id);
+
+  /// Ventas cobradas, por clave de idempotencia.
+  final ventas = <String, VentaRegistrada>{};
+
+  @override
+  Future<VentaRegistrada> registrarVenta({
+    required List<LineaVenta> lineas,
+    required String metodo,
+    int? recibido,
+    required String claveIdempotencia,
+  }) async {
+    final repetida = ventas[claveIdempotencia];
+    if (repetida != null) return repetida;
+
+    var total = 0;
+    final piezas = <String, int>{};
+    for (final l in lineas) {
+      final p = productos.firstWhere((p) => p.id == l.productoId);
+      total += (l.porCaja ? p.precioCaja! : p.precio) * l.cantidad;
+      piezas[p.id] =
+          (piezas[p.id] ?? 0) + (l.porCaja ? p.piezasPorCaja! : 1) * l.cantidad;
+    }
+    for (final e in piezas.entries) {
+      final i = productos.indexWhere((p) => p.id == e.key);
+      final p = productos[i];
+      if (p.existenciaPiezas < e.value) {
+        throw FalloApi(
+          'stock_insuficiente',
+          'No hay suficiente ${p.nombre}: quedan ${p.existenciaPiezas} piezas',
+          estado: 409,
+        );
+      }
+      productos[i] = Producto.fromJson({
+        ...p.toJson(),
+        'existenciaPiezas': p.existenciaPiezas - e.value,
+      });
+    }
+    final pagado = metodo == 'tarjeta' ? total : (recibido ?? total);
+    final venta = VentaRegistrada(
+      id: 'v_${ventas.length + 1}',
+      folio: 1001 + ventas.length,
+      fecha: '2026-10-02T18:30:00Z',
+      diaNegocio: '2026-10-02',
+      total: total,
+      metodo: metodo,
+      recibido: pagado,
+      cambio: pagado - total,
+    );
+    ventas[claveIdempotencia] = venta;
+    return venta;
+  }
 }
 
 List<Producto> productosDePrueba() {

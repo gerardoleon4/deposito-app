@@ -25,13 +25,14 @@ class RepositorioVentas {
     required int envN,
     required int envMonto,
     String? envCliente,
+    String? envFormato,
     required String origen,
   }) {
     _db.execute(
       '''
       INSERT INTO ventas (id, folio, fecha, dia_negocio, total, metodo, tarjeta, recibido,
-        cambio, env_modo, env_n, env_monto, env_cliente, origen)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        cambio, env_modo, env_n, env_monto, env_cliente, env_formato, origen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''',
       [
         id,
@@ -47,6 +48,7 @@ class RepositorioVentas {
         envN,
         envMonto,
         envCliente,
+        envFormato,
         origen,
       ],
     );
@@ -99,6 +101,21 @@ class RepositorioVentas {
       );
     }
     return _db.select('SELECT * FROM ventas ORDER BY folio DESC LIMIT 100');
+  }
+
+  /// Respuesta guardada para esa clave de idempotencia, o `null`.
+  String? respuestaGuardada(String clave) {
+    final r = _db.select('SELECT respuesta FROM idempotencia WHERE clave = ?', [
+      clave,
+    ]);
+    return r.isEmpty ? null : r.first['respuesta'] as String;
+  }
+
+  void guardarRespuesta(String clave, String respuesta, String fecha) {
+    _db.execute(
+      'INSERT INTO idempotencia (clave, respuesta, creado) VALUES (?, ?, ?)',
+      [clave, respuesta, fecha],
+    );
   }
 
   void anularVenta(String id) {
