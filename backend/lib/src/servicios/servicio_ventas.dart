@@ -57,13 +57,7 @@ class ServicioVentas {
     final envCliente = v.texto('envCliente', requerido: false, max: 80);
     final recibidoPedido = v.entero('recibido', requerido: false, min: 0);
     final lineas = _leerLineas(datos['lineas'], v);
-    final clave = claveIdempotencia?.trim() ?? '';
-    if (clave.length < 8 || clave.length > 100) {
-      v.error(
-        'X-Clave-Idempotencia',
-        'Es obligatorio para cobrar: de 8 a 100 caracteres',
-      );
-    }
+    final clave = _leerClave(claveIdempotencia, v);
     v.comprobar();
 
     final ahora = _reloj();
@@ -168,10 +162,7 @@ class ServicioVentas {
         // Se relee: otra línea del mismo producto pudo haberlo cambiado.
         final actual = _repoProductos.porId(lp.producto.id)!;
         final nuevaExistencia = actual.existenciaPiezas - lp.piezas;
-        _db.execute(
-          'UPDATE productos SET existencia_piezas = ?, actualizado = ? WHERE id = ?',
-          [nuevaExistencia, fecha, actual.id],
-        );
+        _repoProductos.actualizarExistencia(actual.id, nuevaExistencia, fecha);
         _repoProductos.registrarMovimiento(
           productoId: actual.id,
           tipo: 'venta',
@@ -233,6 +224,101 @@ class ServicioVentas {
     return resultado;
   }
 
+  /// Cobra envases vacíos de bodega al precio de depósito. Queda como venta
+  /// sin líneas, con `env_formato`, para que aparezca en el historial y el
+  /// corte, y para que cancelarla los regrese a bodega.
+  Map<String, Object?> venderVacios(
+    Map<String, Object?> datos, {
+    required String origen,
+    required String? claveIdempotencia,
+  }) {
+    final v = Validador(datos);
+    final formato = v.opcion('formato', formatosEnvase);
+    final cantidad = v.entero('cantidad', min: 1);
+    final metodo = v.opcion('metodo', {'efectivo', 'tarjeta'});
+    final tarjeta = v.texto('tarjeta', requerido: false, max: 20);
+    final recibidoPedido = v.entero('recibido', requerido: false, min: 0);
+    final clave = _leerClave(claveIdempotencia, v);
+    v.comprobar();
+
+    final ahora = _reloj();
+    final fecha = instanteIso(ahora);
+    final dia = diaNegocio(ahora, _repoAjustes.zonaHoraria);
+    var repetida = false;
+
+    final resultado = transaccion(_db, () {
+      final guardada = _repoVentas.respuestaGuardada(clave);
+      if (guardada != null) {
+        repetida = true;
+        return (jsonDecode(guardada) as Map).cast<String, Object?>();
+      }
+
+      final balance = _repoEnvases.obtenerBalance()[formato!]!;
+      final enBodega = balance['bodega']!;
+      if (enBodega < cantidad!) {
+        throw ErrorApi.envasesInsuficientes(formato, enBodega);
+      }
+      final total = cantidad * balance['precio']!;
+      final recibido = metodo == 'tarjeta' ? total : (recibidoPedido ?? total);
+      if (recibido < total) {
+        throw ErrorApi.datosInvalidos({
+          'recibido': 'Recibido ($recibido) es menor que el total ($total)',
+        });
+      }
+
+      final ventaId = generarId('v');
+      final folio = _repoVentas.siguienteFolio();
+      _repoVentas.insertarVenta(
+        id: ventaId,
+        folio: folio,
+        fecha: fecha,
+        diaNegocio: dia,
+        total: total,
+        metodo: metodo!,
+        tarjeta: tarjeta,
+        recibido: recibido,
+        cambio: recibido - total,
+        envModo: 'cobrar',
+        envN: cantidad,
+        envMonto: total,
+        envFormato: formato,
+        origen: origen,
+      );
+      _repoEnvases.actualizarBodega(formato, -cantidad);
+
+      final respuesta = <String, Object?>{
+        'id': ventaId,
+        'folio': folio,
+        'fecha': fecha,
+        'diaNegocio': dia,
+        'total': total,
+        'metodo': metodo,
+        'recibido': recibido,
+        'cambio': recibido - total,
+      };
+      _repoVentas.guardarRespuesta(clave, jsonEncode(respuesta), fecha);
+      return respuesta;
+    });
+
+    if (!repetida) {
+      _hub.emitir(TiposEvento.balanceEnvasesActualizado, {
+        'balance': _repoEnvases.obtenerBalance(),
+      });
+    }
+    return resultado;
+  }
+
+  String _leerClave(String? claveIdempotencia, Validador v) {
+    final clave = claveIdempotencia?.trim() ?? '';
+    if (clave.length < 8 || clave.length > 100) {
+      v.error(
+        'X-Clave-Idempotencia',
+        'Es obligatorio para cobrar: de 8 a 100 caracteres',
+      );
+    }
+    return clave;
+  }
+
   /// Valida la forma de cada línea; los errores quedan en [v].
   List<({String productoId, String unidad, int cantidad})> _leerLineas(
     Object? crudo,
@@ -289,10 +375,7 @@ class ServicioVentas {
         if (p == null) continue;
         final piezas = l['piezas'] as int;
         final restock = p.existenciaPiezas + piezas;
-        _db.execute(
-          'UPDATE productos SET existencia_piezas = ?, actualizado = ? WHERE id = ?',
-          [restock, fecha, p.id],
-        );
+        _repoProductos.actualizarExistencia(p.id, restock, fecha);
         _repoProductos.registrarMovimiento(
           productoId: p.id,
           tipo: 'cancelacion',
@@ -310,7 +393,11 @@ class ServicioVentas {
 
       // Revertir envases
       final modo = v['env_modo'] as String;
-      if (modo == 'trae') {
+      final formatoVacios = v['env_formato'] as String?;
+      if (formatoVacios != null) {
+        // Venta de vacíos: los envases regresan a bodega.
+        _repoEnvases.actualizarBodega(formatoVacios, v['env_n'] as int);
+      } else if (modo == 'trae') {
         for (final l in lineas) {
           final p = _repoProductos.porId(l['producto_id'] as String);
           if (p?.envase != null) {

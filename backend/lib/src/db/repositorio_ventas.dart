@@ -25,13 +25,14 @@ class RepositorioVentas {
     required int envN,
     required int envMonto,
     String? envCliente,
+    String? envFormato,
     required String origen,
   }) {
     _db.execute(
       '''
       INSERT INTO ventas (id, folio, fecha, dia_negocio, total, metodo, tarjeta, recibido,
-        cambio, env_modo, env_n, env_monto, env_cliente, origen)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        cambio, env_modo, env_n, env_monto, env_cliente, env_formato, origen)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''',
       [
         id,
@@ -47,6 +48,7 @@ class RepositorioVentas {
         envN,
         envMonto,
         envCliente,
+        envFormato,
         origen,
       ],
     );

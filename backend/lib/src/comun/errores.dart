@@ -59,6 +59,15 @@ class ErrorApi implements Exception {
         'No hay suficiente $nombre: quedan $disponibles piezas',
       );
 
+  factory ErrorApi.envasesInsuficientes(
+    String formato,
+    int enBodega,
+  ) => ErrorApi(
+    409,
+    'envases_insuficientes',
+    'No hay suficientes envases $formato vacíos: quedan $enBodega en bodega',
+  );
+
   factory ErrorApi.interno() => ErrorApi(
     500,
     'error_interno',

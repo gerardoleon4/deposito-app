@@ -7,6 +7,7 @@ import '../comun/seguridad.dart';
 import '../db/base_datos.dart';
 import '../db/repositorio_envases.dart';
 import '../modelos/evento.dart';
+import '../modelos/producto.dart';
 import '../ws/hub.dart';
 
 class ServicioEnvases {
@@ -72,6 +73,19 @@ class ServicioEnvases {
     });
 
     _emitirBalance();
+  }
+
+  /// Vacíos que entran a bodega sin una venta (los deja el proveedor).
+  Map<String, Map<String, int>> registrarEntrada(Map<String, Object?> datos) {
+    final v = Validador(datos);
+    final formato = v.opcion('formato', formatosEnvase);
+    final cantidad = v.entero('cantidad', min: 1);
+    v.comprobar();
+
+    transaccion(_db, () => _repo.actualizarBodega(formato!, cantidad!));
+
+    _emitirBalance();
+    return balance();
   }
 
   void _emitirBalance() {
