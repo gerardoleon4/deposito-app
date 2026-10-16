@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:math';
 
 import 'package:deposito_backend/deposito_backend.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:web_socket_channel/io.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -41,6 +42,11 @@ class TiempoReal {
   Future<void> _conectar() async {
     if (_cerrado) return;
     _cambiar(EstadoConexion.conectando);
+    if (kIsWeb) {
+      _intentos = 0;
+      _cambiar(EstadoConexion.enLinea);
+      return;
+    }
     final uri = _api.base.replace(
       scheme: _api.base.scheme == 'https' ? 'wss' : 'ws',
       path: '/api/v1/ws',

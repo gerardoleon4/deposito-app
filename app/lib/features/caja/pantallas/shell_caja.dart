@@ -31,15 +31,35 @@ class ShellCaja extends ConsumerWidget {
     return switch (servidor) {
       AsyncData() => _Marco(seccion: seccion, child: child),
       AsyncError(:final error) => Scaffold(
+        appBar: AppBar(
+          backgroundColor: Colors.transparent,
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/inicio'),
+            tooltip: 'Volver al Inicio',
+          ),
+        ),
         body: EstadoVacio(
           icono: Icons.dns_outlined,
           titulo: 'No se pudo iniciar la caja',
           mensaje:
               '$error\n\nCierra otras apps que usen el puerto $puertoServidor y reintenta.',
-          accion: FilledButton.icon(
-            onPressed: () => ref.invalidate(servidorEmbebidoProvider),
-            icon: const Icon(Icons.refresh_rounded),
-            label: const Text('Reintentar'),
+          accion: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () => context.go('/inicio'),
+                icon: const Icon(Icons.home_outlined),
+                label: const Text('Volver al Inicio'),
+              ),
+              const SizedBox(width: 12),
+              FilledButton.icon(
+                onPressed: () => ref.invalidate(servidorEmbebidoProvider),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Reintentar'),
+              ),
+            ],
           ),
         ),
       ),
@@ -55,7 +75,7 @@ class _Arrancando extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colores;
     return Scaffold(
-      backgroundColor: c.vidrio,
+      backgroundColor: c.superficie,
       body: Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -65,14 +85,14 @@ class _Arrancando extends StatelessWidget {
             Text(
               'Abriendo la caja…',
               style: Theme.of(context).textTheme.headlineSmall
-                  ?.copyWith(color: c.vidrioTinta),
+                  ?.copyWith(color: c.tinta),
             ),
             const SizedBox(height: 16),
             SizedBox(
               width: 160,
               child: LinearProgressIndicator(
-                color: c.lager,
-                backgroundColor: c.vidrio2,
+                color: c.azul,
+                backgroundColor: c.superficie2,
               ),
             ),
           ],
@@ -95,6 +115,40 @@ class _Marco extends StatelessWidget {
         final ancho = medidas.maxWidth;
         final actual = seccionCaja(seccion);
         if (ancho < 640) {
+          final itemsNav = [
+            (
+              ruta: 'inicio',
+              icono: Icons.space_dashboard_outlined,
+              activo: Icons.space_dashboard_rounded,
+              label: 'Inicio',
+            ),
+            (
+              ruta: 'vender',
+              icono: Icons.point_of_sale_outlined,
+              activo: Icons.point_of_sale_rounded,
+              label: 'Vender',
+            ),
+            (
+              ruta: 'ventas',
+              icono: Icons.receipt_long_outlined,
+              activo: Icons.receipt_long_rounded,
+              label: 'Ventas',
+            ),
+            (
+              ruta: 'envases',
+              icono: Icons.recycling_outlined,
+              activo: Icons.recycling_rounded,
+              label: 'Envases',
+            ),
+            (
+              ruta: 'catalogo',
+              icono: Icons.inventory_2_outlined,
+              activo: Icons.inventory_2_rounded,
+              label: 'Catálogo',
+            ),
+          ];
+          final indiceActual = itemsNav.indexWhere((it) => it.ruta == seccion);
+
           return Scaffold(
             appBar: AppBar(
               title: Text(actual.titulo),
@@ -104,7 +158,7 @@ class _Marco extends StatelessWidget {
               ],
             ),
             drawer: Drawer(
-              backgroundColor: context.colores.vidrio,
+              backgroundColor: context.colores.superficie,
               child: _MenuLateral(
                 seccion: seccion,
                 compacto: false,
@@ -112,6 +166,24 @@ class _Marco extends StatelessWidget {
               ),
             ),
             body: child,
+            bottomNavigationBar: NavigationBar(
+              selectedIndex: indiceActual >= 0 ? indiceActual : 0,
+              labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
+              onDestinationSelected: (idx) {
+                final destino = itemsNav[idx].ruta;
+                if (destino != seccion) {
+                  context.go('/caja/$destino');
+                }
+              },
+              destinations: [
+                for (final item in itemsNav)
+                  NavigationDestination(
+                    icon: Icon(item.icono),
+                    selectedIcon: Icon(item.activo),
+                    label: item.label,
+                  ),
+              ],
+            ),
           );
         }
         final compacto = ancho < 1000;
@@ -166,13 +238,16 @@ class _MenuLateral extends ConsumerWidget {
 
     return Container(
       width: compacto ? 92 : 240,
-      color: c.vidrio,
+      decoration: BoxDecoration(
+        color: c.superficie,
+        border: Border(right: BorderSide(color: c.linea)),
+      ),
       child: SafeArea(
         right: false,
         child: Padding(
           padding: EdgeInsets.symmetric(
-            horizontal: compacto ? 12 : 14,
-            vertical: 20,
+            horizontal: compacto ? 8 : 12,
+            vertical: 18,
           ),
           child: Column(
             crossAxisAlignment: compacto
@@ -180,7 +255,7 @@ class _MenuLateral extends ConsumerWidget {
                 : CrossAxisAlignment.stretch,
             children: [
               Padding(
-                padding: EdgeInsets.fromLTRB(compacto ? 0 : 8, 0, 0, 22),
+                padding: EdgeInsets.fromLTRB(compacto ? 0 : 8, 4, 0, 20),
                 child: Row(
                   mainAxisAlignment: compacto
                       ? MainAxisAlignment.center
@@ -198,8 +273,9 @@ class _MenuLateral extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: textos.headlineSmall?.copyWith(
-                                color: c.vidrioTinta,
-                                height: 1,
+                                color: c.tinta,
+                                fontWeight: FontWeight.w800,
+                                height: 1.1,
                               ),
                             ),
                             Text(
@@ -207,8 +283,8 @@ class _MenuLateral extends ConsumerWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
-                                color: c.vidrioTinta2,
-                                fontSize: 14,
+                                color: c.tinta2,
+                                fontSize: 13,
                                 fontWeight: FontWeight.w500,
                               ),
                             ),
@@ -240,32 +316,25 @@ class _MenuLateral extends ConsumerWidget {
               ),
               if (!compacto)
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 16, 8, 0),
+                  padding: const EdgeInsets.fromLTRB(10, 16, 8, 4),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     spacing: 6,
                     children: [
                       IndicadorConexion(
-                        colorTexto: c.vidrioTinta,
+                        colorTexto: c.tinta,
                         etiquetaEnLinea: 'Servidor activo',
                       ),
                       Row(
                         children: [
-                          Icon(
-                            Icons.wifi_rounded,
-                            size: 16,
-                            color: c.vidrioTinta2,
-                          ),
+                          Icon(Icons.wifi_rounded, size: 16, color: c.tinta2),
                           const SizedBox(width: 8),
                           Flexible(
                             child: Text(
                               ip == null ? 'Sin Wi-Fi' : '$ip:$puertoServidor',
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: TextStyle(
-                                color: c.vidrioTinta2,
-                                fontSize: 14,
-                              ),
+                              style: TextStyle(color: c.tinta2, fontSize: 13),
                             ),
                           ),
                         ],
@@ -299,48 +368,78 @@ class _ElementoMenu extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final color = activo ? c.lagerTinta : c.vidrioTinta;
+    final colorIcono = activo ? c.azul : const Color(0xFF64748B);
+    final colorTexto = activo ? c.azul : c.tinta;
+
     final icono = Icon(
       activo ? seccion.iconoActivo : seccion.icono,
-      color: color,
-      size: 23,
+      color: colorIcono,
+      size: compacto ? 20 : 22,
     );
+
     final contenido = compacto
-        ? Badge(
-            isLabelVisible: insignia != null,
-            label: Text('${insignia ?? ''}'),
-            backgroundColor: c.alerta,
-            child: icono,
+        ? Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Badge(
+                isLabelVisible: insignia != null,
+                label: Text('${insignia ?? ''}'),
+                backgroundColor: c.alerta,
+                child: icono,
+              ),
+              const SizedBox(height: 3),
+              Text(
+                seccion.titulo,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  fontWeight: activo ? FontWeight.w700 : FontWeight.w500,
+                  color: colorTexto,
+                ),
+              ),
+            ],
           )
         : Row(
             children: [
+              Container(
+                width: 3.5,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: activo ? c.azul : Colors.transparent,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(width: 10),
               icono,
-              const SizedBox(width: 14),
+              const SizedBox(width: 12),
               Expanded(
                 child: Text(
                   seccion.titulo,
                   style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: activo ? FontWeight.w600 : FontWeight.w500,
-                    color: color,
+                    fontSize: 15.5,
+                    fontWeight: activo ? FontWeight.w700 : FontWeight.w500,
+                    color: colorTexto,
                   ),
                 ),
               ),
               if (insignia != null)
                 Container(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
+                    horizontal: 7,
                     vertical: 2,
                   ),
                   decoration: BoxDecoration(
-                    color: activo ? c.vidrio : c.alerta,
+                    color: c.alerta,
                     borderRadius: BorderRadius.circular(999),
                   ),
                   child: Text(
                     '$insignia',
-                    style: TextStyle(
-                      color: activo ? c.vidrioTinta : Colors.white,
-                      fontSize: 13,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 12,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -351,17 +450,17 @@ class _ElementoMenu extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Tooltip(
-        message: compacto ? seccion.titulo : '',
+        message: seccion.titulo,
         child: Material(
-          color: activo ? c.lager : Colors.transparent,
+          color: activo ? c.superficie3 : Colors.transparent,
           borderRadius: BorderRadius.circular(10),
           child: InkWell(
             borderRadius: BorderRadius.circular(10),
-            hoverColor: c.vidrio2,
+            hoverColor: c.superficie2,
             onTap: alTocar,
             child: Container(
-              height: 50,
-              padding: EdgeInsets.symmetric(horizontal: compacto ? 0 : 12),
+              height: compacto ? 54 : 48,
+              padding: EdgeInsets.symmetric(horizontal: compacto ? 2 : 8),
               alignment: compacto ? Alignment.center : Alignment.centerLeft,
               child: contenido,
             ),
@@ -428,20 +527,23 @@ class _BarraSuperior extends ConsumerWidget {
 }
 
 class _BotonConectar extends StatelessWidget {
-  const _BotonConectar({required this.compacto});
+  const _BotonConectar({this.compacto = false});
 
   final bool compacto;
 
   @override
-  Widget build(BuildContext context) => compacto
-      ? IconButton.outlined(
-          tooltip: 'Conectar terminal',
-          onPressed: () => mostrarConectarTerminal(context),
-          icon: const Icon(Icons.qr_code_2_rounded),
-        )
-      : OutlinedButton.icon(
-          onPressed: () => mostrarConectarTerminal(context),
-          icon: const Icon(Icons.qr_code_2_rounded),
-          label: const Text('Conectar terminal'),
-        );
+  Widget build(BuildContext context) => Tooltip(
+    message: 'Vincular terminal móvil para pedidos',
+    child: OutlinedButton.icon(
+      onPressed: () => mostrarConectarTerminal(context),
+      icon: const Icon(Icons.qr_code_2_rounded, size: 18),
+      label: Text(compacto ? 'Vincular' : 'Vincular Terminal'),
+      style: OutlinedButton.styleFrom(
+        padding: EdgeInsets.symmetric(
+          horizontal: compacto ? 10 : 14,
+          vertical: compacto ? 8 : 10,
+        ),
+      ),
+    ),
+  );
 }

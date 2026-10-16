@@ -130,6 +130,39 @@ void main() {
     expect(await caja.buscarPorCodigo('7501064191015'), isNull);
   });
 
+  test('la caja consulta y cancela ventas y maneja envases', () async {
+    final hielo = (await caja.buscarPorCodigo('7502000000017'))!;
+    final venta = await caja.registrarVenta(
+      lineas: [LineaVenta(productoId: hielo.id, porCaja: false, cantidad: 2)],
+      metodo: 'tarjeta',
+      claveIdempotencia: 'cobro-integracion-ventas',
+    );
+
+    final lista = await caja.listarVentas();
+    expect(lista.single.folio, venta.folio);
+    final detalle = await caja.obtenerVenta(venta.id);
+    expect(detalle.lineas.single.nombre, 'Hielo en bolsa');
+    await caja.cancelarVenta(venta.id);
+    expect((await caja.obtenerVenta(venta.id)).cancelada, isTrue);
+    expect(
+      (await caja.buscarPorCodigo('7502000000017'))!.existenciaPiezas,
+      hielo.existenciaPiezas,
+    );
+
+    final antes = await caja.obtenerBalanceEnvases();
+    final prestamo = await caja.prestarEnvases(
+      cliente: 'Don Pedro',
+      formato: 'media',
+      cantidad: 6,
+    );
+    expect((await caja.listarPrestamos()).single.id, prestamo.id);
+    await caja.devolverPrestamo(prestamo.id);
+    final despues = await caja.recibirVacios(formato: 'media', cantidad: 4);
+    expect(despues['media']!.bodega, antes['media']!.bodega + 6 + 4);
+    expect(despues['media']!.prestados, antes['media']!.prestados);
+    expect(await caja.listarPrestamos(), isEmpty);
+  });
+
   test('sin existencias el error llega como stock_insuficiente', () async {
     final p = (await caja.listarProductos()).first;
     await expectLater(

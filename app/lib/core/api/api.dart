@@ -58,6 +58,35 @@ abstract interface class Api {
 
   Future<Producto> borrarFoto(String id);
 
+  /// Las últimas 100 ventas, del folio más nuevo al más viejo.
+  Future<List<ResumenVenta>> listarVentas();
+
+  Future<DetalleVenta> obtenerVenta(String id);
+
+  /// Regresa existencias y envases. Ya cancelada es `datos_invalidos`.
+  Future<void> cancelarVenta(String id);
+
+  /// Existencias por formato: `mega`, `media`, `cuarto`.
+  Future<Map<String, BalanceEnvase>> obtenerBalanceEnvases();
+
+  /// Préstamos sin devolver, del más nuevo al más viejo.
+  Future<List<PrestamoEnvase>> listarPrestamos();
+
+  Future<PrestamoEnvase> prestarEnvases({
+    required String cliente,
+    required String formato,
+    required int cantidad,
+  });
+
+  /// Todos los envases del préstamo regresan a bodega.
+  Future<void> devolverPrestamo(String id);
+
+  /// Vacíos que entran a bodega sin una venta.
+  Future<Map<String, BalanceEnvase>> recibirVacios({
+    required String formato,
+    required int cantidad,
+  });
+
   Future<CodigoEmparejamiento> crearCodigoEmparejamiento();
 
   Future<List<Terminal>> listarTerminales();
@@ -235,6 +264,70 @@ class ApiHttp implements Api {
   @override
   Future<Producto> borrarFoto(String id) =>
       _producto(_dio.delete('/api/v1/productos/$id/foto'));
+
+  @override
+  Future<List<ResumenVenta>> listarVentas() => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>('/api/v1/ventas');
+    return [
+      for (final v in r.data!['ventas'] as List)
+        ResumenVenta.fromJson((v as Map).cast()),
+    ];
+  });
+
+  @override
+  Future<DetalleVenta> obtenerVenta(String id) => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>('/api/v1/ventas/$id');
+    return DetalleVenta.fromJson(r.data!);
+  });
+
+  @override
+  Future<void> cancelarVenta(String id) =>
+      _pedir(() => _dio.post<void>('/api/v1/ventas/$id/cancelar'));
+
+  @override
+  Future<Map<String, BalanceEnvase>> obtenerBalanceEnvases() =>
+      _pedir(() async {
+        final r = await _dio.get<Map<String, Object?>>('/api/v1/envases');
+        return BalanceEnvase.deJson((r.data!['balance'] as Map).cast());
+      });
+
+  @override
+  Future<List<PrestamoEnvase>> listarPrestamos() => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>('/api/v1/envases/prestamos');
+    return [
+      for (final p in r.data!['prestamos'] as List)
+        PrestamoEnvase.fromJson((p as Map).cast()),
+    ];
+  });
+
+  @override
+  Future<PrestamoEnvase> prestarEnvases({
+    required String cliente,
+    required String formato,
+    required int cantidad,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/envases/prestamos',
+      data: {'cliente': cliente, 'formato': formato, 'cantidad': cantidad},
+    );
+    return PrestamoEnvase.fromJson(r.data!);
+  });
+
+  @override
+  Future<void> devolverPrestamo(String id) =>
+      _pedir(() => _dio.post<void>('/api/v1/envases/prestamos/$id/devolver'));
+
+  @override
+  Future<Map<String, BalanceEnvase>> recibirVacios({
+    required String formato,
+    required int cantidad,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/envases/entrada',
+      data: {'formato': formato, 'cantidad': cantidad},
+    );
+    return BalanceEnvase.deJson((r.data!['balance'] as Map).cast());
+  });
 
   @override
   Future<CodigoEmparejamiento> crearCodigoEmparejamiento() => _pedir(() async {
