@@ -1,14 +1,17 @@
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
-import '../../../../app/tema/colores.dart';
+
+import '../../../app/tema/colores.dart';
+import '../../../core/formato/formato.dart';
+import '../../../core/widgets/estados.dart';
 import '../datos/modelos_ventas.dart';
 import '../estado/ventas_provider.dart';
 import 'detalle_ticket.dart';
 
-/// 6.1 Lista de Transacciones del Día (Ventas)
-/// Vista de lista o tabla estructurada con buscador superior, filtro rápido por método de pago,
-/// atenuación visual de cancelados, y layout adaptativo (Split View en iPad / Push en Móviles).
+/// Ventas recientes con búsqueda por folio o total y filtro por método de
+/// pago. En iPad, el detalle del ticket queda a la derecha.
 class ListaTransacciones extends ConsumerStatefulWidget {
   const ListaTransacciones({super.key});
 
@@ -17,29 +20,71 @@ class ListaTransacciones extends ConsumerStatefulWidget {
 }
 
 class _ListaTransaccionesState extends ConsumerState<ListaTransacciones> {
-  final _searchCtrl = TextEditingController();
+  final _busqueda = TextEditingController();
+  MetodoPago? _metodo;
+  String? _seleccionada;
 
   @override
   void dispose() {
-    _searchCtrl.dispose();
+    _busqueda.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final estado = ref.watch(ventasProvider);
-    final ancho = MediaQuery.of(context).size.width;
-    final esIpad = ancho >= 850;
+    final ventas = ref.watch(ventasProvider);
+    final esAncho = MediaQuery.sizeOf(context).width >= 850;
 
-    final tickets = estado.ticketsFiltrados;
-    final ticketSeleccionado = estado.ticketSeleccionado;
+    final lista = switch (ventas) {
+      AsyncData(:final value) => _lista(value, esAncho),
+      AsyncError(:final error) => EstadoError(
+        error: error,
+        alReintentar: () => ref.invalidate(ventasProvider),
+      ),
+      _ => const Cargando(mensaje: 'Cargando ventas…'),
+    };
 
-    final listaWidget = Column(
+    final seleccionada = _seleccionada ?? ventas.value?.firstOrNull?.id;
+    return Scaffold(
+      backgroundColor: c.fondo,
+      body: SafeArea(
+        child: esAncho
+            ? Row(
+                children: [
+                  Expanded(flex: 5, child: lista),
+                  VerticalDivider(width: 1, color: c.linea),
+                  Expanded(
+                    flex: 5,
+                    child: seleccionada == null
+                        ? const EstadoVacio(
+                            icono: Icons.receipt_long_rounded,
+                            titulo: 'Selecciona una venta',
+                          )
+                        : DetalleTicket(
+                            key: ValueKey(seleccionada),
+                            ventaId: seleccionada,
+                            embebido: true,
+                          ),
+                  ),
+                ],
+              )
+            : lista,
+      ),
+    );
+  }
+
+  Widget _lista(List<ResumenVenta> todas, bool esAncho) {
+    final c = context.colores;
+    final ventas = filtrarVentas(
+      todas,
+      busqueda: _busqueda.text,
+      metodo: _metodo?.clave,
+    );
+    return Column(
       children: [
-        // Cabecera: Buscador superior por "Folio de ticket" o "Monto" y Filtro de método de pago
         Container(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             color: c.superficie,
             border: Border(bottom: BorderSide(color: c.linea)),
@@ -48,14 +93,13 @@ class _ListaTransaccionesState extends ConsumerState<ListaTransacciones> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Transacciones del Día',
+                          'Ventas',
                           style: TextStyle(
                             fontSize: 24,
                             fontWeight: FontWeight.w900,
@@ -65,58 +109,37 @@ class _ListaTransaccionesState extends ConsumerState<ListaTransacciones> {
                         ),
                         const SizedBox(height: 4),
                         Text(
-                          'Historial de tickets cobrados y devoluciones del turno',
+                          'Las últimas 100, de la más nueva a la más vieja',
                           style: TextStyle(fontSize: 13, color: c.tinta2),
                         ),
                       ],
                     ),
                   ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
-                    ),
-                    decoration: BoxDecoration(
-                      color: c.superficie2,
-                      borderRadius: BorderRadius.circular(999),
-                      border: Border.all(color: c.linea),
-                    ),
-                    child: Text(
-                      '${tickets.length} tickets',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w800,
-                        color: c.tinta,
-                      ),
-                    ),
+                  IconButton(
+                    tooltip: 'Actualizar',
+                    onPressed: () =>
+                        ref.read(ventasProvider.notifier).refrescar(),
+                    icon: const Icon(Icons.refresh_rounded),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-
-              // Buscador de texto: "Folio de ticket" o "Monto"
+              const SizedBox(height: 14),
               TextField(
-                controller: _searchCtrl,
-                onChanged: (val) =>
-                    ref.read(ventasProvider.notifier).buscar(val),
+                controller: _busqueda,
+                onChanged: (_) => setState(() {}),
+                keyboardType: TextInputType.number,
                 decoration: InputDecoration(
-                  hintText: 'Buscar por folio (#T-1042) o monto (\$58)...',
+                  hintText: 'Buscar por folio o total',
                   prefixIcon: const Icon(Icons.search_rounded),
-                  suffixIcon: _searchCtrl.text.isNotEmpty
-                      ? IconButton(
+                  suffixIcon: _busqueda.text.isEmpty
+                      ? null
+                      : IconButton(
+                          tooltip: 'Borrar',
                           icon: const Icon(Icons.clear_rounded, size: 18),
-                          onPressed: () {
-                            _searchCtrl.clear();
-                            ref.read(ventasProvider.notifier).buscar('');
-                          },
-                        )
-                      : null,
+                          onPressed: () => setState(_busqueda.clear),
+                        ),
                   filled: true,
                   fillColor: c.superficie2,
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 14,
-                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide(color: c.linea),
@@ -125,397 +148,187 @@ class _ListaTransaccionesState extends ConsumerState<ListaTransacciones> {
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide(color: c.linea),
                   ),
-                  focusedBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(14),
-                    borderSide: BorderSide(color: c.azul, width: 2),
-                  ),
                 ),
               ),
-              const SizedBox(height: 14),
-
-              // Filtro rápido por método de pago: Todos, Efectivo, Tarjeta
-              SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  children: [
-                    _ChipFiltroMetodo(
-                      etiqueta: 'Todos los pagos',
-                      icono: Icons.all_inclusive_rounded,
-                      seleccionado: estado.filtroMetodoPago == null,
-                      alSeleccionar: () => ref
-                          .read(ventasProvider.notifier)
-                          .filtrarPorMetodo(null),
-                      c: c,
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  ChoiceChip(
+                    label: const Text('Todas'),
+                    selected: _metodo == null,
+                    onSelected: (_) => setState(() => _metodo = null),
+                  ),
+                  for (final m in MetodoPago.values)
+                    ChoiceChip(
+                      avatar: Icon(m.icono, size: 16),
+                      label: Text(m.etiqueta),
+                      selected: _metodo == m,
+                      onSelected: (_) => setState(() => _metodo = m),
                     ),
-                    const SizedBox(width: 8),
-                    _ChipFiltroMetodo(
-                      etiqueta: 'Efectivo',
-                      icono: MetodoPagoTicket.efectivo.icono,
-                      color: MetodoPagoTicket.efectivo.color,
-                      seleccionado:
-                          estado.filtroMetodoPago == MetodoPagoTicket.efectivo,
-                      alSeleccionar: () => ref
-                          .read(ventasProvider.notifier)
-                          .filtrarPorMetodo(MetodoPagoTicket.efectivo),
-                      c: c,
-                    ),
-                    const SizedBox(width: 8),
-                    _ChipFiltroMetodo(
-                      etiqueta: 'Tarjeta',
-                      icono: MetodoPagoTicket.tarjeta.icono,
-                      color: MetodoPagoTicket.tarjeta.color,
-                      seleccionado:
-                          estado.filtroMetodoPago == MetodoPagoTicket.tarjeta,
-                      alSeleccionar: () => ref
-                          .read(ventasProvider.notifier)
-                          .filtrarPorMetodo(MetodoPagoTicket.tarjeta),
-                      c: c,
-                    ),
-                  ],
-                ),
+                ],
               ),
             ],
           ),
         ),
-
-        // Lista de Tickets ordenados cronológicamente
         Expanded(
-          child: tickets.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
+          child: RefreshIndicator(
+            onRefresh: () => ref.read(ventasProvider.notifier).refrescar(),
+            child: ventas.isEmpty
+                ? ListView(
                     children: [
-                      Icon(Icons.search_off_rounded, size: 48, color: c.tinta2),
-                      const SizedBox(height: 12),
-                      Text(
-                        'No se encontraron transacciones',
-                        style: TextStyle(
-                          fontSize: 16,
-                          fontWeight: FontWeight.w700,
-                          color: c.tinta,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Prueba cambiando el término de búsqueda o el filtro.',
-                        style: TextStyle(fontSize: 13, color: c.tinta2),
+                      EstadoVacio(
+                        icono: todas.isEmpty
+                            ? Icons.receipt_long_outlined
+                            : Icons.search_off_rounded,
+                        titulo: todas.isEmpty
+                            ? 'Todavía no hay ventas'
+                            : 'Ninguna venta coincide',
+                        mensaje: todas.isEmpty
+                            ? 'Las ventas cobradas en Vender aparecen aquí.'
+                            : 'Prueba con otro folio, total o método de pago.',
                       ),
                     ],
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.all(16),
-                  itemCount: tickets.length,
-                  separatorBuilder: (_, _) => const SizedBox(height: 8),
-                  itemBuilder: (context, i) {
-                    final t = tickets[i];
-                    final horaStr = DateFormat('hh:mm a').format(t.fecha);
-                    final esSeleccionado =
-                        esIpad && t.id == ticketSeleccionado?.id;
-                    final esCancelado = t.esCancelado;
-
-                    return AnimatedOpacity(
-                      duration: const Duration(milliseconds: 200),
-                      opacity: esCancelado ? 0.6 : 1.0,
-                      child: Material(
-                        color: Colors.transparent,
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(16),
-                          onTap: () {
-                            ref
-                                .read(ventasProvider.notifier)
-                                .seleccionarTicket(t.id);
-                            if (!esIpad) {
-                              Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => DetalleTicket(ticket: t),
-                                ),
-                              );
-                            }
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(16),
-                            decoration: BoxDecoration(
-                              color: esSeleccionado
-                                  ? c.azul.withValues(alpha: 0.08)
-                                  : (esCancelado
-                                        ? c.superficie2
-                                        : c.superficie),
-                              borderRadius: BorderRadius.circular(16),
-                              border: Border.all(
-                                color: esSeleccionado
-                                    ? c.azul
-                                    : (esCancelado
-                                          ? const Color(
-                                              0xFFDC2626,
-                                            ).withValues(alpha: 0.25)
-                                          : c.linea),
-                                width: esSeleccionado ? 2 : 1,
+                  )
+                : ListView.separated(
+                    padding: const EdgeInsets.all(16),
+                    itemCount: ventas.length,
+                    separatorBuilder: (_, _) => const SizedBox(height: 8),
+                    itemBuilder: (_, i) {
+                      final v = ventas[i];
+                      return _FilaVenta(
+                        venta: v,
+                        seleccionada:
+                            esAncho &&
+                            v.id == (_seleccionada ?? todas.first.id),
+                        alTocar: () {
+                          if (esAncho) {
+                            setState(() => _seleccionada = v.id);
+                          } else {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => DetalleTicket(ventaId: v.id),
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.02),
-                                  blurRadius: 6,
-                                  offset: const Offset(0, 2),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                // Icono visual del método de pago
-                                Container(
-                                  width: 44,
-                                  height: 44,
-                                  decoration: BoxDecoration(
-                                    color: esCancelado
-                                        ? Colors.grey.withValues(alpha: 0.2)
-                                        : t.metodoPago.color.withValues(
-                                            alpha: 0.12,
-                                          ),
-                                    borderRadius: BorderRadius.circular(12),
-                                  ),
-                                  child: Icon(
-                                    esCancelado
-                                        ? Icons.cancel_outlined
-                                        : t.metodoPago.icono,
-                                    color: esCancelado
-                                        ? const Color(0xFFDC2626)
-                                        : t.metodoPago.color,
-                                    size: 22,
-                                  ),
-                                ),
-                                const SizedBox(width: 14),
-
-                                // Hora y Folio (#T-1042)
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment:
-                                        CrossAxisAlignment.start,
-                                    children: [
-                                      Row(
-                                        children: [
-                                          Text(
-                                            t.folio,
-                                            style: TextStyle(
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.w800,
-                                              color: esCancelado
-                                                  ? c.tinta2
-                                                  : c.tinta,
-                                              decoration: esCancelado
-                                                  ? TextDecoration.lineThrough
-                                                  : null,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 8),
-                                          if (esCancelado)
-                                            Container(
-                                              padding:
-                                                  const EdgeInsets.symmetric(
-                                                    horizontal: 6,
-                                                    vertical: 2,
-                                                  ),
-                                              decoration: BoxDecoration(
-                                                color: const Color(
-                                                  0xFFDC2626,
-                                                ).withValues(alpha: 0.12),
-                                                borderRadius:
-                                                    BorderRadius.circular(6),
-                                              ),
-                                              child: const Text(
-                                                'Cancelado',
-                                                style: TextStyle(
-                                                  fontSize: 10,
-                                                  fontWeight: FontWeight.w800,
-                                                  color: Color(0xFFDC2626),
-                                                ),
-                                              ),
-                                            ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Row(
-                                        children: [
-                                          Text(
-                                            horaStr,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: c.tinta2,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            '•',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: c.tinta2,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            t.metodoPago.etiqueta,
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              fontWeight: FontWeight.w600,
-                                              color: esCancelado
-                                                  ? c.tinta2
-                                                  : t.metodoPago.color,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            '•',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: c.tinta2,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 6),
-                                          Text(
-                                            '${t.items.length} ${t.items.length == 1 ? 'art.' : 'arts.'}',
-                                            style: TextStyle(
-                                              fontSize: 12,
-                                              color: c.tinta2,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  ),
-                                ),
-
-                                // Total pagado
-                                Column(
-                                  crossAxisAlignment: CrossAxisAlignment.end,
-                                  children: [
-                                    Text(
-                                      '\$${t.total.toStringAsFixed(2)}',
-                                      style: TextStyle(
-                                        fontSize: 18,
-                                        fontWeight: FontWeight.w900,
-                                        color: esCancelado
-                                            ? const Color(0xFFDC2626)
-                                            : c.tinta,
-                                        decoration: esCancelado
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                      ),
-                                    ),
-                                    if (esIpad)
-                                      Icon(
-                                        Icons.chevron_right_rounded,
-                                        size: 18,
-                                        color: esSeleccionado
-                                            ? c.azul
-                                            : c.tinta2,
-                                      ),
-                                  ],
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    );
-                  },
-                ),
+                            );
+                          }
+                        },
+                      );
+                    },
+                  ),
+          ),
         ),
       ],
-    );
-
-    return Scaffold(
-      backgroundColor: c.fondo,
-      body: SafeArea(
-        child: esIpad
-            ? Row(
-                children: [
-                  // Panel izquierdo (50%): Lista de transacciones
-                  Expanded(flex: 5, child: listaWidget),
-                  VerticalDivider(width: 1, color: c.linea),
-
-                  // Panel derecho (50%): Detalle del ticket seleccionado (6.2)
-                  Expanded(
-                    flex: 5,
-                    child: ticketSeleccionado != null
-                        ? DetalleTicket(
-                            ticket: ticketSeleccionado,
-                            esModalOEmbebido: true,
-                          )
-                        : Center(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.receipt_long_rounded,
-                                  size: 48,
-                                  color: c.tinta2,
-                                ),
-                                const SizedBox(height: 12),
-                                Text(
-                                  'Selecciona un ticket para ver su detalle',
-                                  style: TextStyle(
-                                    fontSize: 15,
-                                    color: c.tinta2,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                  ),
-                ],
-              )
-            : listaWidget,
-      ),
     );
   }
 }
 
-class _ChipFiltroMetodo extends StatelessWidget {
-  const _ChipFiltroMetodo({
-    required this.etiqueta,
-    required this.icono,
-    required this.seleccionado,
-    required this.alSeleccionar,
-    required this.c,
-    this.color,
+class _FilaVenta extends StatelessWidget {
+  const _FilaVenta({
+    required this.venta,
+    required this.seleccionada,
+    required this.alTocar,
   });
 
-  final String etiqueta;
-  final IconData icono;
-  final bool seleccionado;
-  final VoidCallback alSeleccionar;
-  final ColoresAnaquel c;
-  final Color? color;
+  final ResumenVenta venta;
+  final bool seleccionada;
+  final VoidCallback alTocar;
 
   @override
   Widget build(BuildContext context) {
-    final chipColor = color ?? c.azul;
-
-    return ChoiceChip(
-      selected: seleccionado,
-      showCheckmark: false,
-      avatar: Icon(
-        icono,
-        size: 16,
-        color: seleccionado ? Colors.white : chipColor,
-      ),
-      label: Text(
-        etiqueta,
-        style: TextStyle(
-          fontWeight: seleccionado ? FontWeight.w800 : FontWeight.w600,
-          color: seleccionado ? Colors.white : c.tinta,
-          fontSize: 13,
+    final c = context.colores;
+    final metodo = MetodoPago.de(venta.metodo);
+    final cancelada = venta.cancelada;
+    final hora = DateFormat('HH:mm')
+        .format(DateTime.parse(venta.fecha).toLocal());
+    return Opacity(
+      opacity: cancelada ? 0.6 : 1,
+      child: Material(
+        color: seleccionada ? c.seleccion : c.superficie,
+        borderRadius: BorderRadius.circular(16),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: alTocar,
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: seleccionada
+                    ? c.azul
+                    : (cancelada ? c.alerta.withValues(alpha: 0.3) : c.linea),
+                width: seleccionada ? 2 : 1,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: cancelada ? c.alertaSuave : c.superficie2,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Icon(
+                    cancelada ? Icons.cancel_outlined : metodo.icono,
+                    color: cancelada ? c.alerta : c.azul,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Text(
+                            'Folio ${venta.folio}',
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w800,
+                              color: cancelada ? c.tinta2 : c.tinta,
+                              decoration: cancelada
+                                  ? TextDecoration.lineThrough
+                                  : null,
+                            ),
+                          ),
+                          if (cancelada) ...[
+                            const SizedBox(width: 8),
+                            Text(
+                              'Cancelada',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w800,
+                                color: c.alerta,
+                              ),
+                            ),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '$hora · ${metodo.etiqueta} · ${venta.origen}',
+                        style: TextStyle(fontSize: 12, color: c.tinta2),
+                      ),
+                    ],
+                  ),
+                ),
+                Text(
+                  dinero(venta.total),
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w900,
+                    color: cancelada ? c.alerta : c.tinta,
+                    decoration: cancelada ? TextDecoration.lineThrough : null,
+                  ),
+                ),
+              ],
+            ),
+          ),
         ),
       ),
-      selectedColor: chipColor,
-      backgroundColor: c.superficie,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: seleccionado ? Colors.transparent : c.linea),
-      ),
-      onSelected: (_) => alSeleccionar(),
     );
   }
 }

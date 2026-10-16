@@ -6,7 +6,6 @@ import '../../envases/pantallas/dashboard_envases.dart';
 import '../../pdv/pantallas/punto_venta.dart';
 import '../../proximamente/proximamente.dart';
 import '../../ventas/pantallas/lista_transacciones.dart';
-import 'corte_caja.dart';
 import 'inicio_caja.dart';
 
 /// Secciones de la caja, en el orden del menú. Las que no están construidas
@@ -68,7 +67,13 @@ final seccionesCaja = <SeccionCaja>[
     'Corte de caja',
     Icons.account_balance_wallet_outlined,
     Icons.account_balance_wallet_rounded,
-    CorteCaja.new,
+    () => const Proximamente(
+      icono: Icons.account_balance_wallet_outlined,
+      titulo: 'Corte de caja',
+      descripcion: 'Apertura con fondo, arqueo y cierre del turno con respaldo automático.',
+      sprint: 3,
+      responsable: 'Daniel',
+    ),
   ),
   SeccionCaja(
     'alertas',
@@ -78,8 +83,7 @@ final seccionesCaja = <SeccionCaja>[
     () => const Proximamente(
       icono: Icons.notifications_active_outlined,
       titulo: 'Alertas',
-      descripcion:
-          'Productos bajo su mínimo y próximos a caducar. Mientras tanto, el Inicio ya los muestra.',
+      descripcion: 'Productos bajo su mínimo y próximos a caducar. Mientras tanto, el Inicio ya los muestra.',
       sprint: 4,
       responsable: 'Luis',
     ),
@@ -92,8 +96,7 @@ final seccionesCaja = <SeccionCaja>[
     () => const Proximamente(
       icono: Icons.local_shipping_outlined,
       titulo: 'Resurtido',
-      descripcion:
-          'Cuánto comprar según lo vendido, con pedido al proveedor por WhatsApp.',
+      descripcion: 'Cuánto comprar según lo vendido, con pedido al proveedor por WhatsApp.',
       sprint: 4,
       responsable: 'Luis',
     ),

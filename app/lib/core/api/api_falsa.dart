@@ -8,12 +8,20 @@ import 'fallo_api.dart';
 /// Datos de prueba con la forma exacta del contrato. Sirve para pruebas de
 /// widgets y para programar pantallas antes de que exista su endpoint.
 class ApiFalsa implements Api {
-  ApiFalsa({List<Producto>? productos, List<Terminal>? terminales})
-    : productos = productos ?? productosDePrueba(),
-      terminales = terminales ?? [];
+  ApiFalsa({
+    List<Producto>? productos,
+    List<Terminal>? terminales,
+    Map<String, BalanceEnvase>? envases,
+    List<PrestamoEnvase>? prestamos,
+  }) : productos = productos ?? productosDePrueba(),
+       terminales = terminales ?? [],
+       envases = envases ?? balanceDePrueba(),
+       prestamos = prestamos ?? [];
 
   final List<Producto> productos;
   final List<Terminal> terminales;
+  final Map<String, BalanceEnvase> envases;
+  final List<PrestamoEnvase> prestamos;
 
   @override
   Uri get base => Uri.parse('http://127.0.0.1:8080');
@@ -212,11 +220,24 @@ class ApiFalsa implements Api {
 
     var total = 0;
     final piezas = <String, int>{};
+    final lineasTicket = <LineaTicket>[];
     for (final l in lineas) {
       final p = productos.firstWhere((p) => p.id == l.productoId);
-      total += (l.porCaja ? p.precioCaja! : p.precio) * l.cantidad;
-      piezas[p.id] =
-          (piezas[p.id] ?? 0) + (l.porCaja ? p.piezasPorCaja! : 1) * l.cantidad;
+      final precio = l.porCaja ? p.precioCaja! : p.precio;
+      final n = (l.porCaja ? p.piezasPorCaja! : 1) * l.cantidad;
+      total += precio * l.cantidad;
+      piezas[p.id] = (piezas[p.id] ?? 0) + n;
+      lineasTicket.add(
+        LineaTicket(
+          productoId: p.id,
+          nombre: p.nombre,
+          unidad: l.porCaja ? 'caja' : 'pieza',
+          cantidad: l.cantidad,
+          piezas: n,
+          precioUnit: precio,
+          subtotal: precio * l.cantidad,
+        ),
+      );
     }
     for (final e in piezas.entries) {
       final i = productos.indexWhere((p) => p.id == e.key);
@@ -245,9 +266,161 @@ class ApiFalsa implements Api {
       cambio: pagado - total,
     );
     ventas[claveIdempotencia] = venta;
+    detalles.insert(
+      0,
+      DetalleVenta(
+        id: venta.id,
+        folio: venta.folio,
+        fecha: venta.fecha,
+        diaNegocio: venta.diaNegocio,
+        total: total,
+        metodo: metodo,
+        recibido: pagado,
+        cambio: pagado - total,
+        envModo: 'na',
+        envN: 0,
+        envMonto: 0,
+        origen: 'Caja',
+        cancelada: false,
+        lineas: lineasTicket,
+      ),
+    );
     return venta;
   }
+
+  /// Tickets cobrados, del más nuevo al más viejo.
+  final detalles = <DetalleVenta>[];
+
+  @override
+  Future<List<ResumenVenta>> listarVentas() async => [
+    for (final d in detalles)
+      ResumenVenta(
+        id: d.id,
+        folio: d.folio,
+        fecha: d.fecha,
+        total: d.total,
+        metodo: d.metodo,
+        origen: d.origen,
+        cancelada: d.cancelada,
+      ),
+  ];
+
+  @override
+  Future<DetalleVenta> obtenerVenta(String id) async => _detalle(id);
+
+  @override
+  Future<void> cancelarVenta(String id) async {
+    final d = _detalle(id);
+    if (d.cancelada) {
+      throw const FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {'cancelada': 'La venta ya fue cancelada'},
+        estado: 400,
+      );
+    }
+    for (final l in d.lineas) {
+      final i = productos.indexWhere((p) => p.id == l.productoId);
+      if (i < 0) continue;
+      final p = productos[i];
+      productos[i] = Producto.fromJson({
+        ...p.toJson(),
+        'existenciaPiezas': p.existenciaPiezas + l.piezas,
+      });
+    }
+    detalles[detalles.indexOf(d)] = DetalleVenta.fromJson({
+      ...d.toJson(),
+      'cancelada': true,
+    });
+  }
+
+  DetalleVenta _detalle(String id) =>
+      detalles.where((d) => d.id == id).firstOrNull ??
+      (throw const FalloApi(
+        'no_encontrado',
+        'No existe la venta',
+        estado: 404,
+      ));
+
+  @override
+  Future<Map<String, BalanceEnvase>> obtenerBalanceEnvases() async =>
+      Map.of(envases);
+
+  @override
+  Future<List<PrestamoEnvase>> listarPrestamos() async => List.of(prestamos);
+
+  @override
+  Future<PrestamoEnvase> prestarEnvases({
+    required String cliente,
+    required String formato,
+    required int cantidad,
+  }) async {
+    final p = PrestamoEnvase(
+      id: 'pre_${prestamos.length + 1}',
+      cliente: cliente.trim(),
+      formato: formato,
+      cantidad: cantidad,
+      fecha: '2026-10-02T18:30:00Z',
+    );
+    prestamos.insert(0, p);
+    _moverEnvases(formato, prestados: cantidad);
+    return p;
+  }
+
+  @override
+  Future<void> devolverPrestamo(String id) async {
+    final p =
+        prestamos.where((p) => p.id == id).firstOrNull ??
+        (throw const FalloApi(
+          'no_encontrado',
+          'No existe el préstamo',
+          estado: 404,
+        ));
+    prestamos.remove(p);
+    _moverEnvases(p.formato, bodega: p.cantidad, prestados: -p.cantidad);
+  }
+
+  @override
+  Future<Map<String, BalanceEnvase>> recibirVacios({
+    required String formato,
+    required int cantidad,
+  }) async {
+    _moverEnvases(formato, bodega: cantidad);
+    return Map.of(envases);
+  }
+
+  void _moverEnvases(String formato, {int bodega = 0, int prestados = 0}) {
+    final b = envases[formato]!;
+    envases[formato] = BalanceEnvase(
+      formato: formato,
+      bodega: b.bodega + bodega,
+      prestados: b.prestados + prestados,
+      precio: b.precio,
+    );
+  }
 }
+
+/// El balance con que arranca la base (migración m002).
+Map<String, BalanceEnvase> balanceDePrueba() => {
+  'mega': const BalanceEnvase(
+    formato: 'mega',
+    bodega: 84,
+    prestados: 36,
+    precio: 800,
+  ),
+  'media': const BalanceEnvase(
+    formato: 'media',
+    bodega: 240,
+    prestados: 48,
+    precio: 300,
+  ),
+  'cuarto': const BalanceEnvase(
+    formato: 'cuarto',
+    bodega: 168,
+    prestados: 24,
+    precio: 300,
+  ),
+};
 
 List<Producto> productosDePrueba() {
   Producto p(

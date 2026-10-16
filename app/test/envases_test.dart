@@ -1,305 +1,119 @@
+import 'package:deposito_app/core/api/api_falsa.dart';
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:deposito_app/app/tema/tema.dart';
-import 'package:deposito_app/features/caja/estado/movimientos_caja_provider.dart';
-import 'package:deposito_app/features/envases/datos/modelos_envases.dart';
-import 'package:deposito_app/features/envases/estado/envases_provider.dart';
-import 'package:deposito_app/features/envases/pantallas/dashboard_envases.dart';
-import 'package:deposito_app/features/envases/pantallas/historial_prestamos.dart';
-import 'package:deposito_app/features/envases/pantallas/modal_recepcion_envases.dart';
-import 'package:deposito_app/features/envases/pantallas/modal_registro_prestamo.dart';
-import 'package:deposito_app/features/envases/pantallas/modal_retorno_deposito.dart';
-import 'package:deposito_app/features/envases/pantallas/modal_salida_envases.dart';
-
-Widget _envoltura({required Widget child, ProviderContainer? container}) {
-  return UncontrolledProviderScope(
-    container: container ?? ProviderContainer(),
-    child: MaterialApp(
-      theme: temaClaro(),
-      home: Scaffold(body: child),
-    ),
-  );
-}
+import 'ayudantes.dart';
 
 void main() {
-  group('5. Control de Envases - Pruebas de Estado y Lógica', () {
-    test(
-      'Estado inicial calcula métricas de almacén y calle correctamente',
-      () {
-        final container = ProviderContainer();
-        addTearDown(container.dispose);
+  Future<void> abrirEnvases(WidgetTester tester, ApiFalsa api) async {
+    await montarApp(tester, preferencias: prefsCaja, api: api);
+    await tester.tap(find.text('Envases').first);
+    await tester.pumpAndSettle();
+  }
 
-        final estado = container.read(envasesProvider);
+  testWidgets('el tablero muestra el balance que da el servidor', (
+    tester,
+  ) async {
+    await abrirEnvases(tester, ApiFalsa());
 
-        expect(estado.totalAlmacen, greaterThan(0));
-        expect(estado.totalCalle, greaterThan(0));
-        expect(
-          estado.totalGlobal,
-          equals(estado.totalAlmacen + estado.totalCalle),
-        );
-        expect(estado.porcentajeCirculante, inInclusiveRange(0.0, 1.0));
-        expect(estado.prestamosActivos.isNotEmpty, isTrue);
-      },
-    );
-
-    test('registrarRecepcionVacios incrementa inventario en almacén', () {
-      final container = ProviderContainer();
-      addTearDown(container.dispose);
-
-      final notifier = container.read(envasesProvider.notifier);
-      final antes = container
-          .read(envasesProvider)
-          .stocks[TipoFormatoEnvase.media]!
-          .enAlmacen;
-
-      notifier.registrarRecepcionVacios(
-        cantidad: 10,
-        formato: TipoFormatoEnvase.media,
-        creditoTotal: 50.0,
-      );
-
-      final despues = container
-          .read(envasesProvider)
-          .stocks[TipoFormatoEnvase.media]!
-          .enAlmacen;
-      expect(despues, equals(antes + 10));
-    });
-
-    test(
-      'registrarPrestamo añade préstamo y actualiza existencias en calle',
-      () {
-        final container = ProviderContainer();
-        addTearDown(container.dispose);
-
-        final notifier = container.read(envasesProvider.notifier);
-        final calleAntes = container
-            .read(envasesProvider)
-            .stocks[TipoFormatoEnvase.mega]!
-            .enCalle;
-
-        notifier.registrarPrestamo(
-          cliente: 'Carlos Slim',
-          telefono: '55 0000 1111',
-          cantidad: 5,
-          formato: TipoFormatoEnvase.mega,
-        );
-
-        final estado = container.read(envasesProvider);
-        final calleDespues = estado.stocks[TipoFormatoEnvase.mega]!.enCalle;
-
-        expect(calleDespues, equals(calleAntes + 5));
-        expect(
-          estado.prestamosActivos.any(
-            (p) => p.cliente == 'Carlos Slim' && p.cantidad == 5,
-          ),
-          isTrue,
-        );
-      },
-    );
-
-    test(
-      'registrarDevolucionDeposito impacta Movimientos de Caja como retiro',
-      () {
-        final container = ProviderContainer();
-        addTearDown(container.dispose);
-
-        final saldoCajaAntes = container
-            .read(movimientosCajaProvider)
-            .saldoEstimado;
-        final envasesNotifier = container.read(envasesProvider.notifier);
-
-        envasesNotifier.registrarRetornoYReembolso(
-          cantidad: 6,
-          formato: TipoFormatoEnvase.media,
-          montoReembolso: 30.0,
-        );
-
-        final saldoCajaDespues = container
-            .read(movimientosCajaProvider)
-            .saldoEstimado;
-        expect(saldoCajaDespues, equals(saldoCajaAntes - 30.0));
-
-        final ultimoMovimiento = container
-            .read(movimientosCajaProvider)
-            .movimientos
-            .first;
-        expect(ultimoMovimiento.esIngreso, isFalse);
-        expect(ultimoMovimiento.monto, equals(30.0));
-        expect(ultimoMovimiento.motivo, contains('Devolución'));
-      },
-    );
+    // 84 + 240 + 168 en bodega y 36 + 48 + 24 prestados (balanceDePrueba).
+    expect(find.text('492'), findsOneWidget);
+    expect(find.text('108'), findsOneWidget);
+    expect(find.text(r'$8 c/u'), findsOneWidget); // depósito del mega
+    expect(find.text('No hay envases prestados'), findsOneWidget);
   });
 
-  group('5.1 Dashboard de Envases - Widget Tests', () {
-    testWidgets(
-      'Muestra cabecera, métricas de almacén y calle, y movimientos',
-      (tester) async {
-        tester.view.physicalSize = const Size(1200, 900);
-        tester.view.devicePixelRatio = 1;
-        addTearDown(tester.view.reset);
+  testWidgets('prestar registra el préstamo en el servidor', (tester) async {
+    final api = ApiFalsa();
+    await abrirEnvases(tester, api);
 
-        await tester.pumpWidget(_envoltura(child: const DashboardEnvases()));
-        await tester.pumpAndSettle();
-
-        expect(find.text('Control de Envases Retornables'), findsOneWidget);
-        expect(find.text('Envases Físicos en Almacén'), findsOneWidget);
-        expect(find.text('Envases en la Calle (Prestados)'), findsOneWidget);
-        expect(
-          find.text('Últimos Movimientos de Entrada y Salida'),
-          findsOneWidget,
-        );
-        expect(find.textContaining('Préstamos'), findsWidgets);
-        expect(find.text('Devolver Depósito'), findsOneWidget);
-      },
+    await tester.tap(find.text('Prestar'));
+    await tester.pumpAndSettle();
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.ancestor(
+              of: find.text('Guardar préstamo'),
+              matching: find.byType(FilledButton),
+            ),
+          )
+          .onPressed,
+      isNull,
+      reason: 'Sin nombre no se puede guardar',
     );
+    await tester.enterText(find.byType(TextField), 'Don Pedro');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(Dialog),
+        matching: find.text('Mega 1.2 L'),
+      ),
+    );
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Guardar préstamo'));
+    await tester.pumpAndSettle();
+
+    final p = api.prestamos.single;
+    expect((p.cliente, p.formato, p.cantidad), ('Don Pedro', 'mega', 2));
+    expect(api.envases['mega']!.prestados, 38);
+    expect(find.text('Don Pedro'), findsOneWidget);
   });
 
-  group('5.2 Modal Recepción de Vacíos - Widget Tests', () {
-    testWidgets('Permite aumentar y disminuir cantidad y aplicar crédito', (
-      tester,
-    ) async {
-      int? cantidadConfirmada;
-      double? creditoConfirmado;
-
-      await tester.pumpWidget(
-        _envoltura(
-          child: ModalRecepcionEnvases(
-            cantidadInicial: 2,
-            alConfirmar: (cant, form, cred) {
-              cantidadConfirmada = cant;
-              creditoConfirmado = cred;
-            },
-          ),
+  testWidgets('recibir un préstamo lo salda y los vacíos entran a bodega', (
+    tester,
+  ) async {
+    final api = ApiFalsa(
+      prestamos: [
+        const PrestamoEnvase(
+          id: 'pre_1',
+          cliente: 'Taquería El Pastor',
+          formato: 'media',
+          cantidad: 12,
+          fecha: '2026-10-01T18:00:00Z',
         ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Recepción de Envases Vacíos'), findsOneWidget);
-      expect(find.text('2'), findsOneWidget);
-
-      // Tocar botón [+]
-      final masBtn = find.byIcon(Icons.add_rounded);
-      await tester.tap(masBtn);
-      await tester.pumpAndSettle();
-      expect(find.text('3'), findsOneWidget);
-
-      // Confirmar crédito
-      final btnAplicar = find.textContaining('Aplicar Crédito al Ticket');
-      expect(btnAplicar, findsOneWidget);
-      await tester.tap(btnAplicar);
-      await tester.pumpAndSettle();
-
-      expect(cantidadConfirmada, equals(3));
-      expect(creditoConfirmado, greaterThan(0));
-    });
-  });
-
-  group('5.3 Modal Salida de Envases - Widget Tests', () {
-    testWidgets('Muestra las 3 opciones principales de manejo de envases', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _envoltura(child: const ModalSalidaEnvases(cantidadRetornables: 4)),
-      );
-      await tester.pumpAndSettle();
-
-      expect(
-        find.text('¿Cómo se manejan los envases de esta compra?'),
-        findsOneWidget,
-      );
-      expect(find.text('Cobrar depósito del envase'), findsOneWidget);
-      expect(find.text('El cliente entregó vacíos'), findsOneWidget);
-      expect(find.text('Prestar envases / Fiar'), findsOneWidget);
-    });
-  });
-
-  group('5.4 Modal Registro de Préstamo (Fiao) - Widget Tests', () {
-    testWidgets('Botón Guardar permanece bloqueado hasta ingresar nombre', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _envoltura(
-          child: ModalRegistroPrestamo(
-            cantidadEnvases: 6,
-            alGuardar: (cliente, tel) {},
-          ),
-        ),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Registro de Préstamo'), findsOneWidget);
-      expect(find.textContaining('Préstamo de 6 envases'), findsOneWidget);
-
-      final btnGuardar = find.widgetWithText(
-        ElevatedButton,
-        'Guardar Préstamo',
-      );
-      expect(btnGuardar, findsOneWidget);
-
-      // Verificar que al inicio está deshabilitado
-      final botonInicial = tester.widget<ElevatedButton>(btnGuardar);
-      expect(botonInicial.onPressed, isNull);
-
-      // Ingresar nombre
-      final campoNombre = find.byType(TextField).first;
-      await tester.enterText(campoNombre, 'Don Rogelio');
-      await tester.pumpAndSettle();
-
-      // Ahora debe estar habilitado
-      final botonHabilitado = tester.widget<ElevatedButton>(btnGuardar);
-      expect(botonHabilitado.onPressed, isNotNull);
-    });
-  });
-
-  group('5.5 Historial de Préstamos Activos - Widget Tests', () {
-    testWidgets('Permite buscar clientes y muestra botón Recibir', (
-      tester,
-    ) async {
-      tester.view.physicalSize = const Size(1200, 900);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
-
-      await tester.pumpWidget(_envoltura(child: const HistorialPrestamos()));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Préstamos de Envases Activos'), findsOneWidget);
-      expect(
-        find.widgetWithIcon(TextField, Icons.search_rounded),
-        findsOneWidget,
-      );
-
-      // Verifica préstamos de ejemplo
-      expect(find.textContaining('Don Pedro García'), findsOneWidget);
-      expect(find.widgetWithText(ElevatedButton, 'Recibir'), findsWidgets);
-
-      // Filtrar por búsqueda
-      final campoBusqueda = find.byType(TextField);
-      await tester.enterText(campoBusqueda, 'Taquería');
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('Taquería El Pastor'), findsOneWidget);
-      expect(find.textContaining('Don Pedro García'), findsNothing);
-    });
-  });
-
-  group('5.6 Modal Retorno y Liberación de Depósito - Widget Tests', () {
-    testWidgets(
-      'Calcula monto a reembolsar y muestra Confirmar y Entregar Efectivo',
-      (tester) async {
-        await tester.pumpWidget(
-          _envoltura(child: const ModalRetornoDeposito(cantidadSugerida: 4)),
-        );
-        await tester.pumpAndSettle();
-
-        expect(find.text('Retorno de Envases'), findsOneWidget);
-        expect(find.textContaining('Monto a reembolsar'), findsOneWidget);
-        expect(
-          find.textContaining('Confirmar y Entregar Efectivo'),
-          findsOneWidget,
-        );
-      },
+      ],
     );
+    await abrirEnvases(tester, api);
+
+    await tester.tap(find.text('Recibir'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Recibir 12'));
+    await tester.pumpAndSettle();
+
+    expect(api.prestamos, isEmpty);
+    expect(api.envases['media']!.bodega, 252);
+    expect(api.envases['media']!.prestados, 36);
+    expect(find.text('Préstamo de Taquería El Pastor saldado'), findsOneWidget);
+  });
+
+  testWidgets('recibir vacíos sin venta los suma a bodega', (tester) async {
+    final api = ApiFalsa();
+    await abrirEnvases(tester, api);
+
+    await tester.tap(find.text('Recibir vacíos'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.add_rounded));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Recibir 3 a bodega'));
+    await tester.pumpAndSettle();
+
+    expect(api.envases['media']!.bodega, 243);
+    expect(find.text('495'), findsOneWidget);
+  });
+
+  testWidgets('en el teléfono el tablero cabe sin desbordarse', (tester) async {
+    await montarApp(
+      tester,
+      preferencias: prefsCaja,
+      tamano: const Size(390, 844),
+    );
+    await tester.tap(find.text('Envases').last); // barra inferior
+    await tester.pumpAndSettle();
+    expect(find.text('492'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }

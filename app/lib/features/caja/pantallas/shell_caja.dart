@@ -84,9 +84,8 @@ class _Arrancando extends StatelessWidget {
             const SizedBox(height: 20),
             Text(
               'Abriendo la caja…',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(color: c.tinta),
+              style: Theme.of(context).textTheme.headlineSmall
+                  ?.copyWith(color: c.tinta),
             ),
             const SizedBox(height: 16),
             SizedBox(

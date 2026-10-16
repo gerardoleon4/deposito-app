@@ -1,226 +1,104 @@
-import 'package:deposito_app/app/tema/tema.dart';
-import 'package:deposito_app/features/ventas/datos/modelos_ventas.dart';
-import 'package:deposito_app/features/ventas/estado/ventas_provider.dart';
-import 'package:deposito_app/features/ventas/pantallas/detalle_ticket.dart';
-import 'package:deposito_app/features/ventas/pantallas/lista_transacciones.dart';
-import 'package:deposito_app/features/ventas/pantallas/modal_autorizacion_numpad.dart';
-import 'package:deposito_app/features/ventas/pantallas/modal_destino_stock.dart';
-import 'package:deposito_app/features/ventas/pantallas/modal_reimpresion.dart';
+import 'package:deposito_app/core/api/api_falsa.dart';
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-Widget _envoltura({required Widget child, ProviderContainer? container}) {
-  return UncontrolledProviderScope(
-    container: container ?? ProviderContainer(),
-    child: MaterialApp(
-      theme: temaClaro(),
-      home: Scaffold(body: child),
-    ),
-  );
-}
+import 'ayudantes.dart';
 
 void main() {
-  group('6. Ventas y Transacciones - Pruebas de Estado y Lógica', () {
-    test('Estado inicial contiene tickets de ejemplo ordenados', () {
-      final container = ProviderContainer();
-      final estado = container.read(ventasProvider);
-
-      expect(estado.tickets.isNotEmpty, isTrue);
-      expect(estado.tickets.first.folio, '#T-1042');
-      expect(estado.ticketSeleccionado?.folio, '#T-1042');
-    });
-
-    test('Filtro por método de pago funciona correctamente', () {
-      final container = ProviderContainer();
-
-      // Filtrar por tarjeta
-      container
-          .read(ventasProvider.notifier)
-          .filtrarPorMetodo(MetodoPagoTicket.tarjeta);
-      var estado = container.read(ventasProvider);
-      expect(
-        estado.ticketsFiltrados.every(
-          (t) => t.metodoPago == MetodoPagoTicket.tarjeta,
-        ),
-        isTrue,
-      );
-
-      // Filtrar por efectivo
-      container
-          .read(ventasProvider.notifier)
-          .filtrarPorMetodo(MetodoPagoTicket.efectivo);
-      estado = container.read(ventasProvider);
-      expect(
-        estado.ticketsFiltrados.every(
-          (t) => t.metodoPago == MetodoPagoTicket.efectivo,
-        ),
-        isTrue,
-      );
-    });
-
-    test('Búsqueda por folio y monto filtra la lista en tiempo real', () {
-      final container = ProviderContainer();
-
-      container.read(ventasProvider.notifier).buscar('#T-1041');
-      var estado = container.read(ventasProvider);
-      expect(estado.ticketsFiltrados.length, 1);
-      expect(estado.ticketsFiltrados.first.folio, '#T-1041');
-
-      container.read(ventasProvider.notifier).buscar('88');
-      estado = container.read(ventasProvider);
-      expect(estado.ticketsFiltrados.any((t) => t.folio == '#T-1041'), isTrue);
-    });
-
-    test(
-      'cancelarTicket actualiza estado a cancelado y registra destino y reembolso',
-      () {
-        final container = ProviderContainer();
-
-        container
-            .read(ventasProvider.notifier)
-            .cancelarTicket(
-              ticketId: 't-1042',
-              destino: DestinoStock.regresarInventario,
-              montoReembolso: 58.0,
-              motivo: 'Cliente solicitó devolución',
-            );
-
-        final estado = container.read(ventasProvider);
-        final ticketCancelado = estado.tickets.firstWhere(
-          (t) => t.id == 't-1042',
-        );
-
-        expect(ticketCancelado.esCancelado, isTrue);
-        expect(ticketCancelado.destinoStock, DestinoStock.regresarInventario);
-        expect(ticketCancelado.montoReembolsado, 58.0);
-      },
+  /// Cobra 2 hielos (p_4, $35 c/u) en efectivo como lo haría la caja.
+  Future<ApiFalsa> conUnaVenta() async {
+    final api = ApiFalsa();
+    await api.registrarVenta(
+      lineas: [
+        const LineaVenta(productoId: 'p_4', porCaja: false, cantidad: 2),
+      ],
+      metodo: 'efectivo',
+      recibido: 10000,
+      claveIdempotencia: 'prueba-ventas-1',
     );
+    return api;
+  }
+
+  Future<void> abrirVentas(WidgetTester tester, ApiFalsa api) async {
+    await montarApp(tester, preferencias: prefsCaja, api: api);
+    await tester.tap(find.text('Ventas').first);
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('sin ventas lo dice', (tester) async {
+    await abrirVentas(tester, ApiFalsa());
+    expect(find.text('Todavía no hay ventas'), findsOneWidget);
   });
 
-  group('6.1 Lista de Transacciones - Widget Tests', () {
-    testWidgets(
-      'Muestra cabecera, buscador, chips de pago y tickets con badges',
-      (tester) async {
-        await tester.pumpWidget(_envoltura(child: const ListaTransacciones()));
-        await tester.pumpAndSettle();
+  testWidgets('lista las ventas del servidor y muestra su ticket', (
+    tester,
+  ) async {
+    await abrirVentas(tester, await conUnaVenta());
 
-        expect(find.text('Transacciones del Día'), findsOneWidget);
-        expect(find.byType(TextField), findsOneWidget);
-        expect(find.text('Todos los pagos'), findsOneWidget);
-        expect(find.text('Efectivo'), findsWidgets);
-        expect(find.text('Tarjeta'), findsWidgets);
-        expect(find.text('#T-1042'), findsWidgets);
-        expect(find.text('Cancelado'), findsWidgets);
-      },
+    expect(find.text('Folio 1001'), findsWidgets); // lista y detalle
+    expect(find.text('Hielo en bolsa'), findsOneWidget);
+    expect(find.text(r'$70'), findsWidgets);
+    expect(find.text(r'$100'), findsOneWidget); // recibido
+    expect(find.text(r'$30'), findsOneWidget); // cambio
+
+    await tester.tap(find.text('Tarjeta'));
+    await tester.pumpAndSettle();
+    expect(find.text('Ninguna venta coincide'), findsOneWidget);
+
+    await tester.tap(find.text('Todas'));
+    await tester.enterText(find.byType(TextField), '999');
+    await tester.pumpAndSettle();
+    expect(find.text('Ninguna venta coincide'), findsOneWidget);
+    await tester.enterText(find.byType(TextField), '1001');
+    await tester.pumpAndSettle();
+    expect(find.text('Ninguna venta coincide'), findsNothing);
+  });
+
+  testWidgets('cancelar pide confirmación y regresa las existencias', (
+    tester,
+  ) async {
+    final api = await conUnaVenta();
+    await abrirVentas(tester, api);
+    expect(
+      api.productos.singleWhere((p) => p.id == 'p_4').existenciaPiezas,
+      16,
     );
+
+    await tester.tap(find.text('Cancelar venta'));
+    await tester.pumpAndSettle();
+    expect(find.text('¿Cancelar el folio 1001?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Cancelar venta'));
+    await tester.pumpAndSettle();
+
+    expect(api.detalles.single.cancelada, isTrue);
+    expect(
+      api.productos.singleWhere((p) => p.id == 'p_4').existenciaPiezas,
+      18,
+    );
+    expect(
+      find.text('Venta cancelada: las existencias y los envases regresaron.'),
+      findsOneWidget,
+    );
+    expect(find.text('Cancelar venta'), findsNothing);
   });
 
-  group('6.2 Detalle de Ticket - Widget Tests', () {
-    testWidgets('Muestra desglose de productos y botones fijos inferiores', (
+  testWidgets('en el teléfono el ticket se abre en otra pantalla', (
+    tester,
+  ) async {
+    final api = await conUnaVenta();
+    await montarApp(
       tester,
-    ) async {
-      final ticketPrueba = TicketTransaccion(
-        id: 'test-1',
-        folio: '#T-9999',
-        fecha: DateTime.now(),
-        metodoPago: MetodoPagoTicket.efectivo,
-        subtotal: 40.0,
-        total: 40.0,
-        cajero: 'Cajero Prueba',
-        items: [
-          ItemTicket(
-            id: 'item-1',
-            nombre: 'Corona Extra',
-            precioUnitario: 20.0,
-            cantidad: 2,
-          ),
-        ],
-      );
-
-      await tester.pumpWidget(
-        _envoltura(child: DetalleTicket(ticket: ticketPrueba)),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('#T-9999'), findsOneWidget);
-      expect(find.text('Corona Extra'), findsOneWidget);
-      expect(find.text('Re-imprimir Recibo'), findsOneWidget);
-      expect(find.text('Cancelar Venta'), findsOneWidget);
-    });
-  });
-
-  group('6.3 Modal de Re-impresión - Widget Tests', () {
-    testWidgets('Muestra opciones de terminal térmica y compartir PDF', (
-      tester,
-    ) async {
-      final ticketPrueba = TicketTransaccion(
-        id: 'test-1',
-        folio: '#T-9999',
-        fecha: DateTime.now(),
-        metodoPago: MetodoPagoTicket.efectivo,
-        subtotal: 40.0,
-        total: 40.0,
-        cajero: 'Cajero Prueba',
-        items: [],
-      );
-
-      await tester.pumpWidget(
-        _envoltura(
-          child: Scaffold(
-            body: Builder(
-              builder: (ctx) => ElevatedButton(
-                onPressed: () => ModalReimpresion.mostrar(
-                  context: ctx,
-                  ticket: ticketPrueba,
-                ),
-                child: const Text('Abrir'),
-              ),
-            ),
-          ),
-        ),
-      );
-
-      await tester.tap(find.text('Abrir'));
-      await tester.pumpAndSettle();
-
-      expect(find.text('Opciones de recibo'), findsOneWidget);
-      expect(find.text('Imprimir en terminal térmica'), findsOneWidget);
-      expect(find.text('Compartir PDF / WhatsApp'), findsOneWidget);
-    });
-  });
-
-  group('6.5 Modal Destino de Stock - Widget Tests', () {
-    testWidgets('Muestra opciones forzosas de Regresar al Inventario y Merma', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _envoltura(child: const ModalDestinoStock(totalArticulosDevueltos: 3)),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('¿Qué pasará con estos artículos?'), findsOneWidget);
-      expect(find.text('Regresar al Inventario'), findsOneWidget);
-      expect(find.text('Registrar como Merma'), findsOneWidget);
-    });
-  });
-
-  group('6.6 Modal Autorización Numpad - Widget Tests', () {
-    testWidgets('Muestra título de Gerente o Dueño y numpad numérico', (
-      tester,
-    ) async {
-      await tester.pumpWidget(
-        _envoltura(child: ModalAutorizacionNumpad(alAutorizar: () {})),
-      );
-      await tester.pumpAndSettle();
-
-      expect(find.text('Autorización Requerida'), findsOneWidget);
-      expect(
-        find.text('Esta acción requiere permisos de Gerente o Dueño'),
-        findsOneWidget,
-      );
-      expect(find.text('5'), findsOneWidget);
-      expect(find.text('9'), findsOneWidget);
-    });
+      preferencias: prefsCaja,
+      api: api,
+      tamano: const Size(390, 844),
+    );
+    await tester.tap(find.text('Ventas').last); // barra inferior
+    await tester.pumpAndSettle();
+    expect(tester.takeException(), isNull);
+    await tester.tap(find.text('Folio 1001'));
+    await tester.pumpAndSettle();
+    expect(find.text('Hielo en bolsa'), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
