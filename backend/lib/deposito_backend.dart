@@ -9,16 +9,15 @@ library;
 export 'src/comun/bitacora.dart' show Bitacora;
 export 'src/comun/fechas.dart'
     show Reloj, diaNegocio, instanteIso, rangoDiaNegocio;
-export 'src/comun/middleware.dart' show cabeceraClave, cabeceraIdempotencia;
+export 'src/comun/constantes.dart';
 export 'src/comun/texto.dart' show normalizarBusqueda;
-export 'src/db/base_datos_stub.dart'
-    if (dart.library.io) 'src/db/base_datos.dart'
-    show enMemoria;
+export 'src/modelos/envase.dart';
 export 'src/modelos/evento.dart';
 export 'src/modelos/movimiento.dart';
 export 'src/modelos/producto.dart';
 export 'src/modelos/terminal.dart';
+export 'src/modelos/venta.dart';
+// En web no hay dart:io ni SQLite: la app usa ApiFalsa y este servidor vacío.
 export 'src/servidor_stub.dart'
     if (dart.library.io) 'src/servidor.dart'
     show DepositoServer, versionServidor;
-export 'src/modelos/venta.dart';
