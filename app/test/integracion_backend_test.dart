@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:deposito_app/core/api/api.dart';
 import 'package:deposito_app/core/api/fallo_api.dart';
@@ -70,6 +71,64 @@ void main() {
       );
     },
   );
+
+  test('la caja administra el catálogo completo', () async {
+    final victoria = (await caja.buscarPorCodigo('7501064191015'))!;
+    expect(victoria.nombre, 'Victoria Mega');
+    expect(await caja.buscarPorCodigo('no-existe'), isNull);
+
+    final editado = await caja.editarProducto(victoria.id, {
+      ...victoria.toJson(),
+      'precio': 4500,
+    });
+    expect(editado.precio, 4500);
+    expect(editado.existenciaPiezas, victoria.existenciaPiezas);
+
+    final conEntrada = await caja.registrarEntrada(
+      victoria.id,
+      cajas: 1,
+      piezas: 2,
+      nota: 'Proveedor',
+    );
+    expect(conEntrada.existenciaPiezas, victoria.existenciaPiezas + 14);
+    final contado = await caja.registrarConteo(
+      victoria.id,
+      existenciaPiezas: 50,
+    );
+    expect(contado.existenciaPiezas, 50);
+    final conMerma = await caja.registrarMerma(victoria.id, piezas: 2);
+    expect(conMerma.existenciaPiezas, 48);
+    await expectLater(
+      caja.registrarMerma(victoria.id, piezas: 1000),
+      throwsA(
+        isA<FalloApi>().having((e) => e.codigo, 'codigo', 'stock_insuficiente'),
+      ),
+    );
+    final movimientos = await caja.listarMovimientos(victoria.id);
+    expect(movimientos.map((m) => m.tipo).take(3), [
+      'merma',
+      'ajuste',
+      'entrada',
+    ]);
+
+    final png = Uint8List.fromList([
+      0x89,
+      0x50,
+      0x4E,
+      0x47,
+      0x0D,
+      0x0A,
+      1,
+      2,
+      3,
+    ]);
+    final conFoto = await caja.subirFoto(victoria.id, png, 'image/png');
+    expect(conFoto.foto, startsWith('/api/v1/productos/${victoria.id}/foto'));
+    expect((await caja.borrarFoto(victoria.id)).foto, isNull);
+
+    await caja.eliminarProducto(victoria.id);
+    expect(await caja.buscarPorCodigo('7501064191015'), isNull);
+  });
 
   test('sin existencias el error llega como stock_insuficiente', () async {
     final p = (await caja.listarProductos()).first;

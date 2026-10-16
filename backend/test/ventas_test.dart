@@ -264,6 +264,107 @@ void main() {
       expect(devolver.statusCode, 204);
     });
 
+    test('recibir vacíos suma a bodega', () async {
+      final antes = json(await s.get('/api/v1/envases'))['balance'] as Map;
+      final r = await s.post('/api/v1/envases/entrada', {
+        'formato': 'media',
+        'cantidad': 24,
+      });
+      expect(r.statusCode, 200);
+      expect(
+        ((json(r)['balance'] as Map)['media'] as Map)['bodega'],
+        (antes['media'] as Map)['bodega'] + 24,
+      );
+      final mal = await s.post('/api/v1/envases/entrada', {
+        'formato': 'media',
+        'cantidad': 0,
+      });
+      expect(camposError(mal).keys, ['cantidad']);
+    });
+
+    group('vender vacíos', () {
+      Future<http.Response> venderVacios(
+        Map<String, Object?> cuerpo, {
+        String? clave,
+      }) => s.post(
+        '/api/v1/envases/venta-vacios',
+        cuerpo,
+        cabeceras: {
+          cabeceraIdempotencia: clave ?? 'vacios-prueba-${clavesUsadas++}',
+        },
+      );
+
+      Future<int> bodega(String formato) async =>
+          ((json(await s.get('/api/v1/envases'))['balance'] as Map)[formato]
+                  as Map)['bodega']
+              as int;
+
+      test('cobra al precio de depósito y saca de bodega', () async {
+        final antes = await bodega('mega');
+        final r = await venderVacios({
+          'formato': 'mega',
+          'cantidad': 10,
+          'metodo': 'efectivo',
+          'recibido': 10000,
+        });
+        expect(r.statusCode, 201);
+        final venta = json(r);
+        expect(venta['total'], 8000); // 10 × $8.00 de la migración
+        expect(venta['cambio'], 2000);
+        expect(await bodega('mega'), antes - 10);
+
+        final detalle = json(await s.get('/api/v1/ventas/${venta['id']}'));
+        expect(detalle['envModo'], 'cobrar');
+        expect(detalle['envN'], 10);
+        expect(detalle['lineas'], isEmpty);
+      });
+
+      test('un reintento no cobra ni saca envases dos veces', () async {
+        final antes = await bodega('mega');
+        final cuerpo = {'formato': 'mega', 'cantidad': 2, 'metodo': 'tarjeta'};
+        final a = json(await venderVacios(cuerpo, clave: 'vacios-reintento'));
+        final b = json(await venderVacios(cuerpo, clave: 'vacios-reintento'));
+        expect(b, a);
+        expect(await bodega('mega'), antes - 2);
+      });
+
+      test('más de los que hay es 409 envases_insuficientes', () async {
+        final antes = await bodega('cuarto');
+        final r = await venderVacios({
+          'formato': 'cuarto',
+          'cantidad': antes + 1,
+          'metodo': 'efectivo',
+        });
+        expect(r.statusCode, 409);
+        expect(codigoError(r), 'envases_insuficientes');
+        expect(await bodega('cuarto'), antes);
+      });
+
+      test('sin clave de idempotencia no cobra', () async {
+        final r = await s.post('/api/v1/envases/venta-vacios', {
+          'formato': 'mega',
+          'cantidad': 1,
+          'metodo': 'efectivo',
+        });
+        expect(r.statusCode, 400);
+        expect(camposError(r), contains('X-Clave-Idempotencia'));
+      });
+
+      test('cancelar la venta regresa los vacíos a bodega', () async {
+        final antes = await bodega('mega');
+        final venta = json(
+          await venderVacios({
+            'formato': 'mega',
+            'cantidad': 5,
+            'metodo': 'efectivo',
+          }),
+        );
+        final r = await s.post('/api/v1/ventas/${venta['id']}/cancelar', null);
+        expect(r.statusCode, 204);
+        expect(await bodega('mega'), antes);
+      });
+    });
+
     test('una terminal no registra préstamos (solo caja)', () async {
       final claveTerminal = await s.registrarTerminal();
       final r = await s.post('/api/v1/envases/prestamos', {

@@ -54,6 +54,25 @@ class ServidorPrueba {
     body: cuerpo is String ? cuerpo : jsonEncode(cuerpo),
   );
 
+  Future<http.Response> put(String ruta, Object? cuerpo, {String? clave}) =>
+      _cliente.put(
+        uri(ruta),
+        headers: _cabeceras(clave),
+        body: cuerpo is String ? cuerpo : jsonEncode(cuerpo),
+      );
+
+  /// Sube bytes sin envolver, como la foto de un producto.
+  Future<http.Response> putBytes(
+    String ruta,
+    List<int> bytes, {
+    required String tipo,
+    String? clave,
+  }) => _cliente.put(
+    uri(ruta),
+    headers: {..._cabeceras(clave), 'content-type': tipo},
+    body: bytes,
+  );
+
   Future<http.Response> delete(String ruta, {String? clave}) =>
       _cliente.delete(uri(ruta), headers: _cabeceras(clave));
 
@@ -79,6 +98,9 @@ class ServidorPrueba {
     if (clave != '') cabeceraClave: clave ?? claveCaja,
   };
 }
+
+/// Encabezado mínimo de un PNG: basta para pasar la revisión de firma.
+final pngPrueba = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4];
 
 Map<String, Object?> json(http.Response r) =>
     jsonDecode(r.body) as Map<String, Object?>;

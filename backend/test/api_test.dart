@@ -89,6 +89,142 @@ void main() {
     });
   });
 
+  group('catálogo', () {
+    Future<String> crear([Map<String, Object?> cambios = const {}]) async =>
+        json(await s.post('/api/v1/productos', productoValido(cambios)))['id']
+            as String;
+
+    test('busca por código de barras exacto', () async {
+      final id = await crear();
+      final r = await s.get('/api/v1/productos/codigo/7501064191015');
+      expect(r.statusCode, 200);
+      expect(json(r)['id'], id);
+      final parcial = await s.get('/api/v1/productos/codigo/750106');
+      expect(parcial.statusCode, 404);
+      expect(codigoError(parcial), 'no_encontrado');
+    });
+
+    test('la caja edita y la existencia no cambia', () async {
+      final id = await crear();
+      final r = await s.put(
+        '/api/v1/productos/$id',
+        productoValido({'precio': 4500, 'existenciaPiezas': 0}),
+      );
+      expect(r.statusCode, 200);
+      expect(json(r)['precio'], 4500);
+      expect(json(r)['existenciaPiezas'], 66);
+    });
+
+    test('eliminar responde 204 y luego 404', () async {
+      final id = await crear();
+      expect((await s.delete('/api/v1/productos/$id')).statusCode, 204);
+      expect((await s.get('/api/v1/productos/$id')).statusCode, 404);
+      expect((await s.delete('/api/v1/productos/$id')).statusCode, 404);
+    });
+
+    test('entradas, ajustes y su historial de movimientos', () async {
+      final id = await crear();
+      final entrada = await s.post('/api/v1/productos/$id/entradas', {
+        'cajas': 1,
+        'piezas': 2,
+      });
+      expect(entrada.statusCode, 200);
+      expect(json(entrada)['existenciaPiezas'], 80);
+
+      final merma = await s.post('/api/v1/productos/$id/ajustes', {
+        'motivo': 'merma',
+        'piezas': 100,
+      });
+      expect(merma.statusCode, 409);
+      expect(codigoError(merma), 'stock_insuficiente');
+
+      final conteo = await s.post('/api/v1/productos/$id/ajustes', {
+        'motivo': 'conteo',
+        'existenciaPiezas': 75,
+      });
+      expect(json(conteo)['existenciaPiezas'], 75);
+
+      final m =
+          json(await s.get('/api/v1/productos/$id/movimientos'))['movimientos']
+              as List;
+      expect(m.map((x) => (x as Map)['tipo']), [
+        'ajuste',
+        'entrada',
+        'inicial',
+      ]);
+    });
+
+    test('sube, sirve y borra la foto', () async {
+      final id = await crear();
+      final subida = await s.putBytes(
+        '/api/v1/productos/$id/foto',
+        pngPrueba,
+        tipo: 'image/png',
+      );
+      expect(subida.statusCode, 200);
+      final ruta = json(subida)['foto'] as String;
+      expect(ruta, startsWith('/api/v1/productos/$id/foto?v='));
+
+      final foto = await s.get(ruta);
+      expect(foto.statusCode, 200);
+      expect(foto.headers['content-type'], 'image/png');
+      expect(foto.bodyBytes, pngPrueba);
+
+      final borrada = await s.delete('/api/v1/productos/$id/foto');
+      expect(json(borrada)['foto'], isNull);
+      expect((await s.get(ruta)).statusCode, 404);
+    });
+
+    test('una foto que pasa de 5 MB es datos_invalidos', () async {
+      final id = await crear();
+      final r = await s.putBytes('/api/v1/productos/$id/foto', [
+        ...pngPrueba,
+        ...List.filled(5 * 1024 * 1024, 0),
+      ], tipo: 'image/png');
+      expect(r.statusCode, 400);
+      expect(camposError(r), contains('foto'));
+    });
+
+    test('una terminal consulta pero no modifica el catálogo', () async {
+      final id = await crear();
+      final clave = await s.registrarTerminal();
+      expect(
+        (await s.get(
+          '/api/v1/productos/codigo/7501064191015',
+          clave: clave,
+        )).statusCode,
+        200,
+      );
+      expect(
+        (await s.get(
+          '/api/v1/productos/$id/movimientos',
+          clave: clave,
+        )).statusCode,
+        200,
+      );
+      final intentos = [
+        await s.put('/api/v1/productos/$id', productoValido(), clave: clave),
+        await s.delete('/api/v1/productos/$id', clave: clave),
+        await s.post('/api/v1/productos/$id/entradas', {
+          'piezas': 1,
+        }, clave: clave),
+        await s.post('/api/v1/productos/$id/ajustes', {
+          'motivo': 'merma',
+          'piezas': 1,
+        }, clave: clave),
+        await s.putBytes(
+          '/api/v1/productos/$id/foto',
+          pngPrueba,
+          tipo: 'image/png',
+          clave: clave,
+        ),
+      ];
+      for (final r in intentos) {
+        expect(r.statusCode, 403, reason: r.request?.url.toString());
+      }
+    });
+  });
+
   group('terminales', () {
     test('se empareja con el código del QR y su clave funciona', () async {
       final clave = await s.registrarTerminal('Terminal S24');
@@ -202,6 +338,20 @@ void main() {
         );
       },
     );
+
+    test('avisa producto.eliminado con el id', () async {
+      final clave = await s.registrarTerminal();
+      final id = json(
+        await s.post('/api/v1/productos', productoValido()),
+      )['id'];
+      final eventos = await conectar(clave);
+      expect(await eventos.moveNext(), isTrue); // conexion.lista
+
+      await s.delete('/api/v1/productos/$id');
+      expect(await eventos.moveNext(), isTrue);
+      expect(eventos.current['tipo'], 'producto.eliminado');
+      expect(eventos.current['datos'], {'id': id});
+    });
 
     test('sin clave no conecta', () async {
       final canal = IOWebSocketChannel.connect(
