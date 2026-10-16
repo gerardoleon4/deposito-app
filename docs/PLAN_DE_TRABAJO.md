@@ -124,10 +124,12 @@ Códigos HTTP que usaremos: `200` OK, `201` creado, `400` datos inválidos, `401
 | | `GET /productos/{id}` | Detalle | Gerardo | 1 |
 | | `POST /productos` | Crear | Gerardo | 1 |
 | | `GET /productos/codigo/{codigo}` | Buscar por código de barras (escáner) | Gerardo | 2 |
-| | `PUT /productos/{id}` | Editar (incluye ajuste de existencia) | Gerardo | 2 |
+| | `PUT /productos/{id}` | Editar (sin tocar existencia) | Gerardo | 2 |
+| | `POST /productos/{id}/ajustes` | Ajuste de existencia: conteo físico o merma | Gerardo | 2 |
+| | `GET /productos/{id}/movimientos` | Historial de existencias del producto | Gerardo | 2 |
 | | `DELETE /productos/{id}` | Eliminar | Gerardo | 2 |
 | | `POST /productos/{id}/entradas` | Recibir mercancía (cajas, piezas, caducidad) | Gerardo | 2 |
-| | `PUT /productos/{id}/foto` | Subir foto del producto | Gerardo | 2 |
+| | `PUT`, `GET` y `DELETE /productos/{id}/foto` | Subir, ver y quitar la foto del producto | Gerardo | 2 |
 | Envases | `GET /envases` | Existencias por formato (mega, media, cuarto) | Ever | 2 |
 | | `GET /prestamos` | Préstamos activos | Ever | 2 |
 | | `POST /prestamos` | Registrar préstamo | Ever | 2 |

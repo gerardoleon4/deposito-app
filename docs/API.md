@@ -40,7 +40,8 @@ Un endpoint marcado **Solo caja** responde `403 solo_caja` a una terminal.
 | `403` | `solo_caja` | Una terminal intenta algo que solo hace la caja |
 | `404` | `no_encontrado` | El recurso o la ruta no existe |
 | `409` | `codigo_duplicado` | Ya existe un producto activo con ese código de barras |
-| `409` | `stock_insuficiente` | No hay piezas suficientes para una venta |
+| `409` | `stock_insuficiente` | No hay piezas suficientes para una venta o una merma |
+| `409` | `envases_insuficientes` | No hay suficientes envases vacíos en bodega para venderlos |
 | `409` | `caja_cerrada` | Se intenta cobrar sin turno abierto (caja, Sprint 3) |
 | `500` | `error_interno` | Error no previsto. El detalle queda en el log del servidor |
 
@@ -169,7 +170,7 @@ La clave deja de servir de inmediato y se cierra su WebSocket.
 | `minimo` | entero | 0 o más. Bajo este número se genera alerta. Por omisión `0` |
 | `envase` | texto o `null` | `mega`, `media` o `cuarto` si usa envase retornable |
 | `caducidad` | fecha o `null` | `AAAA-MM-DD`, la más próxima |
-| `foto` | texto o `null` | Ruta de la foto (Sprint 2). Solo lectura |
+| `foto` | texto o `null` | Ruta de la foto en el servidor (ver [Foto](#foto)). Solo lectura |
 
 #### Listar y buscar
 
@@ -209,6 +210,120 @@ El cuerpo es el producto sin `id`, `foto`, `creado` ni `actualizado`. `existenci
 
 - Respuesta `201`: el producto creado. Emite `producto.actualizado`.
 - `400 datos_invalidos`, `409 codigo_duplicado`.
+
+#### Buscar por código de barras
+
+`GET /api/v1/productos/codigo/{codigo}`
+
+Lo usa el escáner: el código debe coincidir completo, no es una búsqueda.
+
+- Respuesta `200`: el producto. `404 no_encontrado` si no hay un producto activo con ese código.
+
+#### Editar
+
+`PUT /api/v1/productos/{id}` · Solo caja
+
+El cuerpo es el mismo que al crear y reemplaza todos los campos editables: un campo opcional que no viene queda en `null` (o `0` en `minimo`). Si viene `existenciaPiezas`, se ignora: las existencias solo cambian con [entradas](#recibir-mercancía) y [ajustes](#ajustar-existencia), para que editar el nombre no borre una venta hecha mientras el formulario estaba abierto.
+
+- Respuesta `200`: el producto actualizado. Emite `producto.actualizado`.
+- `400 datos_invalidos`, `404 no_encontrado`, `409 codigo_duplicado`.
+
+#### Eliminar
+
+`DELETE /api/v1/productos/{id}` · Solo caja
+
+Borrado lógico: deja de aparecer en listas y búsquedas, pero sus ventas y movimientos se conservan. Su código queda libre para otro producto.
+
+- Respuesta `204` sin cuerpo. Emite `producto.eliminado`. `404 no_encontrado`.
+
+#### Recibir mercancía
+
+`POST /api/v1/productos/{id}/entradas` · Solo caja
+
+```json
+{ "cajas": 5, "piezas": 3, "caducidad": "2027-03-15", "nota": "Proveedor Modelo" }
+```
+
+| Campo | Tipo | Regla |
+| --- | --- | --- |
+| `cajas` | entero o ausente | 0 o más. Solo si el producto tiene `piezasPorCaja` |
+| `piezas` | entero o ausente | 0 o más, sueltas |
+| `caducidad` | fecha o ausente | `AAAA-MM-DD` del lote que llega |
+| `nota` | texto o ausente | Hasta 120 caracteres: proveedor, factura... |
+
+- Entran `cajas × piezasPorCaja + piezas` piezas, que deben ser más de 0. Queda un movimiento `entrada`.
+- `caducidad` del producto: si no tenía existencias o no tenía caducidad, toma la del lote; si no, se queda con la más próxima de las dos.
+- Respuesta `200`: el producto actualizado. Emite `producto.actualizado`.
+- `400 datos_invalidos`, `404 no_encontrado`.
+
+#### Ajustar existencia
+
+`POST /api/v1/productos/{id}/ajustes` · Solo caja
+
+Corrige existencias fuera de una venta o entrada. Hay dos motivos:
+
+```json
+{ "motivo": "conteo", "existenciaPiezas": 60, "nota": "Conteo del lunes" }
+```
+
+```json
+{ "motivo": "merma", "piezas": 3, "nota": "Se rompieron al bajar" }
+```
+
+| Campo | Tipo | Regla |
+| --- | --- | --- |
+| `motivo` | texto | `conteo` (se contó físicamente) o `merma` (rotas, caducadas, regaladas) |
+| `existenciaPiezas` | entero | Solo con `conteo`: lo que se contó, 0 o más. Queda un movimiento `ajuste` por la diferencia |
+| `piezas` | entero | Solo con `merma`: piezas que salen, mayor que 0. Queda un movimiento `merma` |
+| `nota` | texto o ausente | Hasta 120 caracteres |
+
+- Un `conteo` igual a la existencia actual no deja movimiento.
+- Respuesta `200`: el producto actualizado. Emite `producto.actualizado`.
+- `400 datos_invalidos`, `404 no_encontrado`, `409 stock_insuficiente` (merma mayor que la existencia).
+
+#### Movimientos de un producto
+
+`GET /api/v1/productos/{id}/movimientos`
+
+- Respuesta `200`: los últimos 200, del más nuevo al más viejo:
+
+```json
+{
+  "movimientos": [
+    {
+      "id": 412,
+      "tipo": "venta",
+      "piezas": -3,
+      "existenciaResultante": 63,
+      "referencia": "Folio 1001",
+      "origen": "Caja",
+      "nota": null,
+      "fecha": "2026-10-02T18:30:00Z"
+    }
+  ]
+}
+```
+
+- `tipo`: `inicial`, `entrada`, `venta`, `cancelacion`, `ajuste` o `merma`. `piezas` lleva signo.
+- `404 no_encontrado`.
+
+#### Foto
+
+`PUT /api/v1/productos/{id}/foto` · Solo caja
+
+El cuerpo es la imagen sin envolver (no `multipart`), con `Content-Type` `image/jpeg`, `image/png` o `image/webp`, de hasta 5 MB. La app la reduce antes de subirla (800 px de lado basta). Reemplaza la anterior.
+
+- Respuesta `200`: el producto, con `foto` apuntando a la imagen nueva. Emite `producto.actualizado`.
+- `400 datos_invalidos` (campo `foto`: tipo no permitido, vacía, muy grande o el contenido no es esa imagen), `404 no_encontrado`.
+
+`GET /api/v1/productos/{id}/foto`
+
+- Respuesta `200`: la imagen con su `Content-Type`. Lleva la misma autenticación que el resto (en Flutter, `Image.network(url, headers: {...})`). `404 no_encontrado` si no tiene foto.
+- `foto` en el producto es la ruta relativa al servidor con una versión: `/api/v1/productos/p_3k9x2m7q1z/foto?v=1790965800000`. Cambia cada vez que se sube una, así la app puede guardarla en caché sin mostrar una vieja.
+
+`DELETE /api/v1/productos/{id}/foto` · Solo caja
+
+- Respuesta `200`: el producto con `foto: null`. Emite `producto.actualizado`. `404 no_encontrado`.
 
 ### Ventas
 
@@ -276,7 +391,7 @@ Cobra, descuenta existencias y mueve envases en una sola transacción: o pasa to
 
 `POST /api/v1/ventas/{id}/cancelar` · Solo caja
 
-Regresa las existencias (queda como movimiento `cancelacion`) y revierte los envases: los vacíos que entraron a bodega y los préstamos de esa venta que no se han devuelto.
+Regresa las existencias (queda como movimiento `cancelacion`) y revierte los envases: los vacíos que entraron a bodega, los vacíos vendidos (que regresan a bodega) y los préstamos de esa venta que no se han devuelto.
 
 - Respuesta `204`. Emite `producto.actualizado` y `envases.actualizado`.
 - `400 datos_invalidos` si ya estaba cancelada, `404 no_encontrado`.
@@ -356,6 +471,35 @@ Los envases regresan a bodega.
 
 - Respuesta `204`. Emite `envases.actualizado`. `404 no_encontrado` si no existe o ya se devolvió.
 
+#### Recibir vacíos
+
+`POST /api/v1/envases/entrada` · Solo caja
+
+Entran envases vacíos a bodega sin una venta (por ejemplo, los que deja el proveedor).
+
+```json
+{ "formato": "mega", "cantidad": 24 }
+```
+
+- `cantidad`: entero mayor que 0.
+- Respuesta `200`: `{ "balance": <balance> }`. Emite `envases.actualizado`. `400 datos_invalidos`.
+
+#### Vender vacíos
+
+`POST /api/v1/envases/venta-vacios` · Solo caja
+
+Cobra envases vacíos de bodega al precio de depósito. Es un cobro: queda como venta con folio (sin `lineas`, con `envModo: "cobrar"`), aparece en el historial y se cancela con [Cancelar venta](#cancelar-venta), que regresa los envases a bodega.
+
+Lleva el encabezado obligatorio `X-Clave-Idempotencia`, igual que [Registrar venta](#registrar-venta).
+
+```json
+{ "formato": "mega", "cantidad": 10, "metodo": "efectivo", "recibido": 10000 }
+```
+
+- `metodo`, `recibido` y `tarjeta` siguen las reglas de Registrar venta. El total es `cantidad × precio` del formato.
+- Respuesta `201`: la venta, con la misma forma que en Registrar venta. Emite `envases.actualizado`.
+- `400 datos_invalidos`, `409 envases_insuficientes`.
+
 ## WebSocket
 
 `GET /api/v1/ws`
@@ -371,7 +515,8 @@ Todos los mensajes del servidor tienen esta forma:
 | Tipo | Cuándo | `datos` |
 | --- | --- | --- |
 | `conexion.lista` | Al conectarse | `{ "version": "0.1.0" }` |
-| `producto.actualizado` | Se crea o cambia un producto (también por ventas y cancelaciones) | `{ "producto": <producto> }` |
+| `producto.actualizado` | Se crea o cambia un producto (también por ventas, cancelaciones, entradas, ajustes y fotos) | `{ "producto": <producto> }` |
+| `producto.eliminado` | Se elimina un producto | `{ "id": "p_..." }` |
 | `pedido.creado` | Una terminal manda un pedido | `{ "pedido": <pedido> }` |
 | `pedido.atendido` | La caja descarta o cobra un pedido | `{ "id": "ped_..." }` |
 | `envases.actualizado` | Cambia el balance de envases | `{ "balance": <balance> }` |
@@ -384,6 +529,5 @@ Todos los mensajes del servidor tienen esta forma:
 
 Se documentarán aquí, en este orden:
 
-- **Sprint 2:** productos por código, editar, eliminar, entradas de mercancía, foto, ajuste de existencia con motivo, movimientos de un producto.
 - **Sprint 3:** caja y cortes (turnos, `409 caja_cerrada`).
 - **Sprint 4:** alertas, reportes, resurtido, ajustes, PIN del dueño, respaldo y diagnóstico.
