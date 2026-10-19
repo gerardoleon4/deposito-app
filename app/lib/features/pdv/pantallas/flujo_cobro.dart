@@ -7,8 +7,12 @@ import '../../../app/tema/colores.dart';
 import '../../../core/api/fallo_api.dart';
 import '../../../core/api/proveedores.dart';
 import '../../../core/formato/formato.dart';
+import '../../../core/ticket/ticket_pdf.dart';
+import '../../../core/widgets/estados.dart';
 import '../../../core/widgets/teclado_numerico.dart';
 import '../../catalogo/estado/productos.dart';
+import '../../envases/datos/modelos_envases.dart';
+import '../../envases/estado/envases_provider.dart';
 import '../estado/carrito.dart';
 
 /// Registra el carrito actual en el servidor y abre la pantalla de éxito.
@@ -37,14 +41,18 @@ Future<void> _registrarVenta(
       lineas: carrito.lineas,
       metodo: metodo,
       recibido: recibido,
+      envModo: carrito.envModo.name,
+      envCliente: carrito.envCliente,
+      envCredito: carrito.credito,
       claveIdempotencia: carrito.claveCobro,
     );
     ref.read(carritoProvider.notifier).vaciar();
     ref.read(productosProvider.notifier).refrescar();
+    if (carrito.envModo != ModoEnvases.na || carrito.credito.isNotEmpty) {
+      ref.read(envasesProvider.notifier).refrescar();
+    }
     navegador.pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (_) => VentaExitosa(venta: venta, items: carrito.items),
-      ),
+      MaterialPageRoute(builder: (_) => VentaExitosa(venta: venta)),
       (ruta) => ruta.isFirst,
     );
   } catch (e) {
@@ -79,9 +87,34 @@ Future<void> _registrarVenta(
   }
 }
 
-String _nombreItem(ItemCarrito i) => i.porCaja
-    ? '${i.cantidad}x ${i.producto.nombre} (caja)'
-    : '${i.cantidad}x ${i.producto.nombre}';
+String _nombreItem(ItemCarrito i) =>
+    '${i.cantidad}x ${i.producto.nombre}${i.porCaja ? ' (caja)' : ''}'
+    '${i.descuento > 0 ? ' −${i.descuento}%' : ''}';
+
+/// Renglones de envases del resumen: (texto, monto, color).
+List<(String, String, Color?)> _renglonesEnvases(WidgetRef ref) {
+  final carrito = ref.watch(carritoProvider);
+  final precios = ref.watch(preciosEnvasesProvider);
+  final deposito = carrito.deposito(precios);
+  return [
+    if (deposito > 0)
+      ('Depósito de envases', '+${dinero(deposito)}', const Color(0xFFD97706)),
+    if (carrito.envModo == ModoEnvases.trae)
+      ('Envases: el cliente entrega vacíos', 'Sin costo', null),
+    if (carrito.envModo == ModoEnvases.prestamo)
+      (
+        'Envases prestados a ${carrito.envCliente ?? 'cliente'}',
+        'Préstamo',
+        null,
+      ),
+    for (final e in carrito.credito.entries)
+      (
+        'Crédito por ${e.value} vacíos ${FormatoEnvase.de(e.key).etiqueta}',
+        '-${dinero(e.value * (precios[e.key] ?? 0))}',
+        const Color(0xFF16A34A),
+      ),
+  ];
+}
 
 // --- 4.1 RESUMEN FINAL DE COMPRA ---
 class ResumenCompra extends ConsumerWidget {
@@ -110,9 +143,36 @@ class ResumenCompra extends ConsumerWidget {
                   horizontal: 24,
                   vertical: 16,
                 ),
-                itemCount: carrito.items.length,
+                itemCount: carrito.items.length + _renglonesEnvases(ref).length,
                 separatorBuilder: (_, _) => const Divider(height: 32),
                 itemBuilder: (context, i) {
+                  if (i >= carrito.items.length) {
+                    final (texto, monto, color) = _renglonesEnvases(
+                      ref,
+                    )[i - carrito.items.length];
+                    return Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            texto,
+                            style: TextStyle(
+                              fontSize: 16,
+                              color: color ?? c.tinta2,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          monto,
+                          style: TextStyle(
+                            fontSize: 18,
+                            color: color ?? c.tinta2,
+                          ),
+                        ),
+                      ],
+                    );
+                  }
                   final item = carrito.items[i];
                   return Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -154,7 +214,7 @@ class ResumenCompra extends ConsumerWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    dinero(carrito.total),
+                    dinero(ref.watch(totalCarritoProvider)),
                     style: TextStyle(
                       fontSize: 48,
                       fontWeight: FontWeight.bold,
@@ -207,7 +267,7 @@ class MetodoPago extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colores;
-    final total = ref.watch(carritoProvider.select((k) => k.total));
+    final total = ref.watch(totalCarritoProvider);
     return Scaffold(
       backgroundColor: c.fondo,
       appBar: AppBar(
@@ -381,7 +441,7 @@ class _CobroEfectivoState extends ConsumerState<CobroEfectivo> {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final total = ref.watch(carritoProvider.select((k) => k.total));
+    final total = ref.watch(totalCarritoProvider);
     final puedeCobrar = _recibido >= total && total > 0;
 
     // Billetes comunes por encima del total (en centavos).
@@ -654,7 +714,7 @@ class _CobroTarjetaState extends ConsumerState<CobroTarjeta>
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final total = ref.watch(carritoProvider.select((k) => k.total));
+    final total = ref.watch(totalCarritoProvider);
     return Scaffold(
       backgroundColor: c.fondo,
       body: SafeArea(
@@ -738,19 +798,16 @@ class _CobroTarjetaState extends ConsumerState<CobroTarjeta>
 }
 
 // --- 4.7, 4.8 y 4.9 VENTA EXITOSA Y RECIBO ---
-class VentaExitosa extends StatefulWidget {
-  const VentaExitosa({super.key, required this.venta, required this.items});
+class VentaExitosa extends ConsumerStatefulWidget {
+  const VentaExitosa({super.key, required this.venta});
 
   final VentaRegistrada venta;
 
-  /// Lo que se vendió, para el ticket.
-  final List<ItemCarrito> items;
-
   @override
-  State<VentaExitosa> createState() => _VentaExitosaState();
+  ConsumerState<VentaExitosa> createState() => _VentaExitosaState();
 }
 
-class _VentaExitosaState extends State<VentaExitosa>
+class _VentaExitosaState extends ConsumerState<VentaExitosa>
     with SingleTickerProviderStateMixin {
   late final AnimationController _checkCtrl = AnimationController(
     vsync: this,
@@ -775,6 +832,22 @@ class _VentaExitosaState extends State<VentaExitosa>
 
   void _nuevaVenta() => Navigator.of(context).popUntil((r) => r.isFirst);
 
+  /// Pide el ticket completo y lo imprime o comparte en PDF.
+  Future<void> _recibo(
+    Future<void> Function(DetalleVenta, AjustesNegocio) accion,
+  ) async {
+    try {
+      final api = await ref.read(apiProvider.future);
+      final detalle = await api.obtenerVenta(widget.venta.id);
+      final negocio = await ref.read(ajustesNegocioProvider.future);
+      await accion(detalle, negocio);
+    } catch (e) {
+      if (mounted) {
+        avisar(context, 'No se pudo generar el recibo: ${mensajeDeError(e)}');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
@@ -796,48 +869,63 @@ class _VentaExitosaState extends State<VentaExitosa>
     return Scaffold(
       backgroundColor: c.fondo,
       body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.check_circle_rounded, size: 64, color: c.verde),
-            const SizedBox(height: 16),
-            Text(
-              'Venta ${v.folio} registrada',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: c.tinta,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(Icons.check_circle_rounded, size: 64, color: c.verde),
+              const SizedBox(height: 16),
+              Text(
+                'Venta ${v.folio} registrada',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: c.tinta,
+                ),
               ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              v.cambio > 0
-                  ? 'Total ${dinero(v.total)} · Cambio ${dinero(v.cambio)}'
-                  : 'Total ${dinero(v.total)} · ${capitalizar(v.metodo)}',
-              style: TextStyle(fontSize: 18, color: c.tinta2),
-            ),
-            const SizedBox(height: 64),
-            Wrap(
-              spacing: 32,
-              runSpacing: 32,
-              alignment: WrapAlignment.center,
-              children: [
-                _BotonRecibo(
-                  icono: Icons.receipt_long_rounded,
-                  texto: 'Ver ticket',
-                  alTocar: () => showDialog<void>(
-                    context: context,
-                    builder: (_) => VistaTicket(venta: v, items: widget.items),
+              const SizedBox(height: 8),
+              Text(
+                v.cambio > 0
+                    ? 'Total ${dinero(v.total)} · Cambio ${dinero(v.cambio)}'
+                    : 'Total ${dinero(v.total)} · ${capitalizar(v.metodo)}',
+                style: TextStyle(fontSize: 18, color: c.tinta2),
+              ),
+              const SizedBox(height: 40),
+              Text(
+                '¿Cómo desea su recibo?',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w800,
+                  color: c.tinta,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Wrap(
+                spacing: 24,
+                runSpacing: 24,
+                alignment: WrapAlignment.center,
+                children: [
+                  _BotonRecibo(
+                    icono: Icons.print_rounded,
+                    texto: 'Imprimir',
+                    alTocar: () => _recibo(imprimirTicket),
                   ),
-                ),
-                _BotonRecibo(
-                  icono: Icons.add_shopping_cart_rounded,
-                  texto: 'Nueva venta',
-                  alTocar: _nuevaVenta,
-                ),
-              ],
-            ),
-          ],
+                  _BotonRecibo(
+                    icono: Icons.share_rounded,
+                    texto: 'Compartir',
+                    alTocar: () => _recibo(compartirTicket),
+                  ),
+                  _BotonRecibo(
+                    icono: Icons.add_shopping_cart_rounded,
+                    texto: 'Nueva venta',
+                    alTocar: _nuevaVenta,
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -862,8 +950,8 @@ class _BotonRecibo extends StatelessWidget {
       onTap: alTocar,
       borderRadius: BorderRadius.circular(24),
       child: Container(
-        width: 180,
-        height: 180,
+        width: 160,
+        height: 160,
         decoration: BoxDecoration(
           border: Border.all(color: c.linea),
           borderRadius: BorderRadius.circular(24),
@@ -871,7 +959,7 @@ class _BotonRecibo extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icono, size: 64, color: c.tinta),
+            Icon(icono, size: 56, color: c.tinta),
             const SizedBox(height: 16),
             Text(
               texto,
@@ -882,85 +970,6 @@ class _BotonRecibo extends StatelessWidget {
               ),
             ),
           ],
-        ),
-      ),
-    );
-  }
-}
-
-/// Vista del ticket con los datos reales de la venta. Imprimir y compartir
-/// en PDF llegan con el módulo de tickets.
-class VistaTicket extends StatelessWidget {
-  const VistaTicket({super.key, required this.venta, required this.items});
-
-  final VentaRegistrada venta;
-  final List<ItemCarrito> items;
-
-  @override
-  Widget build(BuildContext context) {
-    const tinta = TextStyle(color: Colors.black87);
-    const negrita = TextStyle(
-      color: Colors.black,
-      fontWeight: FontWeight.bold,
-      fontSize: 18,
-    );
-    Widget fila(String a, String b, {TextStyle estilo = tinta}) => Padding(
-      padding: const EdgeInsets.symmetric(vertical: 2),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          Expanded(child: Text(a, style: estilo)),
-          Text(b, style: estilo),
-        ],
-      ),
-    );
-    return Dialog(
-      backgroundColor: Colors.white,
-      child: SizedBox(
-        width: 350,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Text(
-                'DEPÓSITO DE CERVEZA',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                  letterSpacing: 1,
-                  color: Colors.black,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Ticket de venta #${venta.folio} · ${venta.diaNegocio}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
-              ),
-              const SizedBox(height: 16),
-              const Divider(color: Colors.black54),
-              for (final i in items) fila(_nombreItem(i), dinero(i.subtotal)),
-              const SizedBox(height: 16),
-              const Divider(color: Colors.black54),
-              fila('TOTAL', dinero(venta.total), estilo: negrita),
-              fila(capitalizar(venta.metodo), dinero(venta.recibido)),
-              if (venta.cambio > 0) fila('Cambio', dinero(venta.cambio)),
-              const SizedBox(height: 24),
-              const Text(
-                '¡Gracias por su compra!',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontStyle: FontStyle.italic,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 16),
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          ),
         ),
       ),
     );
