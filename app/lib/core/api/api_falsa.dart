@@ -258,9 +258,12 @@ class ApiFalsa implements Api {
         envPorFormato[p.envase!] = (envPorFormato[p.envase!] ?? 0) + n;
       }
       final lineaId = ++_lineas;
-      if (envModo == 'cobrar' && p.envase != null) {
-        depositos[lineaId] = envases[p.envase!]!.precio;
-        envMonto += envases[p.envase!]!.precio * n;
+      final deposito = envModo == 'cobrar' && p.envase != null
+          ? envases[p.envase!]!.precio
+          : 0;
+      if (deposito > 0) {
+        depositos[lineaId] = deposito;
+        envMonto += deposito * n;
       }
       lineasTicket.add(
         LineaTicket(
@@ -274,6 +277,7 @@ class ApiFalsa implements Api {
           descuento: l.descuento,
           precioUnit: precio,
           subtotal: precio * l.cantidad,
+          deposito: deposito,
         ),
       );
     }

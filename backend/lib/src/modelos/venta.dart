@@ -166,6 +166,7 @@ class LineaTicket {
     required this.precioUnit,
     required this.subtotal,
     this.devueltas = 0,
+    this.deposito = 0,
   }) : precioLista = precioLista ?? precioUnit;
 
   /// Para devolver esta línea (`POST /ventas/{id}/devolver`).
@@ -195,10 +196,21 @@ class LineaTicket {
   /// Unidades ya devueltas.
   final int devueltas;
 
+  /// Centavos de depósito cobrados por pieza (0 si no se cobró).
+  final int deposito;
+
   bool get porCaja => unidad == 'caja';
 
   /// Unidades que todavía se pueden devolver.
   int get porDevolver => cantidad - devueltas;
+
+  /// Piezas por unidad: 1 en piezas, las de la caja en cajas.
+  int get piezasPorUnidad => piezas ~/ cantidad;
+
+  /// Lo que se regresa al devolver [unidades]: precio con descuento más el
+  /// depósito que se cobró (como `POST /ventas/{id}/devolver`).
+  int reembolso(int unidades) =>
+      precioUnit * unidades + deposito * piezasPorUnidad * unidades;
 
   factory LineaTicket.fromJson(Map<String, Object?> j) => LineaTicket(
     lineaId: j['lineaId'] as int? ?? 0,
@@ -212,6 +224,7 @@ class LineaTicket {
     precioUnit: j['precioUnit'] as int,
     subtotal: j['subtotal'] as int,
     devueltas: j['devueltas'] as int? ?? 0,
+    deposito: j['deposito'] as int? ?? 0,
   );
 
   Map<String, Object?> toJson() => {
@@ -226,6 +239,7 @@ class LineaTicket {
     'precioUnit': precioUnit,
     'subtotal': subtotal,
     'devueltas': devueltas,
+    'deposito': deposito,
   };
 }
 

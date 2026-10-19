@@ -400,7 +400,7 @@ Cobra, descuenta existencias y mueve envases en una sola transacción: o pasa to
 
 `GET /api/v1/ventas/{id}`
 
-- Respuesta `200`: la venta con `tarjeta`, `envModo`, `envN`, `envMonto`, `envCredito` (centavos), `origen`, `cancelada`, `turnoId`, `devuelto`, `usuario` y `lineas` (`lineaId`, `productoId`, `nombre`, `unidad`, `cantidad`, `piezas`, `precioLista`, `descuento`, `precioUnit`, `subtotal`, `devueltas`), más `devoluciones`: `[ { "id", "fecha", "monto", "destino", "motivo", "autorizo" } ]`. `devueltas` es cuántas unidades de la línea ya se devolvieron. `404 no_encontrado`.
+- Respuesta `200`: la venta con `tarjeta`, `envModo`, `envN`, `envMonto`, `envCredito` (centavos), `origen`, `cancelada`, `turnoId`, `devuelto`, `usuario` y `lineas` (`lineaId`, `productoId`, `nombre`, `unidad`, `cantidad`, `piezas`, `precioLista`, `descuento`, `precioUnit`, `subtotal`, `devueltas`, `deposito`), más `devoluciones`: `[ { "id", "fecha", "monto", "destino", "motivo", "autorizo" } ]`. `devueltas` es cuántas unidades de la línea ya se devolvieron; `deposito`, los centavos de depósito que se cobraron por pieza (0 si no se cobró). `404 no_encontrado`.
 
 #### Autorización
 
