@@ -1,4 +1,4 @@
-import 'dart:math';
+import '../../../core/api/idempotencia.dart';
 
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -107,9 +107,4 @@ class CarritoNotifier extends Notifier<Carrito> {
   void vaciar() => state = Carrito(const [], _nuevaClave());
 }
 
-final _aleatorio = Random.secure();
-
-String _nuevaClave() => [
-  for (var i = 0; i < 4; i++)
-    _aleatorio.nextInt(1 << 32).toRadixString(36).padLeft(7, '0'),
-].join('-');
+String _nuevaClave() => nuevaClaveIdempotencia();

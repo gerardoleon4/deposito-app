@@ -1,35 +1,114 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../app/tema/colores.dart';
+import '../../../core/formato/formato.dart';
 import '../datos/modelos_envases.dart';
+import '../estado/envases_provider.dart';
 import 'selector_envases.dart';
 
-/// Recepción de vacíos sin venta (por ejemplo, los que deja el proveedor).
-/// Suben a bodega; no hay cobro ni crédito.
-class ModalRecepcionEnvases extends StatefulWidget {
-  const ModalRecepcionEnvases({super.key});
+/// Para qué se abre el panel de vacíos.
+enum ModoVacios {
+  /// Entran a bodega sin venta (los deja el proveedor).
+  entrada,
 
-  /// Regresa lo que se recibió, o `null` si se cerró sin confirmar.
-  static Future<({FormatoEnvase formato, int cantidad})?> mostrar(
-    BuildContext context,
-  ) => showModalBottomSheet(
+  /// Salen de bodega sin cobro: pide el motivo.
+  salida,
+
+  /// El cliente los entrega en la venta y se descuenta su depósito.
+  credito,
+}
+
+/// Lo que se capturó en el panel.
+typedef VaciosCapturados = ({
+  FormatoEnvase formato,
+  int cantidad,
+  String? motivo,
+});
+
+/// 5.2 Recepción de envases vacíos (diseño de Pablo): panel inferior con
+/// formato, cantidad y, en una venta, el crédito que se descuenta del ticket.
+class ModalRecepcionEnvases extends ConsumerStatefulWidget {
+  const ModalRecepcionEnvases({
+    super.key,
+    this.modo = ModoVacios.entrada,
+    this.cantidadInicial = 1,
+    this.formatoInicial = FormatoEnvase.media,
+  });
+
+  final ModoVacios modo;
+  final int cantidadInicial;
+  final FormatoEnvase formatoInicial;
+
+  static Future<VaciosCapturados?> mostrar(
+    BuildContext context, {
+    ModoVacios modo = ModoVacios.entrada,
+    int cantidadInicial = 1,
+    FormatoEnvase formatoInicial = FormatoEnvase.media,
+  }) => showModalBottomSheet<VaciosCapturados>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
-    builder: (_) => const ModalRecepcionEnvases(),
+    builder: (_) => ModalRecepcionEnvases(
+      modo: modo,
+      cantidadInicial: cantidadInicial,
+      formatoInicial: formatoInicial,
+    ),
   );
 
   @override
-  State<ModalRecepcionEnvases> createState() => _ModalRecepcionEnvasesState();
+  ConsumerState<ModalRecepcionEnvases> createState() =>
+      _ModalRecepcionEnvasesState();
 }
 
-class _ModalRecepcionEnvasesState extends State<ModalRecepcionEnvases> {
-  var _formato = FormatoEnvase.media;
-  var _cantidad = 1;
+class _ModalRecepcionEnvasesState extends ConsumerState<ModalRecepcionEnvases> {
+  late int _cantidad = widget.cantidadInicial.clamp(1, 9999);
+  late FormatoEnvase _formato = widget.formatoInicial;
+  final _motivo = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _motivo.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _motivo.dispose();
+    super.dispose();
+  }
+
+  bool get _listo =>
+      widget.modo != ModoVacios.salida || _motivo.text.trim().isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
+    final estado = ref.watch(envasesProvider).value;
+    final credito = _cantidad * (estado?.precio(_formato) ?? 0);
+    final enBodega = estado?.de(_formato).bodega;
+
+    final (titulo, subtitulo, icono, color) = switch (widget.modo) {
+      ModoVacios.entrada => (
+        'Recepción de Envases Vacíos',
+        'Entran a bodega sin venta, por ejemplo los que deja el proveedor',
+        Icons.recycling_rounded,
+        c.verde,
+      ),
+      ModoVacios.salida => (
+        'Salida de Envases Vacíos',
+        'Salen de bodega sin cobro: al proveedor, rotos o extraviados',
+        Icons.outbox_rounded,
+        const Color(0xFFD97706),
+      ),
+      ModoVacios.credito => (
+        'Recepción de Envases Vacíos',
+        'Descuenta del ticket el valor de los vacíos que entrega el cliente',
+        Icons.recycling_rounded,
+        c.verde,
+      ),
+    };
+
     return Container(
       decoration: BoxDecoration(
         color: c.superficie,
@@ -55,6 +134,7 @@ class _ModalRecepcionEnvasesState extends State<ModalRecepcionEnvases> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // Asa de arrastre
               Center(
                 child: Container(
                   width: 48,
@@ -66,20 +146,18 @@ class _ModalRecepcionEnvasesState extends State<ModalRecepcionEnvases> {
                 ),
               ),
               const SizedBox(height: 18),
+
+              // Cabecera
               Row(
                 children: [
                   Container(
                     width: 42,
                     height: 42,
                     decoration: BoxDecoration(
-                      color: c.verde.withValues(alpha: 0.12),
+                      color: color.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Icon(
-                      Icons.recycling_rounded,
-                      color: c.verde,
-                      size: 24,
-                    ),
+                    child: Icon(icono, color: color, size: 24),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -87,7 +165,7 @@ class _ModalRecepcionEnvasesState extends State<ModalRecepcionEnvases> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'Recibir envases vacíos',
+                          titulo,
                           style: TextStyle(
                             fontSize: 20,
                             fontWeight: FontWeight.w800,
@@ -96,8 +174,7 @@ class _ModalRecepcionEnvasesState extends State<ModalRecepcionEnvases> {
                           ),
                         ),
                         Text(
-                          'Entran a bodega sin cobro. Los vacíos de un cliente '
-                          'que compra se registran al cobrar.',
+                          subtitulo,
                           style: TextStyle(fontSize: 13, color: c.tinta2),
                         ),
                       ],
@@ -112,38 +189,124 @@ class _ModalRecepcionEnvasesState extends State<ModalRecepcionEnvases> {
                 ],
               ),
               const SizedBox(height: 20),
+
               SelectorEnvases(
                 formato: _formato,
                 cantidad: _cantidad,
-                etiquetaCantidad: _cantidad == 1
-                    ? 'envase recibido'
-                    : 'envases recibidos',
                 alCambiarFormato: (f) => setState(() => _formato = f),
                 alCambiarCantidad: (n) => setState(() => _cantidad = n),
+                etiquetaCantidad: widget.modo == ModoVacios.salida
+                    ? 'salen'
+                    : 'vacíos',
               ),
-              const SizedBox(height: 24),
+              if (widget.modo == ModoVacios.salida) ...[
+                if (enBodega != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'En bodega: $enBodega ${_formato.etiqueta}',
+                    style: TextStyle(fontSize: 13, color: c.tinta2),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                TextField(
+                  controller: _motivo,
+                  maxLength: 120,
+                  textCapitalization: TextCapitalization.sentences,
+                  decoration: InputDecoration(
+                    labelText: 'Motivo *',
+                    hintText: 'Ej. Cambio con el proveedor, botellas rotas',
+                    filled: true,
+                    fillColor: c.superficie2,
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide(color: c.linea),
+                    ),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 20),
+
+              // Indicador de crédito verde destacado (solo en una venta)
+              if (widget.modo == ModoVacios.credito) ...[
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 18,
+                    vertical: 14,
+                  ),
+                  decoration: BoxDecoration(
+                    color: c.verdeSuave,
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: c.verde.withValues(alpha: 0.3)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.check_circle_outline_rounded,
+                            color: c.verde,
+                            size: 22,
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            'Crédito a descontar:',
+                            style: TextStyle(
+                              fontSize: 15,
+                              fontWeight: FontWeight.w600,
+                              color: c.verde,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '-${dinero(credito)}',
+                        style: TextStyle(
+                          fontSize: 22,
+                          fontWeight: FontWeight.w800,
+                          color: c.verde,
+                          letterSpacing: -0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
+
               SizedBox(
                 height: 56,
-                child: FilledButton.icon(
-                  onPressed: () => Navigator.pop(context, (
-                    formato: _formato,
-                    cantidad: _cantidad,
-                  )),
-                  style: FilledButton.styleFrom(
-                    backgroundColor: c.verde,
+                child: ElevatedButton.icon(
+                  onPressed: _listo
+                      ? () => Navigator.pop(context, (
+                          formato: _formato,
+                          cantidad: _cantidad,
+                          motivo: widget.modo == ModoVacios.salida
+                              ? _motivo.text.trim()
+                              : null,
+                        ))
+                      : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: color,
                     foregroundColor: Colors.white,
+                    disabledBackgroundColor: c.linea,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(16),
                     ),
+                    elevation: 0,
                   ),
-                  icon: const Icon(Icons.arrow_downward_rounded, size: 22),
-                  label: Text(
-                    'Recibir $_cantidad a bodega',
-                    style: const TextStyle(
-                      fontSize: 17,
-                      fontWeight: FontWeight.w800,
-                    ),
+                  icon: Icon(
+                    widget.modo == ModoVacios.salida
+                        ? Icons.arrow_upward_rounded
+                        : Icons.arrow_downward_rounded,
+                    size: 22,
                   ),
+                  label: Text(switch (widget.modo) {
+                    ModoVacios.entrada => 'Recibir $_cantidad vacíos',
+                    ModoVacios.salida => 'Sacar $_cantidad vacíos',
+                    ModoVacios.credito =>
+                      'Aplicar Crédito al Ticket (-${dinero(credito)})',
+                  }, style: const TextStyle(fontSize: 17)),
                 ),
               ),
             ],

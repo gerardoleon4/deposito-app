@@ -1,4 +1,5 @@
 import 'package:deposito_backend/deposito_backend.dart';
+import 'package:intl/intl.dart';
 
 /// El formateador de dinero de la app (docs/ESTANDARES.md). Ninguna pantalla
 /// formatea dinero por su cuenta.
@@ -55,6 +56,15 @@ String fechaCorta(String iso) {
   final f = DateTime.parse(iso);
   return '${f.day} ${_meses[f.month - 1].substring(0, 3)}';
 }
+
+/// `18/10/2026 • 06:30 PM` en la hora del dispositivo, a partir de un
+/// instante ISO 8601 UTC.
+String fechaHora(String iso) =>
+    DateFormat('dd/MM/yyyy • hh:mm a').format(DateTime.parse(iso).toLocal());
+
+/// `06:30 PM` en la hora del dispositivo.
+String hora(String iso) =>
+    DateFormat('hh:mm a').format(DateTime.parse(iso).toLocal());
 
 /// Días de hoy a [iso] (`AAAA-MM-DD`); negativo si ya pasó.
 int diasHasta(String iso, DateTime hoy) {
