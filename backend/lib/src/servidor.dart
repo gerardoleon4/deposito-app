@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
@@ -25,6 +26,7 @@ import 'rutas/rutas_caja.dart';
 import 'rutas/rutas_productos.dart';
 import 'rutas/rutas_terminales.dart';
 import 'seed/datos_ejemplo.dart';
+import 'seed/fotos_ejemplo.dart';
 import 'servicios/servicio_caja.dart';
 import 'servicios/servicio_productos.dart';
 import 'servicios/servicio_terminales.dart';
@@ -61,6 +63,7 @@ class DepositoServer {
     String? claveCaja,
     this.carpetaFotos,
     this.datosEjemplo = false,
+    this.fotosEjemplo = const {},
     Bitacora? bitacora,
     this._reloj = relojSistema,
   }) : direccion = direccion ?? InternetAddress.anyIPv4,
@@ -84,6 +87,11 @@ class DepositoServer {
   /// Carga los productos del prototipo si la base está vacía y abre un turno
   /// de caja con [fondoEjemplo] si nunca hubo uno.
   final bool datosEjemplo;
+
+  /// Bytes de las fotos de ejemplo por nombre de archivo (ver
+  /// [fotosDeEjemplo]). Con [datosEjemplo], se ponen a los productos de
+  /// ejemplo que no tengan foto. La app las lee de sus assets.
+  final Map<String, Uint8List> fotosEjemplo;
   final Bitacora bitacora;
   final Reloj _reloj;
 
@@ -177,6 +185,7 @@ class DepositoServer {
         );
         bitacora.info('Datos de ejemplo cargados');
       }
+      if (datosEjemplo) _ponerFotosEjemplo(productos, repoProductos);
       // En demo se puede cobrar desde el primer arranque. Solo si nunca hubo
       // un turno: después de un corte, la caja se queda cerrada.
       if (datosEjemplo && repoCaja.contar() == 0) {
@@ -241,6 +250,26 @@ class DepositoServer {
     _db = null;
     _hub = null;
     bitacora.info('Servidor detenido');
+  }
+
+  /// Solo a productos sin foto: también funciona en bases ya creadas y no
+  /// reemplaza una foto que se haya subido.
+  void _ponerFotosEjemplo(
+    ServicioProductos productos,
+    RepositorioProductos repo,
+  ) {
+    for (final e in fotosDeEjemplo.entries) {
+      final bytes = fotosEjemplo[e.value];
+      final producto = repo.porCodigo(e.key);
+      if (bytes == null || producto == null || producto.foto != null) continue;
+      try {
+        productos.guardarFoto(producto.id, 'image/webp', bytes);
+      } on ErrorApi catch (error) {
+        bitacora.advertencia(
+          'Foto de ejemplo ${e.value}: ${error.campos ?? error.mensaje}',
+        );
+      }
+    }
   }
 
   String _carpetaDeFotos() {

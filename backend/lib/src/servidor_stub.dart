@@ -7,6 +7,7 @@ class DepositoServer {
     dynamic direccion,
     String? claveCaja,
     this.datosEjemplo = false,
+    dynamic fotosEjemplo,
     dynamic bitacora,
     dynamic reloj,
   }) : claveCaja = claveCaja ?? 'clave_stub';

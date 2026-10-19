@@ -18,6 +18,7 @@ export 'src/modelos/movimiento.dart';
 export 'src/modelos/producto.dart';
 export 'src/modelos/terminal.dart';
 export 'src/modelos/venta.dart';
+export 'src/seed/fotos_ejemplo.dart';
 // En web no hay dart:io ni SQLite: la app usa ApiFalsa y este servidor vacío.
 export 'src/servidor_stub.dart'
     if (dart.library.io) 'src/servidor.dart'

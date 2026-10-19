@@ -31,7 +31,7 @@ void main() {
 
   test('la caja lista los productos de ejemplo', () async {
     final productos = await caja.listarProductos();
-    expect(productos, hasLength(11));
+    expect(productos, hasLength(12));
     expect(productos.map((p) => p.nombre), contains('Victoria Mega'));
   });
 
@@ -277,7 +277,7 @@ void main() {
         codigo: codigo.codigo,
       );
       final terminal = ApiHttp(base: base, clave: registro.clave);
-      expect(await terminal.listarProductos(), hasLength(11));
+      expect(await terminal.listarProductos(), hasLength(12));
 
       final tiempoReal = TiempoReal(terminal);
       addTearDown(tiempoReal.cerrar);

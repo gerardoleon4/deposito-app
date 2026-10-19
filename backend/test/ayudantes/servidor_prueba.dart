@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,7 @@ import 'package:http/http.dart' as http;
 /// ```
 Future<ServidorPrueba> crearServidorDePrueba({
   bool datosEjemplo = false,
+  Map<String, Uint8List> fotosEjemplo = const {},
   Reloj? reloj,
 }) async {
   final servidor = DepositoServer(
@@ -20,6 +22,7 @@ Future<ServidorPrueba> crearServidorDePrueba({
     puerto: 0,
     direccion: InternetAddress.loopbackIPv4,
     datosEjemplo: datosEjemplo,
+    fotosEjemplo: fotosEjemplo,
     bitacora: Bitacora.silenciosa(),
     reloj: reloj ?? () => DateTime.now().toUtc(),
   );
