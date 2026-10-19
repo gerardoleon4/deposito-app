@@ -212,41 +212,73 @@ class ApiFalsa implements Api {
   /// Ventas cobradas, por clave de idempotencia.
   final ventas = <String, VentaRegistrada>{};
 
+  /// Tickets cobrados, del más nuevo al más viejo.
+  final detalles = <DetalleVenta>[];
+
+  /// Vacíos de crédito de cada venta, para revertirlos al cancelar.
+  final _creditos = <String, Map<String, int>>{};
+
+  /// Depósito cobrado por pieza en cada línea (`ventaId:lineaId`).
+  final _depositos = <String, int>{};
+  var _lineas = 0;
+  var _devoluciones = 0;
+
   @override
   Future<VentaRegistrada> registrarVenta({
     required List<LineaVenta> lineas,
     required String metodo,
     int? recibido,
+    String envModo = 'na',
+    String? envCliente,
+    Map<String, int> envCredito = const {},
+    String? usuarioId,
     required String claveIdempotencia,
   }) async {
     final repetida = ventas[claveIdempotencia];
     if (repetida != null) return repetida;
     final turnoId = _turnoAbiertoId();
+    final usuario = _usuarioActivo(usuarioId);
 
     var total = 0;
+    var envN = 0;
+    var envMonto = 0;
     final piezas = <String, int>{};
+    final envPorFormato = <String, int>{};
     final lineasTicket = <LineaTicket>[];
+    final depositos = <int, int>{};
     for (final l in lineas) {
       final p = productos.firstWhere((p) => p.id == l.productoId);
-      final precio = l.porCaja ? p.precioCaja! : p.precio;
+      final lista = l.porCaja ? p.precioCaja! : p.precio;
+      final precio = lista - lista * l.descuento ~/ 100;
       final n = (l.porCaja ? p.piezasPorCaja! : 1) * l.cantidad;
       total += precio * l.cantidad;
       piezas[p.id] = (piezas[p.id] ?? 0) + n;
+      if (p.envase != null) {
+        envN += n;
+        envPorFormato[p.envase!] = (envPorFormato[p.envase!] ?? 0) + n;
+      }
+      final lineaId = ++_lineas;
+      if (envModo == 'cobrar' && p.envase != null) {
+        depositos[lineaId] = envases[p.envase!]!.precio;
+        envMonto += envases[p.envase!]!.precio * n;
+      }
       lineasTicket.add(
         LineaTicket(
+          lineaId: lineaId,
           productoId: p.id,
           nombre: p.nombre,
           unidad: l.porCaja ? 'caja' : 'pieza',
           cantidad: l.cantidad,
           piezas: n,
+          precioLista: lista,
+          descuento: l.descuento,
           precioUnit: precio,
           subtotal: precio * l.cantidad,
         ),
       );
     }
     for (final e in piezas.entries) {
-      final i = productos.indexWhere((p) => p.id == e.key);
-      final p = productos[i];
+      final p = _producto(e.key);
       if (p.existenciaPiezas < e.value) {
         throw FalloApi(
           'stock_insuficiente',
@@ -254,22 +286,71 @@ class ApiFalsa implements Api {
           estado: 409,
         );
       }
-      productos[i] = Producto.fromJson({
-        ...p.toJson(),
-        'existenciaPiezas': p.existenciaPiezas - e.value,
-      });
     }
-    return _cobrar(
+    total += envMonto;
+    final credito = {
+      for (final e in envCredito.entries)
+        if (e.value > 0) e.key: e.value,
+    };
+    final envCreditoMonto = credito.entries.fold(
+      0,
+      (t, e) => t + e.value * envases[e.key]!.precio,
+    );
+    if (envCreditoMonto > total) {
+      throw FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {
+          'envCredito':
+              'El crédito ($envCreditoMonto) pasa del total ($total): usa '
+              'Devolver depósito',
+        },
+        estado: 400,
+      );
+    }
+    total -= envCreditoMonto;
+
+    final venta = _cobrar(
       claveIdempotencia: claveIdempotencia,
       turnoId: turnoId,
       total: total,
       metodo: metodo,
       recibido: recibido,
-      envModo: 'na',
-      envN: 0,
-      envMonto: 0,
+      envModo: envModo,
+      envN: envN,
+      envMonto: envMonto,
+      envCredito: envCreditoMonto,
+      usuario: usuario,
       lineas: lineasTicket,
     );
+    for (final e in piezas.entries) {
+      final p = _producto(e.key);
+      _reemplazar({
+        ...p.toJson(),
+        'existenciaPiezas': p.existenciaPiezas - e.value,
+      });
+    }
+    depositos.forEach((linea, d) => _depositos['${venta.id}:$linea'] = d);
+    if (envModo == 'trae') {
+      envPorFormato.forEach((f, n) => _moverEnvases(f, bodega: n));
+    } else if (envModo == 'prestamo') {
+      envPorFormato.forEach((f, n) {
+        prestamos.insert(
+          0,
+          PrestamoEnvase(
+            id: 'pre_${prestamos.length + 1}',
+            cliente: envCliente ?? 'Cliente Mostrador',
+            formato: f,
+            cantidad: n,
+            fecha: '2026-10-02T18:30:00Z',
+          ),
+        );
+        _moverEnvases(f, prestados: n);
+      });
+    }
+    credito.forEach((f, n) => _moverEnvases(f, bodega: n));
+    _creditos[venta.id] = credito;
+    return venta;
   }
 
   VentaRegistrada _cobrar({
@@ -281,6 +362,8 @@ class ApiFalsa implements Api {
     required String envModo,
     required int envN,
     required int envMonto,
+    int envCredito = 0,
+    Usuario? usuario,
     required List<LineaTicket> lineas,
   }) {
     final pagado = metodo == 'tarjeta' ? total : (recibido ?? total);
@@ -320,25 +403,30 @@ class ApiFalsa implements Api {
         envModo: envModo,
         envN: envN,
         envMonto: envMonto,
+        envCredito: envCredito,
         origen: 'Caja',
         cancelada: false,
         turnoId: turnoId,
+        usuario: usuario == null
+            ? null
+            : UsuarioBreve(id: usuario.id, nombre: usuario.nombre),
         lineas: lineas,
       ),
     );
     return venta;
   }
 
-  /// Tickets cobrados, del más nuevo al más viejo.
-  final detalles = <DetalleVenta>[];
-
   @override
-  Future<List<ResumenVenta>> listarVentas({String? turno}) async {
+  Future<List<ResumenVenta>> listarVentas({
+    String? turno,
+    String? usuario,
+  }) async {
     final turnoId = turno == 'actual' ? _abierto?.id : turno;
     if (turno != null && turnoId == null) return [];
     return [
       for (final d in detalles)
-        if (turnoId == null || d.turnoId == turnoId)
+        if ((turnoId == null || d.turnoId == turnoId) &&
+            (usuario == null || d.usuario?.id == usuario))
           ResumenVenta(
             id: d.id,
             folio: d.folio,
@@ -348,6 +436,8 @@ class ApiFalsa implements Api {
             origen: d.origen,
             cancelada: d.cancelada,
             turnoId: d.turnoId,
+            devuelto: d.devuelto,
+            usuario: d.usuario,
           ),
     ];
   }
@@ -356,7 +446,32 @@ class ApiFalsa implements Api {
   Future<DetalleVenta> obtenerVenta(String id) async => _detalle(id);
 
   @override
-  Future<void> cancelarVenta(String id) async {
+  Future<void> cancelarVenta(
+    String id, {
+    String? pin,
+    String destino = 'inventario',
+    String? motivo,
+  }) async {
+    final d = _devolvible(id);
+    final autorizo = _autorizar(pin);
+    _devolver(d, null, destino, motivo, autorizo);
+  }
+
+  @override
+  Future<({Devolucion devolucion, DetalleVenta venta})> devolverVenta(
+    String id, {
+    required Map<int, int> lineas,
+    String destino = 'inventario',
+    String? motivo,
+    String? pin,
+  }) async {
+    final d = _devolvible(id);
+    final autorizo = _autorizar(pin);
+    final devolucion = _devolver(d, lineas, destino, motivo, autorizo);
+    return (devolucion: devolucion, venta: _detalle(id));
+  }
+
+  DetalleVenta _devolvible(String id) {
     final d = _detalle(id);
     if (d.cancelada) {
       throw const FalloApi(
@@ -373,19 +488,109 @@ class ApiFalsa implements Api {
         estado: 409,
       );
     }
+    return d;
+  }
+
+  /// Como `_devolver` del servidor: [pedidas] `null` es todo lo que falta.
+  Devolucion _devolver(
+    DetalleVenta d,
+    Map<int, int>? pedidas,
+    String destino,
+    String? motivo,
+    Usuario? autorizo,
+  ) {
+    final aDevolver = <int, int>{};
     for (final l in d.lineas) {
+      final pedida = pedidas == null ? l.porDevolver : pedidas[l.lineaId];
+      if (pedida == null || pedida == 0) continue;
+      if (pedida > l.porDevolver) {
+        throw FalloApi(
+          'datos_invalidos',
+          'Revisa los campos marcados',
+          campos: {
+            'lineas':
+                'De ${l.nombre} solo faltan ${l.porDevolver} por devolver',
+          },
+          estado: 400,
+        );
+      }
+      aDevolver[l.lineaId] = pedida;
+    }
+    if (pedidas != null) {
+      for (final id in pedidas.keys) {
+        if (!d.lineas.any((l) => l.lineaId == id)) {
+          throw FalloApi(
+            'datos_invalidos',
+            'Revisa los campos marcados',
+            campos: {'lineas': 'La línea $id no es de esta venta'},
+            estado: 400,
+          );
+        }
+      }
+    }
+    final completa = d.lineas.every(
+      (l) => l.porDevolver == (aDevolver[l.lineaId] ?? 0),
+    );
+
+    var monto = 0;
+    final envPorFormato = <String, int>{};
+    final lineas = [
+      for (final l in d.lineas)
+        if (aDevolver[l.lineaId] case final n?)
+          LineaTicket.fromJson({...l.toJson(), 'devueltas': l.devueltas + n})
+        else
+          l,
+    ];
+    for (final l in d.lineas) {
+      final n = aDevolver[l.lineaId];
+      if (n == null) continue;
+      final piezas = l.piezas ~/ l.cantidad * n;
+      monto +=
+          l.precioUnit * n + (_depositos['${d.id}:${l.lineaId}'] ?? 0) * piezas;
       final i = productos.indexWhere((p) => p.id == l.productoId);
       if (i < 0) continue;
       final p = productos[i];
-      productos[i] = Producto.fromJson({
-        ...p.toJson(),
-        'existenciaPiezas': p.existenciaPiezas + l.piezas,
-      });
+      if (destino == 'inventario') {
+        productos[i] = Producto.fromJson({
+          ...p.toJson(),
+          'existenciaPiezas': p.existenciaPiezas + piezas,
+        });
+      }
+      if (p.envase != null) {
+        envPorFormato[p.envase!] = (envPorFormato[p.envase!] ?? 0) + piezas;
+      }
     }
+    if (d.envModo == 'trae') {
+      envPorFormato.forEach((f, n) => _moverEnvases(f, bodega: -n));
+    } else if (d.envModo == 'prestamo') {
+      envPorFormato.forEach((f, n) => _moverEnvases(f, prestados: -n));
+    }
+    if (completa) {
+      monto = d.total - d.devuelto;
+      _creditos[d.id]?.forEach((f, n) => _moverEnvases(f, bodega: -n));
+    }
+
+    final devolucion = Devolucion(
+      id: 'dev_${++_devoluciones}',
+      fecha: '2026-10-02T19:00:00Z',
+      monto: monto,
+      destino: destino,
+      motivo: motivo,
+      autorizo: autorizo == null
+          ? null
+          : UsuarioBreve(id: autorizo.id, nombre: autorizo.nombre),
+    );
     detalles[detalles.indexOf(d)] = DetalleVenta.fromJson({
       ...d.toJson(),
-      'cancelada': true,
+      'cancelada': completa,
+      'devuelto': d.devuelto + monto,
+      'lineas': [for (final l in lineas) l.toJson()],
+      'devoluciones': [
+        for (final x in d.devoluciones) x.toJson(),
+        devolucion.toJson(),
+      ],
     });
+    return devolucion;
   }
 
   DetalleVenta _detalle(String id) =>
@@ -396,6 +601,8 @@ class ApiFalsa implements Api {
         estado: 404,
       ));
 
+  // --- Envases ---
+
   @override
   Future<Map<String, BalanceEnvase>> obtenerBalanceEnvases() async =>
       Map.of(envases);
@@ -403,21 +610,39 @@ class ApiFalsa implements Api {
   @override
   Future<List<PrestamoEnvase>> listarPrestamos() async => List.of(prestamos);
 
+  /// Bitácora de envases de esta API falsa, del más nuevo al más viejo.
+  final movimientosEnvases = <MovimientoEnvase>[];
+
+  @override
+  Future<List<MovimientoEnvase>> listarMovimientosEnvases({
+    int limite = 50,
+  }) async => movimientosEnvases.take(limite).toList();
+
   @override
   Future<PrestamoEnvase> prestarEnvases({
     required String cliente,
+    String? telefono,
     required String formato,
     required int cantidad,
   }) async {
+    _sacarDeBodega(formato, cantidad);
     final p = PrestamoEnvase(
       id: 'pre_${prestamos.length + 1}',
       cliente: cliente.trim(),
+      telefono: telefono,
       formato: formato,
       cantidad: cantidad,
       fecha: '2026-10-02T18:30:00Z',
     );
     prestamos.insert(0, p);
     _moverEnvases(formato, prestados: cantidad);
+    _bitacora(
+      formato,
+      'prestamo',
+      bodega: -cantidad,
+      prestados: cantidad,
+      cliente: p.cliente,
+    );
     return p;
   }
 
@@ -446,6 +671,7 @@ class ApiFalsa implements Api {
       prestamos[i] = PrestamoEnvase(
         id: p.id,
         cliente: p.cliente,
+        telefono: p.telefono,
         formato: p.formato,
         cantidad: p.cantidad - n,
         devueltos: p.devueltos + n,
@@ -453,6 +679,13 @@ class ApiFalsa implements Api {
       );
     }
     _moverEnvases(p.formato, bodega: n, prestados: -n);
+    _bitacora(
+      p.formato,
+      'devolucion_prestamo',
+      bodega: n,
+      prestados: -n,
+      cliente: p.cliente,
+    );
   }
 
   @override
@@ -466,16 +699,8 @@ class ApiFalsa implements Api {
     final repetida = ventas[claveIdempotencia];
     if (repetida != null) return repetida;
     final turnoId = _turnoAbiertoId();
-    final b = envases[formato]!;
-    if (b.bodega < cantidad) {
-      throw FalloApi(
-        'envases_insuficientes',
-        'No hay suficientes envases $formato vacíos: quedan ${b.bodega} en '
-            'bodega',
-        estado: 409,
-      );
-    }
-    final total = cantidad * b.precio;
+    final total = cantidad * envases[formato]!.precio;
+    _sacarDeBodega(formato, cantidad);
     final venta = _cobrar(
       claveIdempotencia: claveIdempotencia,
       turnoId: turnoId,
@@ -487,7 +712,13 @@ class ApiFalsa implements Api {
       envMonto: total,
       lineas: const [],
     );
-    _moverEnvases(formato, bodega: -cantidad);
+    _bitacora(
+      formato,
+      'venta_vacios',
+      bodega: -cantidad,
+      monto: total,
+      referencia: 'Folio ${venta.folio}',
+    );
     return venta;
   }
 
@@ -497,8 +728,83 @@ class ApiFalsa implements Api {
     required int cantidad,
   }) async {
     _moverEnvases(formato, bodega: cantidad);
+    _bitacora(formato, 'entrada', bodega: cantidad);
     return Map.of(envases);
   }
+
+  @override
+  Future<Map<String, BalanceEnvase>> sacarVacios({
+    required String formato,
+    required int cantidad,
+    required String motivo,
+  }) async {
+    _sacarDeBodega(formato, cantidad);
+    _bitacora(formato, 'salida', bodega: -cantidad, referencia: motivo);
+    return Map.of(envases);
+  }
+
+  @override
+  Future<({Map<String, BalanceEnvase> balance, Turno turno})> devolverDeposito({
+    required String formato,
+    required int cantidad,
+    String? cliente,
+    required String claveIdempotencia,
+  }) async {
+    final monto = cantidad * envases[formato]!.precio;
+    final mov = await registrarMovimientoCaja(
+      tipo: 'retiro',
+      monto: monto,
+      motivo:
+          'Devolución de depósito: $cantidad $formato'
+          '${cliente == null ? '' : ' - $cliente'}',
+      claveIdempotencia: claveIdempotencia,
+    );
+    _moverEnvases(formato, bodega: cantidad);
+    _bitacora(
+      formato,
+      'devolucion_deposito',
+      bodega: cantidad,
+      cliente: cliente,
+      monto: -monto,
+    );
+    return (balance: Map.of(envases), turno: mov.turno);
+  }
+
+  void _sacarDeBodega(String formato, int cantidad) {
+    final enBodega = envases[formato]!.bodega;
+    if (enBodega < cantidad) {
+      throw FalloApi(
+        'envases_insuficientes',
+        'No hay suficientes envases $formato vacíos: quedan $enBodega en '
+            'bodega',
+        estado: 409,
+      );
+    }
+    _moverEnvases(formato, bodega: -cantidad);
+  }
+
+  void _bitacora(
+    String formato,
+    String tipo, {
+    int bodega = 0,
+    int prestados = 0,
+    String? cliente,
+    int? monto,
+    String? referencia,
+  }) => movimientosEnvases.insert(
+    0,
+    MovimientoEnvase(
+      id: movimientosEnvases.length + 1,
+      fecha: '2026-10-02T18:30:00Z',
+      formato: formato,
+      tipo: tipo,
+      bodega: bodega,
+      prestados: prestados,
+      cliente: cliente,
+      monto: monto,
+      referencia: referencia,
+    ),
+  );
 
   // --- Caja ---
 
@@ -518,20 +824,25 @@ class ApiFalsa implements Api {
         estado: 409,
       ));
 
-  _TurnoFalso _abrir(int fondo) =>
-      _abierto = _TurnoFalso('tur_${++_turnos}', fondo);
+  _TurnoFalso _abrir(int fondo, [Usuario? usuario]) {
+    return _abierto = _TurnoFalso('tur_${++_turnos}', fondo, usuario);
+  }
 
   Turno _turno(_TurnoFalso t) {
     final propias = [
       for (final d in detalles)
         if (d.turnoId == t.id) d,
     ];
-    final validas = propias.where((d) => !d.cancelada);
     int suma(Iterable<int> xs) => xs.fold(0, (a, b) => a + b);
-    final efectivo = suma([
-      for (final d in validas)
-        if (d.metodo == 'efectivo') d.total,
+    int cobrado(String metodo) => suma([
+      for (final d in propias)
+        if (d.metodo == metodo) d.total,
     ]);
+    int devuelto(String metodo) => suma([
+      for (final d in propias)
+        if (d.metodo == metodo) d.devuelto,
+    ]);
+    final efectivo = cobrado('efectivo') - devuelto('efectivo');
     final ingresos = suma([
       for (final m in t.movimientos)
         if (m.tipo == 'ingreso') m.monto,
@@ -540,6 +851,9 @@ class ApiFalsa implements Api {
       for (final m in t.movimientos)
         if (m.tipo == 'retiro') m.monto,
     ]);
+    final esperado = t.fondo + efectivo + ingresos - retiros;
+    UsuarioBreve? breve(Usuario? u) =>
+        u == null ? null : UsuarioBreve(id: u.id, nombre: u.nombre);
     return Turno(
       id: t.id,
       estado: t.contado == null ? 'abierto' : 'cerrado',
@@ -548,23 +862,24 @@ class ApiFalsa implements Api {
       diaNegocio: '2026-10-02',
       fondo: t.fondo,
       resumen: ResumenTurno(
-        ventas: validas.length,
-        canceladas: propias.length - validas.length,
+        ventas: propias.where((d) => !d.cancelada).length,
+        canceladas: propias.where((d) => d.cancelada).length,
         ventasEfectivo: efectivo,
-        ventasTarjeta: suma([
-          for (final d in validas)
-            if (d.metodo == 'tarjeta') d.total,
+        ventasTarjeta: cobrado('tarjeta') - devuelto('tarjeta'),
+        envases: suma([
+          for (final d in propias)
+            if (!d.cancelada) d.envMonto - d.envCredito,
         ]),
-        envases: suma([for (final d in validas) d.envMonto]),
+        devoluciones: devuelto('efectivo') + devuelto('tarjeta'),
         ingresos: ingresos,
         retiros: retiros,
-        esperado: t.fondo + efectivo + ingresos - retiros,
+        esperado: esperado,
       ),
       contado: t.contado,
-      diferencia: t.contado == null
-          ? null
-          : t.contado! - (t.fondo + efectivo + ingresos - retiros),
+      diferencia: t.contado == null ? null : t.contado! - esperado,
       nota: t.nota,
+      usuarioApertura: breve(t.usuarioApertura),
+      usuarioCierre: breve(t.usuarioCierre),
     );
   }
 
@@ -576,7 +891,7 @@ class ApiFalsa implements Api {
   }
 
   @override
-  Future<Turno> abrirCaja({required int fondo}) async {
+  Future<Turno> abrirCaja({required int fondo, String? usuarioId}) async {
     if (_abierto != null) {
       throw const FalloApi(
         'caja_abierta',
@@ -584,7 +899,7 @@ class ApiFalsa implements Api {
         estado: 409,
       );
     }
-    return _turno(_abrir(fondo));
+    return _turno(_abrir(fondo, _usuarioActivo(usuarioId)));
   }
 
   @override
@@ -629,6 +944,7 @@ class ApiFalsa implements Api {
   Future<Turno> cerrarCaja({
     required int contado,
     String? nota,
+    String? usuarioId,
     required String claveIdempotencia,
   }) async {
     final repetida = _respuestasCaja[claveIdempotencia];
@@ -653,7 +969,8 @@ class ApiFalsa implements Api {
     }
     t
       ..contado = contado
-      ..nota = textoNota;
+      ..nota = textoNota
+      ..usuarioCierre = _usuarioActivo(usuarioId);
     _abierto = null;
     _cortes.insert(0, t);
     final corte = _turno(t);
@@ -678,6 +995,204 @@ class ApiFalsa implements Api {
     return DetalleTurno(turno: _turno(t), movimientos: List.of(t.movimientos));
   }
 
+  // --- Usuarios ---
+
+  /// Personal y su PIN, en el orden en que se dio de alta.
+  final usuarios = <({Usuario usuario, String pin})>[];
+
+  Usuario? _usuarioActivo(String? id) {
+    if (id == null) return null;
+    final u = usuarios.where((u) => u.usuario.id == id).firstOrNull?.usuario;
+    if (u == null || !u.activo) {
+      throw const FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {'usuarioId': 'No hay un usuario activo con ese id'},
+        estado: 400,
+      );
+    }
+    return u;
+  }
+
+  Usuario _porPin(String pin) =>
+      usuarios
+          .where((u) => u.usuario.activo && u.pin == pin)
+          .firstOrNull
+          ?.usuario ??
+      (throw const FalloApi(
+        'pin_invalido',
+        'Se necesita el PIN de un gerente o del dueño',
+        estado: 403,
+      ));
+
+  Usuario _autorizador(String? pin) {
+    final u = _porPin(pin ?? '');
+    if (!u.autoriza) {
+      throw const FalloApi(
+        'sin_permiso',
+        'Ese PIN no tiene permiso para autorizar esta acción',
+        estado: 403,
+      );
+    }
+    return u;
+  }
+
+  /// Como el servidor: sin dueños ni gerentes activos no se pide PIN.
+  Usuario? _autorizar(String? pin) =>
+      usuarios.any((u) => u.usuario.activo && u.usuario.autoriza)
+      ? _autorizador(pin)
+      : null;
+
+  void _pinLibre(String pin, {String? excepto}) {
+    if (!RegExp(r'^\d{4,6}$').hasMatch(pin)) {
+      throw const FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {'pin': 'Debe tener de 4 a 6 dígitos'},
+        estado: 400,
+      );
+    }
+    if (usuarios.any(
+      (u) => u.usuario.activo && u.pin == pin && u.usuario.id != excepto,
+    )) {
+      throw const FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {'pin': 'Ese PIN ya lo usa otra persona'},
+        estado: 400,
+      );
+    }
+  }
+
+  @override
+  Future<List<Usuario>> listarUsuarios() async =>
+      [for (final u in usuarios) u.usuario]
+        ..sort((a, b) => a.nombre.compareTo(b.nombre));
+
+  @override
+  Future<Usuario> crearUsuario({
+    required String nombre,
+    required String rol,
+    required String pin,
+    String? pinAutoriza,
+  }) async {
+    if (usuarios.isEmpty) {
+      if (rol != 'dueno') {
+        throw const FalloApi(
+          'datos_invalidos',
+          'Revisa los campos marcados',
+          campos: {
+            'rol': 'El primer usuario es la cuenta maestra: debe ser dueno',
+          },
+          estado: 400,
+        );
+      }
+    } else {
+      final quien = _autorizador(pinAutoriza);
+      if (rol == 'dueno' && quien.rol != 'dueno') {
+        throw const FalloApi(
+          'sin_permiso',
+          'Ese PIN no tiene permiso para autorizar esta acción',
+          estado: 403,
+        );
+      }
+    }
+    _pinLibre(pin);
+    final u = Usuario(
+      id: 'u_${usuarios.length + 1}',
+      nombre: nombre.trim(),
+      rol: rol,
+      activo: true,
+      creado: '2026-10-02T14:00:00Z',
+    );
+    usuarios.add((usuario: u, pin: pin));
+    return u;
+  }
+
+  @override
+  Future<Usuario> editarUsuario(
+    String id, {
+    String? nombre,
+    String? rol,
+    bool? activo,
+    String? pin,
+    required String pinAutoriza,
+  }) async {
+    final i = usuarios.indexWhere((u) => u.usuario.id == id);
+    if (i < 0) {
+      throw const FalloApi(
+        'no_encontrado',
+        'No existe el usuario',
+        estado: 404,
+      );
+    }
+    final actual = usuarios[i];
+    final quien = _autorizador(pinAutoriza);
+    if ((actual.usuario.rol == 'dueno' || rol == 'dueno') &&
+        quien.rol != 'dueno') {
+      throw const FalloApi(
+        'sin_permiso',
+        'Ese PIN no tiene permiso para autorizar esta acción',
+        estado: 403,
+      );
+    }
+    if (pin != null) _pinLibre(pin, excepto: id);
+    final u = Usuario(
+      id: id,
+      nombre: nombre?.trim() ?? actual.usuario.nombre,
+      rol: rol ?? actual.usuario.rol,
+      activo: activo ?? actual.usuario.activo,
+      creado: actual.usuario.creado,
+    );
+    final nuevos = List.of(usuarios)
+      ..[i] = (usuario: u, pin: pin ?? actual.pin);
+    if (!nuevos.any((x) => x.usuario.activo && x.usuario.rol == 'dueno')) {
+      throw FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {
+          actual.usuario.rol == 'dueno' && u.rol != 'dueno' ? 'rol' : 'activo':
+              'El depósito necesita al menos un dueño activo',
+        },
+        estado: 400,
+      );
+    }
+    usuarios[i] = nuevos[i];
+    return u;
+  }
+
+  @override
+  Future<Usuario> verificarPin(String pin, {String? usuarioId}) async {
+    final u = _porPin(pin);
+    if (usuarioId != null && u.id != usuarioId) {
+      throw const FalloApi(
+        'pin_invalido',
+        'Se necesita el PIN de un gerente o del dueño',
+        estado: 403,
+      );
+    }
+    return u;
+  }
+
+  // --- Ajustes y respaldo ---
+
+  var ajustes = const AjustesNegocio();
+
+  @override
+  Future<AjustesNegocio> obtenerAjustes() async => ajustes;
+
+  @override
+  Future<AjustesNegocio> guardarAjustes(Map<String, String?> cambios) async {
+    ajustes = AjustesNegocio.fromJson({...ajustes.toJson(), ...cambios});
+    return ajustes;
+  }
+
+  @override
+  Future<({Uint8List bytes, String nombre})> descargarRespaldo() async => (
+    bytes: Uint8List.fromList('SQLite format 3\u0000'.codeUnits),
+    nombre: 'anaquel-20261002-183000.db',
+  );
+
   void _moverEnvases(String formato, {int bodega = 0, int prestados = 0}) {
     final b = envases[formato]!;
     envases[formato] = BalanceEnvase(
@@ -695,13 +1210,15 @@ const fondoDePrueba = 50000;
 
 /// Turno en memoria de [ApiFalsa]; cerrado cuando tiene [contado].
 class _TurnoFalso {
-  _TurnoFalso(this.id, this.fondo);
+  _TurnoFalso(this.id, this.fondo, [this.usuarioApertura]);
 
   final String id;
   final int fondo;
+  final Usuario? usuarioApertura;
   final movimientos = <MovimientoCaja>[];
   int? contado;
   String? nota;
+  Usuario? usuarioCierre;
 }
 
 /// El balance con que arranca la base (migraciones m002 y m005). Como en el
