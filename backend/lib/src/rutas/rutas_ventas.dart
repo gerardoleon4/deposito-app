@@ -8,8 +8,7 @@ import '../servicios/servicio_ventas.dart';
 
 void montarRutasVentas(Router r, ServicioVentas ventas) {
   r.get('/api/v1/ventas', (Request p) {
-    final q = p.url.queryParameters['dia'];
-    return respuestaJson({'ventas': ventas.listar(diaNegocio: q)});
+    return respuestaJson({'ventas': ventas.listar(p.url.queryParameters)});
   });
 
   r.get('/api/v1/ventas/<id>', (Request _, String id) {

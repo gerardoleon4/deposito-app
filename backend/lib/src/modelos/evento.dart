@@ -6,6 +6,13 @@ abstract final class TiposEvento {
   static const pedidoCreado = 'pedido.creado';
   static const pedidoAtendido = 'pedido.atendido';
   static const balanceEnvasesActualizado = 'envases.actualizado';
+  static const ventaRegistrada = 'venta.registrada';
+  static const ventaCancelada = 'venta.cancelada';
+
+  /// Los eventos `caja.*` solo se mandan a la caja: traen montos.
+  static const cajaAbierta = 'caja.abierta';
+  static const cajaActualizada = 'caja.actualizada';
+  static const cajaCerrada = 'caja.cerrada';
 }
 
 /// Mensaje del servidor: `{ "tipo", "datos", "fecha" }`.

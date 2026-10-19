@@ -369,7 +369,8 @@ Cobra, descuenta existencias y mueve envases en una sola transacción: o pasa to
   "total": 56400,
   "metodo": "efectivo",
   "recibido": 60000,
-  "cambio": 3600
+  "cambio": 3600,
+  "turnoId": "tur_4m8q2x7k1z"
 }
 ```
 
@@ -401,13 +402,15 @@ Regresa las existencias (queda como movimiento `cancelacion`) y revierte los env
 Solo se cancelan ventas del turno abierto: el dinero que se devuelve sale de ese turno y deja de contar en su resumen. Una venta de un turno con corte ya no se cancela, para que el corte no cambie después de cerrarse.
 
 - Respuesta `204`. Emite `producto.actualizado`, `envases.actualizado` y `venta.cancelada`.
-- `400 datos_invalidos` si ya estaba cancelada, `404 no_encontrado`, `409 turno_cerrado` si la venta es de otro turno o anterior a la caja.
+- `400 datos_invalidos` si ya estaba cancelada, `404 no_encontrado`, `409 turno_cerrado` si la venta es de otro turno o anterior a la caja, `409 envases_insuficientes` si era `trae` y esos vacíos ya no están en bodega (por ejemplo, se vendieron).
 
 ### Caja
 
 Un turno empieza al abrir la caja con un fondo inicial y termina con el corte: se cuenta el efectivo y se compara con lo esperado. Solo puede haber un turno abierto. Sin turno abierto no se cobra (`409 caja_cerrada`). Un turno puede cruzar la medianoche: el corte es del turno, no del día.
 
 Todo en esta sección es **Solo caja**.
+
+Con datos de ejemplo (`datosEjemplo`, la app en desarrollo y `bin/server.dart`), el servidor abre un turno con fondo de $500.00 la primera vez que arranca, para poder cobrar desde el inicio. Después de un corte, la caja se queda cerrada.
 
 **El turno** (`<turno>`), igual abierto que cerrado:
 
@@ -583,7 +586,7 @@ Los formatos retornables son `mega`, `media` y `cuarto`. `precio` es el depósit
 
 `GET /api/v1/envases/prestamos`
 
-- Respuesta `200`: `{ "prestamos": [ { "id", "cliente", "formato", "cantidad", "fecha" }, ... ] }`, sin los devueltos.
+- Respuesta `200`: `{ "prestamos": [ { "id", "cliente", "formato", "cantidad", "devueltos", "fecha" }, ... ] }`, sin los devueltos por completo. `cantidad` es lo que falta por devolver y `devueltos`, lo que ya regresó en devoluciones parciales.
 
 #### Prestar envases
 
@@ -599,9 +602,15 @@ Los formatos retornables son `mega`, `media` y `cuarto`. `precio` es el depósit
 
 `POST /api/v1/envases/prestamos/{id}/devolver` · Solo caja
 
-Los envases regresan a bodega.
+Los envases regresan a bodega. El cuerpo es opcional:
 
-- Respuesta `204`. Emite `envases.actualizado`. `404 no_encontrado` si no existe o ya se devolvió.
+```json
+{ "cantidad": 4 }
+```
+
+- Sin cuerpo (o sin `cantidad`) se devuelve todo lo pendiente.
+- `cantidad`: entero mayor que 0 y no mayor que lo pendiente. Si es menor, el préstamo sigue activo con lo que falta.
+- Respuesta `204`. Emite `envases.actualizado`. `400 datos_invalidos`, `404 no_encontrado` si no existe o ya se devolvió.
 
 #### Recibir vacíos
 

@@ -54,20 +54,36 @@ class ServicioEnvases {
       'cliente': cliente,
       'formato': formato,
       'cantidad': cantidad,
+      'devueltos': 0,
       'fecha': fecha,
     };
   }
 
-  void devolver(String prestamoId) {
+  /// Devolución total o, con `cantidad`, parcial. Los envases van a bodega.
+  void devolver(String prestamoId, Map<String, Object?> datos) {
+    final v = Validador(datos);
+    final pedida = v.entero('cantidad', requerido: false, min: 1);
+    v.comprobar();
+
     transaccion(_db, () {
       final p = _repo.obtenerPrestamo(prestamoId);
       if (p == null || p['devuelto'] == 1) {
         throw ErrorApi.noEncontrado('el préstamo');
       }
       final formato = p['formato'] as String;
-      final cantidad = p['cantidad'] as int;
+      final pendiente = p['cantidad'] as int;
+      final cantidad = pedida ?? pendiente;
+      if (cantidad > pendiente) {
+        throw ErrorApi.datosInvalidos({
+          'cantidad': 'Solo faltan $pendiente envases por devolver',
+        });
+      }
 
-      _repo.devolverPrestamo(prestamoId);
+      _repo.devolverPrestamo(
+        prestamoId,
+        cantidad,
+        completo: cantidad == pendiente,
+      );
       _repo.actualizarPrestados(formato, -cantidad);
       _repo.actualizarBodega(formato, cantidad);
     });

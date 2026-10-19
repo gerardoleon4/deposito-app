@@ -68,6 +68,21 @@ class ErrorApi implements Exception {
     'No hay suficientes envases $formato vacíos: quedan $enBodega en bodega',
   );
 
+  factory ErrorApi.cajaCerrada() => ErrorApi(
+    409,
+    'caja_cerrada',
+    'La caja está cerrada: abre un turno para continuar',
+  );
+
+  factory ErrorApi.cajaAbierta() =>
+      ErrorApi(409, 'caja_abierta', 'Ya hay un turno de caja abierto');
+
+  factory ErrorApi.turnoCerrado() => ErrorApi(
+    409,
+    'turno_cerrado',
+    'La venta es de un turno que ya tiene corte: no se puede cancelar',
+  );
+
   factory ErrorApi.interno() => ErrorApi(
     500,
     'error_interno',

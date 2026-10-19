@@ -51,6 +51,7 @@ class PrestamoEnvase {
     required this.cliente,
     required this.formato,
     required this.cantidad,
+    this.devueltos = 0,
     required this.fecha,
   });
 
@@ -59,7 +60,12 @@ class PrestamoEnvase {
 
   /// Uno de [formatosEnvase].
   final String formato;
+
+  /// Envases que faltan por devolver.
   final int cantidad;
+
+  /// Envases que ya se devolvieron (devolución parcial).
+  final int devueltos;
 
   /// ISO 8601 UTC.
   final String fecha;
@@ -69,6 +75,7 @@ class PrestamoEnvase {
     cliente: j['cliente'] as String,
     formato: j['formato'] as String,
     cantidad: j['cantidad'] as int,
+    devueltos: j['devueltos'] as int? ?? 0,
     fecha: j['fecha'] as String,
   );
 
@@ -77,6 +84,7 @@ class PrestamoEnvase {
     'cliente': cliente,
     'formato': formato,
     'cantidad': cantidad,
+    'devueltos': devueltos,
     'fecha': fecha,
   };
 }

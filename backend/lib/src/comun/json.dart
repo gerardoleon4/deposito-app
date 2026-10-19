@@ -23,6 +23,21 @@ Future<Map<String, Object?>> leerObjetoJson(Request peticion) async {
   throw ErrorApi.jsonInvalido();
 }
 
+/// Como [leerObjetoJson], pero un cuerpo vacío o `null` es `{}`: para
+/// endpoints cuyo cuerpo es opcional.
+Future<Map<String, Object?>> leerObjetoJsonOpcional(Request peticion) async {
+  final texto = await peticion.readAsString();
+  if (texto.trim().isEmpty) return {};
+  try {
+    final valor = jsonDecode(texto);
+    if (valor == null) return {};
+    if (valor is Map<String, Object?>) return valor;
+  } on FormatException {
+    // Se responde abajo con el mismo error.
+  }
+  throw ErrorApi.jsonInvalido();
+}
+
 /// Lee el cuerpo como bytes sin pasar de [max]: corta en cuanto lo rebasa,
 /// para que un archivo enorme no llene la memoria del iPad.
 Future<Uint8List> leerBytes(
@@ -159,6 +174,19 @@ class Validador {
       return null;
     }
     return v;
+  }
+
+  /// Valor del encabezado `X-Clave-Idempotencia`, obligatorio en cobros y
+  /// movimientos de dinero: de 8 a 100 caracteres.
+  String claveIdempotencia(String? valor) {
+    final clave = valor?.trim() ?? '';
+    if (clave.length < 8 || clave.length > 100) {
+      error(
+        'X-Clave-Idempotencia',
+        'Es obligatorio para operaciones de dinero: de 8 a 100 caracteres',
+      );
+    }
+    return clave;
   }
 
   void comprobar() {

@@ -26,9 +26,12 @@ void montarRutasEnvases(
     return respuestaJson(res, estado: 201);
   });
 
-  r.post('/api/v1/envases/prestamos/<id>/devolver', (Request p, String id) {
+  r.post('/api/v1/envases/prestamos/<id>/devolver', (
+    Request p,
+    String id,
+  ) async {
     exigirCaja(p);
-    envases.devolver(id);
+    envases.devolver(id, await leerObjetoJsonOpcional(p));
     return Response(204);
   });
 

@@ -53,6 +53,12 @@ class RepositorioEnvases {
     [ventaId],
   );
 
+  /// Marca devuelto un préstamo sin tocar sus cantidades (al cancelar la
+  /// venta de un préstamo con devoluciones parciales).
+  void cerrarPrestamo(String id) {
+    _db.execute('UPDATE prestamos_envases SET devuelto = 1 WHERE id = ?', [id]);
+  }
+
   void borrarPrestamo(String id) {
     _db.execute('DELETE FROM prestamos_envases WHERE id = ?', [id]);
   }
@@ -68,18 +74,24 @@ class RepositorioEnvases {
             'cliente': f['cliente'],
             'formato': f['formato'],
             'cantidad': f['cantidad'],
+            'devueltos': f['devueltos'],
             'fecha': f['fecha'],
           },
         )
         .toList();
   }
 
-  bool devolverPrestamo(String id) {
+  /// Devuelve [cantidad] envases. Si es todo lo pendiente, el préstamo queda
+  /// devuelto; si no, `cantidad` baja a lo que falta.
+  void devolverPrestamo(String id, int cantidad, {required bool completo}) {
     _db.execute(
-      'UPDATE prestamos_envases SET devuelto = 1 WHERE id = ? AND devuelto = 0',
-      [id],
+      completo
+          ? 'UPDATE prestamos_envases SET devuelto = 1, devueltos = devueltos + ? '
+                'WHERE id = ? AND devuelto = 0'
+          : 'UPDATE prestamos_envases SET cantidad = cantidad - ?, '
+                'devueltos = devueltos + ? WHERE id = ? AND devuelto = 0',
+      completo ? [cantidad, id] : [cantidad, cantidad, id],
     );
-    return _db.updatedRows > 0;
   }
 
   Row? obtenerPrestamo(String id) {

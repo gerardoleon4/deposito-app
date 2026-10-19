@@ -17,11 +17,15 @@ import 'db/almacen_fotos.dart';
 import 'db/base_datos.dart';
 import 'db/migraciones.dart';
 import 'db/repositorio_ajustes.dart';
+import 'db/repositorio_caja.dart';
+import 'db/repositorio_idempotencia.dart';
 import 'db/repositorio_productos.dart';
 import 'db/repositorio_terminales.dart';
+import 'rutas/rutas_caja.dart';
 import 'rutas/rutas_productos.dart';
 import 'rutas/rutas_terminales.dart';
 import 'seed/datos_ejemplo.dart';
+import 'servicios/servicio_caja.dart';
 import 'servicios/servicio_productos.dart';
 import 'servicios/servicio_terminales.dart';
 import 'ws/hub.dart';
@@ -33,6 +37,9 @@ import 'rutas/rutas_pedidos.dart';
 import 'servicios/servicio_envases.dart';
 import 'servicios/servicio_ventas.dart';
 import 'servicios/servicio_pedidos.dart';
+
+/// Fondo del turno que se abre solo con datos de ejemplo: $500.00.
+const fondoEjemplo = 50000;
 
 /// Versión del servidor; se manda en `conexion.lista`.
 const versionServidor = '0.1.0';
@@ -74,7 +81,8 @@ class DepositoServer {
   /// la base; con [enMemoria], una carpeta temporal que se borra al detener.
   final String? carpetaFotos;
 
-  /// Carga los productos del prototipo si la base está vacía.
+  /// Carga los productos del prototipo si la base está vacía y abre un turno
+  /// de caja con [fondoEjemplo] si nunca hubo uno.
   final bool datosEjemplo;
   final Bitacora bitacora;
   final Reloj _reloj;
@@ -112,6 +120,8 @@ class DepositoServer {
       final repoProductos = RepositorioProductos(db);
       final repoEnvases = RepositorioEnvases(db);
       final repoVentas = RepositorioVentas(db);
+      final repoCaja = RepositorioCaja(db);
+      final idempotencia = RepositorioIdempotencia(db);
       final productos = ServicioProductos(
         db: db,
         repositorio: repoProductos,
@@ -137,6 +147,17 @@ class DepositoServer {
         repoProductos: repoProductos,
         repoEnvases: repoEnvases,
         repoAjustes: ajustes,
+        repoCaja: repoCaja,
+        idempotencia: idempotencia,
+        hub: hub,
+        reloj: _reloj,
+      );
+
+      final caja = ServicioCaja(
+        db: db,
+        repo: repoCaja,
+        idempotencia: idempotencia,
+        ajustes: ajustes,
         hub: hub,
         reloj: _reloj,
       );
@@ -156,6 +177,12 @@ class DepositoServer {
         );
         bitacora.info('Datos de ejemplo cargados');
       }
+      // En demo se puede cobrar desde el primer arranque. Solo si nunca hubo
+      // un turno: después de un corte, la caja se queda cerrada.
+      if (datosEjemplo && repoCaja.contar() == 0) {
+        caja.abrir({'fondo': fondoEjemplo});
+        bitacora.info('Turno de caja de ejemplo abierto');
+      }
 
       final router =
           Router(
@@ -174,6 +201,7 @@ class DepositoServer {
       montarRutasEnvases(router, envases, ventas);
       montarRutasVentas(router, ventas);
       montarRutasPedidos(router, pedidos);
+      montarRutasCaja(router, caja);
 
       final manejador = const Pipeline()
           .addMiddleware(registrarPeticiones(bitacora))

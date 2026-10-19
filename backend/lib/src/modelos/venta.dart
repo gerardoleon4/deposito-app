@@ -30,6 +30,7 @@ class VentaRegistrada {
     required this.metodo,
     required this.recibido,
     required this.cambio,
+    this.turnoId,
   });
 
   final String id;
@@ -49,6 +50,9 @@ class VentaRegistrada {
   final int recibido;
   final int cambio;
 
+  /// Turno de caja en que se cobró; `null` en ventas anteriores a la caja.
+  final String? turnoId;
+
   factory VentaRegistrada.fromJson(Map<String, Object?> j) => VentaRegistrada(
     id: j['id'] as String,
     folio: j['folio'] as int,
@@ -58,6 +62,7 @@ class VentaRegistrada {
     metodo: j['metodo'] as String,
     recibido: j['recibido'] as int,
     cambio: j['cambio'] as int,
+    turnoId: j['turnoId'] as String?,
   );
 
   Map<String, Object?> toJson() => {
@@ -69,6 +74,7 @@ class VentaRegistrada {
     'metodo': metodo,
     'recibido': recibido,
     'cambio': cambio,
+    'turnoId': turnoId,
   };
 }
 
@@ -82,6 +88,7 @@ class ResumenVenta {
     required this.metodo,
     required this.origen,
     required this.cancelada,
+    this.turnoId,
   });
 
   final String id;
@@ -100,6 +107,9 @@ class ResumenVenta {
   final String origen;
   final bool cancelada;
 
+  /// Turno de caja en que se cobró; `null` en ventas anteriores a la caja.
+  final String? turnoId;
+
   factory ResumenVenta.fromJson(Map<String, Object?> j) => ResumenVenta(
     id: j['id'] as String,
     folio: j['folio'] as int,
@@ -108,6 +118,7 @@ class ResumenVenta {
     metodo: j['metodo'] as String,
     origen: j['origen'] as String,
     cancelada: j['cancelada'] as bool,
+    turnoId: j['turnoId'] as String?,
   );
 
   Map<String, Object?> toJson() => {
@@ -118,6 +129,7 @@ class ResumenVenta {
     'metodo': metodo,
     'origen': origen,
     'cancelada': cancelada,
+    'turnoId': turnoId,
   };
 }
 
@@ -189,6 +201,7 @@ class DetalleVenta {
     required this.envMonto,
     required this.origen,
     required this.cancelada,
+    this.turnoId,
     required this.lineas,
   });
 
@@ -219,6 +232,9 @@ class DetalleVenta {
   final String origen;
   final bool cancelada;
 
+  /// Turno de caja en que se cobró; `null` en ventas anteriores a la caja.
+  final String? turnoId;
+
   /// Vacía en una venta de envases vacíos.
   final List<LineaTicket> lineas;
 
@@ -240,6 +256,7 @@ class DetalleVenta {
     envMonto: j['envMonto'] as int,
     origen: j['origen'] as String,
     cancelada: j['cancelada'] as bool,
+    turnoId: j['turnoId'] as String?,
     lineas: [
       for (final l in j['lineas'] as List)
         LineaTicket.fromJson((l as Map).cast()),
@@ -261,6 +278,7 @@ class DetalleVenta {
     'envMonto': envMonto,
     'origen': origen,
     'cancelada': cancelada,
+    'turnoId': turnoId,
     'lineas': [for (final l in lineas) l.toJson()],
   };
 }

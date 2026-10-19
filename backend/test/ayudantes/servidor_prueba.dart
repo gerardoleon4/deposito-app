@@ -88,6 +88,13 @@ class ServidorPrueba {
     return json(r)['clave'] as String;
   }
 
+  /// Abre un turno de caja: sin él no se cobra (`409 caja_cerrada`).
+  Future<Map<String, Object?>> abrirCaja({int fondo = 50000}) async {
+    final r = await post('/api/v1/caja/abrir', {'fondo': fondo});
+    if (r.statusCode != 201) throw StateError('No abrió la caja: ${r.body}');
+    return (json(r)['turno'] as Map).cast();
+  }
+
   Future<void> cerrar() async {
     _cliente.close();
     await servidor.detener();

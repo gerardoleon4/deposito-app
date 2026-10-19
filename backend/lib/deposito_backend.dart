@@ -2,7 +2,7 @@
 ///
 /// La app importa este paquete para:
 /// - arrancar [DepositoServer] en modo Caja;
-/// - usar los mismos modelos ([Producto], [Movimiento], [Terminal], [Evento]) que el
+/// - usar los mismos modelos ([Producto], [Turno], [Terminal], [Evento]...) que el
 ///   servidor, así los campos nunca se desincronizan.
 library;
 
@@ -11,6 +11,7 @@ export 'src/comun/fechas.dart'
     show Reloj, diaNegocio, instanteIso, rangoDiaNegocio;
 export 'src/comun/constantes.dart';
 export 'src/comun/texto.dart' show normalizarBusqueda;
+export 'src/modelos/caja.dart';
 export 'src/modelos/envase.dart';
 export 'src/modelos/evento.dart';
 export 'src/modelos/movimiento.dart';

@@ -6,6 +6,7 @@ import 'migraciones/m001_inicial.dart';
 import 'migraciones/m002_ventas_pedidos_envases.dart';
 import 'migraciones/m003_idempotencia_prestamos_venta.dart';
 import 'migraciones/m004_venta_vacios.dart';
+import 'migraciones/m005_caja_turnos.dart';
 
 class Migracion {
   const Migracion(this.numero, this.nombre, this.sql);
@@ -27,6 +28,7 @@ const migraciones = <Migracion>[
   m002VentasPedidosEnvases,
   m003IdempotenciaPrestamosVenta,
   m004VentaVacios,
+  m005CajaTurnos,
 ];
 
 /// Aplica las migraciones pendientes, cada una en su transacción.

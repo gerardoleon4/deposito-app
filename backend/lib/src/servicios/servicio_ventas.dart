@@ -8,7 +8,9 @@ import '../comun/json.dart';
 import '../comun/seguridad.dart';
 import '../db/base_datos.dart';
 import '../db/repositorio_ajustes.dart';
+import '../db/repositorio_caja.dart';
 import '../db/repositorio_envases.dart';
+import '../db/repositorio_idempotencia.dart';
 import '../db/repositorio_productos.dart';
 import '../db/repositorio_ventas.dart';
 import '../modelos/evento.dart';
@@ -22,6 +24,8 @@ class ServicioVentas {
     required this._repoProductos,
     required this._repoEnvases,
     required this._repoAjustes,
+    required this._repoCaja,
+    required this._idempotencia,
     required this._hub,
     this._reloj = relojSistema,
   });
@@ -31,6 +35,8 @@ class ServicioVentas {
   final RepositorioProductos _repoProductos;
   final RepositorioEnvases _repoEnvases;
   final RepositorioAjustes _repoAjustes;
+  final RepositorioCaja _repoCaja;
+  final RepositorioIdempotencia _idempotencia;
   final Hub _hub;
   final Reloj _reloj;
 
@@ -57,7 +63,7 @@ class ServicioVentas {
     final envCliente = v.texto('envCliente', requerido: false, max: 80);
     final recibidoPedido = v.entero('recibido', requerido: false, min: 0);
     final lineas = _leerLineas(datos['lineas'], v);
-    final clave = _leerClave(claveIdempotencia, v);
+    final clave = v.claveIdempotencia(claveIdempotencia);
     v.comprobar();
 
     final ahora = _reloj();
@@ -69,11 +75,12 @@ class ServicioVentas {
     var repetida = false;
 
     final resultado = transaccion(_db, () {
-      final guardada = _repoVentas.respuestaGuardada(clave);
+      final guardada = _idempotencia.respuestaGuardada(clave);
       if (guardada != null) {
         repetida = true;
         return (jsonDecode(guardada) as Map).cast<String, Object?>();
       }
+      final turnoId = _turnoAbiertoId();
 
       final ventaId = generarId('v');
       final folio = _repoVentas.siguienteFolio();
@@ -147,6 +154,7 @@ class ServicioVentas {
         envMonto: envMonto,
         envCliente: envCliente,
         origen: origen,
+        turnoId: turnoId,
       );
       for (final lp in procesadas) {
         _repoVentas.insertarLinea(
@@ -205,8 +213,9 @@ class ServicioVentas {
         'metodo': metodo,
         'recibido': recibido,
         'cambio': cambio,
+        'turnoId': turnoId,
       };
-      _repoVentas.guardarRespuesta(clave, jsonEncode(respuesta), fecha);
+      _idempotencia.guardarRespuesta(clave, jsonEncode(respuesta), fecha);
       return respuesta;
     });
 
@@ -221,6 +230,7 @@ class ServicioVentas {
         'balance': _repoEnvases.obtenerBalance(),
       });
     }
+    _hub.emitir(TiposEvento.ventaRegistrada, {'venta': resultado});
     return resultado;
   }
 
@@ -238,7 +248,7 @@ class ServicioVentas {
     final metodo = v.opcion('metodo', {'efectivo', 'tarjeta'});
     final tarjeta = v.texto('tarjeta', requerido: false, max: 20);
     final recibidoPedido = v.entero('recibido', requerido: false, min: 0);
-    final clave = _leerClave(claveIdempotencia, v);
+    final clave = v.claveIdempotencia(claveIdempotencia);
     v.comprobar();
 
     final ahora = _reloj();
@@ -247,11 +257,12 @@ class ServicioVentas {
     var repetida = false;
 
     final resultado = transaccion(_db, () {
-      final guardada = _repoVentas.respuestaGuardada(clave);
+      final guardada = _idempotencia.respuestaGuardada(clave);
       if (guardada != null) {
         repetida = true;
         return (jsonDecode(guardada) as Map).cast<String, Object?>();
       }
+      final turnoId = _turnoAbiertoId();
 
       final balance = _repoEnvases.obtenerBalance()[formato!]!;
       final enBodega = balance['bodega']!;
@@ -283,6 +294,7 @@ class ServicioVentas {
         envMonto: total,
         envFormato: formato,
         origen: origen,
+        turnoId: turnoId,
       );
       _repoEnvases.actualizarBodega(formato, -cantidad);
 
@@ -295,8 +307,9 @@ class ServicioVentas {
         'metodo': metodo,
         'recibido': recibido,
         'cambio': recibido - total,
+        'turnoId': turnoId,
       };
-      _repoVentas.guardarRespuesta(clave, jsonEncode(respuesta), fecha);
+      _idempotencia.guardarRespuesta(clave, jsonEncode(respuesta), fecha);
       return respuesta;
     });
 
@@ -304,19 +317,16 @@ class ServicioVentas {
       _hub.emitir(TiposEvento.balanceEnvasesActualizado, {
         'balance': _repoEnvases.obtenerBalance(),
       });
+      _hub.emitir(TiposEvento.ventaRegistrada, {'venta': resultado});
     }
     return resultado;
   }
 
-  String _leerClave(String? claveIdempotencia, Validador v) {
-    final clave = claveIdempotencia?.trim() ?? '';
-    if (clave.length < 8 || clave.length > 100) {
-      v.error(
-        'X-Clave-Idempotencia',
-        'Es obligatorio para cobrar: de 8 a 100 caracteres',
-      );
-    }
-    return clave;
+  /// Sin turno abierto no se cobra (`409 caja_cerrada`).
+  String _turnoAbiertoId() {
+    final turno = _repoCaja.abierto();
+    if (turno == null) throw ErrorApi.cajaCerrada();
+    return turno['id'] as String;
   }
 
   /// Valida la forma de cada línea; los errores quedan en [v].
@@ -364,6 +374,11 @@ class ServicioVentas {
           'cancelada': 'La venta ya fue cancelada',
         });
       }
+      // Solo ventas del turno abierto: el corte de un turno cerrado no cambia.
+      final turno = _repoCaja.abierto();
+      if (turno == null || v['turno_id'] != turno['id']) {
+        throw ErrorApi.turnoCerrado();
+      }
 
       final lineas = _repoVentas.obtenerLineas(id);
       final fecha = instanteIso(_reloj());
@@ -398,19 +413,37 @@ class ServicioVentas {
         // Venta de vacíos: los envases regresan a bodega.
         _repoEnvases.actualizarBodega(formatoVacios, v['env_n'] as int);
       } else if (modo == 'trae') {
+        // Los vacíos que trajo el cliente salen de bodega. Si ya se usaron
+        // (por ejemplo, se vendieron), no se puede dejar la bodega negativa.
+        final porFormato = <String, int>{};
         for (final l in lineas) {
           final p = _repoProductos.porId(l['producto_id'] as String);
           if (p?.envase != null) {
-            _repoEnvases.actualizarBodega(p!.envase!, -(l['piezas'] as int));
+            porFormato[p!.envase!] =
+                (porFormato[p.envase!] ?? 0) + (l['piezas'] as int);
           }
+        }
+        final balance = _repoEnvases.obtenerBalance();
+        for (final e in porFormato.entries) {
+          final enBodega = balance[e.key]!['bodega']!;
+          if (enBodega < e.value) {
+            throw ErrorApi.envasesInsuficientes(e.key, enBodega);
+          }
+          _repoEnvases.actualizarBodega(e.key, -e.value);
         }
       } else if (modo == 'prestamo') {
         for (final pre in _repoEnvases.prestamosPendientesDeVenta(id)) {
+          // `cantidad` es lo que falta por devolver; lo ya devuelto se queda
+          // en bodega.
           _repoEnvases.actualizarPrestados(
             pre['formato'] as String,
             -(pre['cantidad'] as int),
           );
-          _repoEnvases.borrarPrestamo(pre['id'] as String);
+          if ((pre['devueltos'] as int) == 0) {
+            _repoEnvases.borrarPrestamo(pre['id'] as String);
+          } else {
+            _repoEnvases.cerrarPrestamo(pre['id'] as String);
+          }
         }
       }
 
@@ -423,6 +456,7 @@ class ServicioVentas {
     _hub.emitir(TiposEvento.balanceEnvasesActualizado, {
       'balance': _repoEnvases.obtenerBalance(),
     });
+    _hub.emitir(TiposEvento.ventaCancelada, {'id': id});
   }
 
   Map<String, Object?> detalle(String id) {
@@ -444,6 +478,7 @@ class ServicioVentas {
       'envMonto': v['env_monto'],
       'origen': v['origen'],
       'cancelada': (v['cancelada'] as int) == 1,
+      'turnoId': v['turno_id'],
       'lineas': [
         for (final l in lineas)
           {
@@ -459,9 +494,23 @@ class ServicioVentas {
     };
   }
 
-  List<Map<String, Object?>> listar({String? diaNegocio}) {
+  /// `GET /ventas` con `dia` o `turno` (`actual` o un id), nunca los dos.
+  List<Map<String, Object?>> listar(Map<String, Object?> filtros) {
+    final v = Validador(filtros);
+    final dia = v.fecha('dia', requerido: false);
+    final turno = v.texto('turno', requerido: false, max: 40);
+    if (dia != null && turno != null) {
+      v.error('turno', 'Usa dia o turno, no los dos');
+    }
+    v.comprobar();
+
+    String? turnoId = turno;
+    if (turno == 'actual') {
+      turnoId = _repoCaja.abierto()?['id'] as String?;
+      if (turnoId == null) return const [];
+    }
     return _repoVentas
-        .listar(diaNegocio: diaNegocio)
+        .listar(diaNegocio: dia, turnoId: turnoId)
         .map(
           (v) => {
             'id': v['id'],
@@ -471,6 +520,7 @@ class ServicioVentas {
             'metodo': v['metodo'],
             'origen': v['origen'],
             'cancelada': (v['cancelada'] as int) == 1,
+            'turnoId': v['turno_id'],
           },
         )
         .toList();
