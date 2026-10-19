@@ -176,6 +176,32 @@ void main() {
       expect(codigoError(r), 'solo_caja');
     });
 
+    test('historial y ticket se leen con los modelos compartidos', () async {
+      final pid = await crearProducto({'existenciaPiezas': 10});
+      final id =
+          json(
+                await cobrar({
+                  'metodo': 'efectivo',
+                  'recibido': 10000,
+                  'lineas': [
+                    {'productoId': pid, 'unidad': 'pieza', 'cantidad': 2},
+                  ],
+                }),
+              )['id']
+              as String;
+
+      final lista = json(await s.get('/api/v1/ventas'))['ventas'] as List;
+      final resumen = ResumenVenta.fromJson((lista.single as Map).cast());
+      expect((resumen.id, resumen.folio, resumen.cancelada), (id, 1001, false));
+
+      final detalle = DetalleVenta.fromJson(
+        json(await s.get('/api/v1/ventas/$id')),
+      );
+      expect(detalle.lineas.single.subtotal, 8400);
+      expect(detalle.cambio, 10000 - 8400);
+      expect(detalle.toJson(), json(await s.get('/api/v1/ventas/$id')));
+    });
+
     test('cancelar regresa existencias y el préstamo de envases', () async {
       final pid = await crearProducto({
         'existenciaPiezas': 10,
@@ -363,6 +389,23 @@ void main() {
         expect(r.statusCode, 204);
         expect(await bodega('mega'), antes);
       });
+    });
+
+    test('balance y préstamos se leen con los modelos compartidos', () async {
+      await s.post('/api/v1/envases/prestamos', {
+        'cliente': 'Don Pedro',
+        'formato': 'mega',
+        'cantidad': 3,
+      });
+      final balance = BalanceEnvase.deJson(
+        (json(await s.get('/api/v1/envases'))['balance'] as Map).cast(),
+      );
+      expect(balance.keys, unorderedEquals(['mega', 'media', 'cuarto']));
+      expect(balance['mega']!.prestados, 36 + 3);
+      final prestamos =
+          json(await s.get('/api/v1/envases/prestamos'))['prestamos'] as List;
+      final p = PrestamoEnvase.fromJson((prestamos.single as Map).cast());
+      expect((p.cliente, p.formato, p.cantidad), ('Don Pedro', 'mega', 3));
     });
 
     test('una terminal no registra préstamos (solo caja)', () async {

@@ -1,16 +1,22 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../config/configuracion.dart';
 import '../servidor/servidor_embebido.dart';
 import 'api.dart';
+import 'api_falsa.dart';
 import 'fallo_api.dart';
 
 /// La [Api] según el modo del dispositivo:
+/// - En Web: ApiFalsa con catálogo precargado para desarrollo y demo en navegador.
 /// - Caja: el servidor embebido, en `localhost`, con la clave de caja.
 /// - Terminal: la IP de la caja, con la clave que recibió al registrarse.
 ///
 /// En pruebas se sobrescribe con `ApiFalsa`.
 final apiProvider = FutureProvider<Api>((ref) async {
+  if (kIsWeb) {
+    return ApiFalsa();
+  }
   final config = ref.watch(configuracionProvider);
   switch (config.modo) {
     case ModoDispositivo.caja:

@@ -1,7 +1,8 @@
 import 'package:sqlite3/sqlite3.dart';
 
-/// Ruta especial para una base en memoria (pruebas y demos).
-const enMemoria = ':memory:';
+import '../comun/constantes.dart';
+
+export '../comun/constantes.dart' show enMemoria;
 
 /// Abre la base con la configuración del proyecto:
 /// - WAL: lecturas y escritura al mismo tiempo, y menos riesgo de corrupción.
