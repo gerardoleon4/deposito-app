@@ -7,6 +7,7 @@ import '../../pdv/pantallas/punto_venta.dart';
 import '../../proximamente/proximamente.dart';
 import '../../ventas/pantallas/lista_transacciones.dart';
 import 'inicio_caja.dart';
+import 'seccion_corte.dart';
 
 /// Secciones de la caja, en el orden del menú. Las que no están construidas
 /// muestran en qué sprint llegan y quién las hace (docs/PLAN_DE_TRABAJO.md).
@@ -67,13 +68,7 @@ final seccionesCaja = <SeccionCaja>[
     'Corte de caja',
     Icons.account_balance_wallet_outlined,
     Icons.account_balance_wallet_rounded,
-    () => const Proximamente(
-      icono: Icons.account_balance_wallet_outlined,
-      titulo: 'Corte de caja',
-      descripcion: 'Apertura con fondo, arqueo y cierre del turno con respaldo automático.',
-      sprint: 3,
-      responsable: 'Daniel',
-    ),
+    SeccionCorte.new,
   ),
   SeccionCaja(
     'alertas',

@@ -3,86 +3,72 @@ import 'package:flutter/material.dart';
 import '../../../../app/tema/colores.dart';
 import '../../../../core/formato/formato.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
-import 'corte_caja.dart';
 
-class MovimientoCaja {
-  final String id;
+/// Un renglón del historial de movimientos del turno.
+class FilaMovimiento {
+  const FilaMovimiento({
+    required this.hora,
+    required this.esIngreso,
+    required this.motivo,
+    required this.monto,
+  });
+
+  /// En la hora del dispositivo.
   final DateTime hora;
   final bool esIngreso;
   final String motivo;
 
   /// Centavos.
   final int monto;
-
-  MovimientoCaja(this.id, this.hora, this.esIngreso, this.motivo, this.monto);
 }
 
+/// 2.2 Movimientos de caja (diseño de Pablo): saldo estimado del cajón,
+/// historial del turno y registro de ingresos y retiros.
 class MovimientosCaja extends StatefulWidget {
-  const MovimientosCaja({super.key});
+  const MovimientosCaja({
+    super.key,
+    required this.saldoEstimado,
+    required this.movimientos,
+    required this.alRegistrar,
+    required this.alCorte,
+  });
+
+  /// Efectivo esperado en el cajón, en centavos.
+  final int saldoEstimado;
+
+  /// Del más nuevo al más viejo.
+  final List<FilaMovimiento> movimientos;
+
+  /// Registra el movimiento en el servidor. Regresa el error a mostrar, o
+  /// `null` si se guardó.
+  final Future<String?> Function(bool esIngreso, int centavos, String motivo)
+  alRegistrar;
+  final VoidCallback alCorte;
 
   @override
   State<MovimientosCaja> createState() => _MovimientosCajaState();
 }
 
 class _MovimientosCajaState extends State<MovimientosCaja> {
-  int _saldoEstimado = 150000;
-  final List<MovimientoCaja> _movimientos = [
-    MovimientoCaja(
-      '1',
-      DateTime.now().subtract(const Duration(hours: 2)),
-      true,
-      'Apertura de caja',
-      100000,
-    ),
-    MovimientoCaja(
-      '2',
-      DateTime.now().subtract(const Duration(minutes: 45)),
-      false,
-      'Pago proveedor hielo',
-      25000,
-    ),
-    MovimientoCaja(
-      '3',
-      DateTime.now().subtract(const Duration(minutes: 10)),
-      true,
-      'Venta efectivo',
-      75000,
-    ),
-  ];
+  int get _saldoEstimado => widget.saldoEstimado;
+  List<FilaMovimiento> get _movimientos => widget.movimientos;
 
   void _abrirRegistroMovimiento() {
     showDialog(
       context: context,
       builder: (_) => ModalRegistroMovimiento(
-        alGuardar: (esIngreso, monto, motivo) {
-          setState(() {
-            _movimientos.insert(
-              0,
-              MovimientoCaja(
-                DateTime.now().toString(),
-                DateTime.now(),
-                esIngreso,
-                motivo,
-                monto,
-              ),
-            );
-            if (esIngreso) {
-              _saldoEstimado += monto;
-            } else {
-              _saldoEstimado -= monto;
-            }
-          });
+        alGuardar: (esIngreso, monto, motivo) async {
+          final error = await widget.alRegistrar(esIngreso, monto, motivo);
+          if (error != null && mounted) {
+            ScaffoldMessenger.of(context)
+                .showSnackBar(SnackBar(content: Text(error)));
+          }
         },
       ),
     );
   }
 
-  void _irAlCorte() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const CorteCaja()),
-    );
-  }
+  void _irAlCorte() => widget.alCorte();
 
   @override
   Widget build(BuildContext context) {
@@ -252,7 +238,8 @@ class _MovimientosCajaState extends State<MovimientosCaja> {
                                 Expanded(
                                   flex: 2,
                                   child: Text(
-                                    '${mov.hora.hour}:${mov.hora.minute.toString().padLeft(2, '0')}',
+                                    '${mov.hora.hour.toString().padLeft(2, '0')}:'
+                                    '${mov.hora.minute.toString().padLeft(2, '0')}',
                                     style: TextStyle(color: c.tinta),
                                   ),
                                 ),
@@ -365,164 +352,175 @@ class _ModalRegistroMovimientoState extends State<ModalRegistroMovimiento> {
     return Dialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       backgroundColor: c.superficie,
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              'Registrar Movimiento',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: c.tinta,
-              ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: 24),
-
-            // Toggle
-            Container(
-              decoration: BoxDecoration(
-                color: c.fondo,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: c.linea),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _esIngreso = false),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: !_esIngreso
-                              ? c.superficie
-                              : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                          boxShadow: !_esIngreso
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 4,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          'Retiro',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: !_esIngreso ? c.tinta : c.tinta2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    child: GestureDetector(
-                      onTap: () => setState(() => _esIngreso = true),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(vertical: 12),
-                        decoration: BoxDecoration(
-                          color: _esIngreso ? c.superficie : Colors.transparent,
-                          borderRadius: BorderRadius.circular(11),
-                          boxShadow: _esIngreso
-                              ? [
-                                  BoxShadow(
-                                    color: Colors.black.withValues(alpha: 0.05),
-                                    blurRadius: 4,
-                                  ),
-                                ]
-                              : null,
-                        ),
-                        child: Text(
-                          'Ingreso',
-                          textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: _esIngreso ? c.tinta : c.tinta2,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Monto display
-            Center(
-              child: Text(
-                '\$${_montoText.isEmpty ? '0' : _montoText}',
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                'Registrar Movimiento',
                 style: TextStyle(
-                  fontSize: 48,
+                  fontSize: 20,
                   fontWeight: FontWeight.bold,
                   color: c.tinta,
                 ),
+                textAlign: TextAlign.center,
               ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Input motivo
-            TextField(
-              controller: _motivoCtrl,
-              decoration: InputDecoration(
-                hintText: 'Motivo del movimiento...',
-                filled: true,
-                fillColor: c.fondo,
-                border: OutlineInputBorder(
+              // Toggle
+              Container(
+                decoration: BoxDecoration(
+                  color: c.fondo,
                   borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.linea),
+                  border: Border.all(color: c.linea),
                 ),
-                enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide(color: c.linea),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _esIngreso = false),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: !_esIngreso
+                                ? c.superficie
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(11),
+                            boxShadow: !_esIngreso
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
+                                      blurRadius: 4,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Text(
+                            'Retiro',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: !_esIngreso ? c.tinta : c.tinta2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Expanded(
+                      child: GestureDetector(
+                        onTap: () => setState(() => _esIngreso = true),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 12),
+                          decoration: BoxDecoration(
+                            color: _esIngreso
+                                ? c.superficie
+                                : Colors.transparent,
+                            borderRadius: BorderRadius.circular(11),
+                            boxShadow: _esIngreso
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.black.withValues(
+                                        alpha: 0.05,
+                                      ),
+                                      blurRadius: 4,
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Text(
+                            'Ingreso',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: _esIngreso ? c.tinta : c.tinta2,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
-              onChanged: (_) => setState(() {}),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
 
-            // Teclado miniatura (simplificado)
-            SizedBox(
-              width: 250,
-              child: TecladoNumerico(
-                alPresionarTecla: _teclear,
-                alBorrar: _borrar,
-              ),
-            ),
-            const SizedBox(height: 24),
-
-            // Guardar
-            ElevatedButton(
-              onPressed: puedeGuardar
-                  ? () {
-                      Navigator.pop(context);
-                      widget.alGuardar(
-                        _esIngreso,
-                        _monto,
-                        _motivoCtrl.text.trim(),
-                      );
-                    }
-                  : null,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: c.azul,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+              // Monto display
+              Center(
+                child: Text(
+                  '\$${_montoText.isEmpty ? '0' : _montoText}',
+                  style: TextStyle(
+                    fontSize: 48,
+                    fontWeight: FontWeight.bold,
+                    color: c.tinta,
+                  ),
                 ),
               ),
-              child: const Text(
-                'Guardar Movimiento',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const SizedBox(height: 24),
+
+              // Input motivo
+              TextField(
+                controller: _motivoCtrl,
+                decoration: InputDecoration(
+                  hintText: 'Motivo del movimiento...',
+                  filled: true,
+                  fillColor: c.fondo,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.linea),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide(color: c.linea),
+                  ),
+                ),
+                onChanged: (_) => setState(() {}),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+
+              // Teclado miniatura (simplificado)
+              Center(
+                child: SizedBox(
+                  width: 250,
+                  child: TecladoNumerico(
+                    alPresionarTecla: _teclear,
+                    alBorrar: _borrar,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Guardar
+              ElevatedButton(
+                onPressed: puedeGuardar
+                    ? () {
+                        Navigator.pop(context);
+                        widget.alGuardar(
+                          _esIngreso,
+                          _monto,
+                          _motivoCtrl.text.trim(),
+                        );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: c.azul,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text(
+                  'Guardar Movimiento',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

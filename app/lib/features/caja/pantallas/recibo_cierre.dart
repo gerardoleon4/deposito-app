@@ -1,22 +1,46 @@
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/tema/colores.dart';
-import '../../auth/pantallas/login_diario.dart';
+import '../../../../core/formato/formato.dart';
+import '../../../../core/ticket/ticket_pdf.dart';
+import '../../../../core/widgets/estados.dart';
 
-class ReciboCierre extends StatelessWidget {
-  const ReciboCierre({super.key});
+/// 2.5 Ticket de cierre de turno (diseño de Pablo), con el corte real.
+class ReciboCierre extends ConsumerWidget {
+  const ReciboCierre({
+    super.key,
+    required this.corte,
+    required this.alFinalizar,
+  });
 
-  void _finalizar(BuildContext context) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (_) => const LoginDiario()),
-      (route) => false,
-    );
+  final Turno corte;
+  final VoidCallback alFinalizar;
+
+  void _finalizar(BuildContext context) => alFinalizar();
+
+  Future<void> _pdf(
+    BuildContext context,
+    WidgetRef ref,
+    Future<void> Function(Turno, AjustesNegocio) accion,
+  ) async {
+    try {
+      await accion(corte, await ref.read(ajustesNegocioProvider.future));
+    } catch (_) {
+      if (context.mounted) {
+        avisar(context, 'No se pudo generar el PDF del corte');
+      }
+    }
   }
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colores;
+    final r = corte.resumen;
+    final negocio = ref.watch(ajustesNegocioProvider).value;
+    final diferencia = corte.diferencia ?? 0;
+    final cajero = (corte.usuarioCierre ?? corte.usuarioApertura)?.nombre;
 
     return Scaffold(
       backgroundColor: c.fondo,
@@ -49,7 +73,8 @@ class ReciboCierre extends StatelessWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           Text(
-                            'DEPÓSITO DE CERVEZA',
+                            (negocio?.nombreNegocio ?? 'Depósito de cerveza')
+                                .toUpperCase(),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 18,
@@ -69,12 +94,18 @@ class ReciboCierre extends StatelessWidget {
                           ),
                           const SizedBox(height: 24),
 
-                          _FilaTicket(etiqueta: 'Fecha:', valor: '03-Oct-2026'),
+                          _FilaTicket(
+                            etiqueta: 'Fecha:',
+                            valor: corte.diaNegocio,
+                          ),
                           _FilaTicket(
                             etiqueta: 'Turno:',
-                            valor: '08:00 AM - 04:30 PM',
+                            valor:
+                                '${hora(corte.apertura)} - '
+                                '${corte.cierre == null ? '' : hora(corte.cierre!)}',
                           ),
-                          _FilaTicket(etiqueta: 'Cajero:', valor: 'Sofía Vega'),
+                          if (cajero != null)
+                            _FilaTicket(etiqueta: 'Cajero:', valor: cajero),
 
                           const SizedBox(height: 16),
                           const Divider(
@@ -88,14 +119,22 @@ class ReciboCierre extends StatelessWidget {
                           ),
                           const SizedBox(height: 8),
                           _FilaTicket(
-                            etiqueta: 'Efectivo',
-                            valor: '\$12,500.50',
+                            etiqueta: 'Efectivo (${r.ventas} ventas)',
+                            valor: dinero(r.ventasEfectivo),
                           ),
-                          _FilaTicket(etiqueta: 'Tarjeta', valor: '\$3,200.00'),
+                          _FilaTicket(
+                            etiqueta: 'Tarjeta',
+                            valor: dinero(r.ventasTarjeta),
+                          ),
                           _FilaTicket(
                             etiqueta: 'Envases / Extra',
-                            valor: '-\$150.00',
+                            valor: dinero(r.envases),
                           ),
+                          if (r.devoluciones > 0)
+                            _FilaTicket(
+                              etiqueta: 'Devoluciones',
+                              valor: '-${dinero(r.devoluciones)}',
+                            ),
 
                           const SizedBox(height: 16),
                           const Divider(color: Colors.black54),
@@ -108,25 +147,30 @@ class ReciboCierre extends StatelessWidget {
                           const SizedBox(height: 8),
                           _FilaTicket(
                             etiqueta: 'Fondo Inicial',
-                            valor: '\$1,000.00',
+                            valor: dinero(corte.fondo),
                           ),
                           _FilaTicket(
                             etiqueta: 'Ventas en Efectivo',
-                            valor: '\$12,500.50',
+                            valor: dinero(r.ventasEfectivo),
                           ),
+                          if (r.ingresos > 0)
+                            _FilaTicket(
+                              etiqueta: 'Ingresos',
+                              valor: dinero(r.ingresos),
+                            ),
                           _FilaTicket(
                             etiqueta: 'Retiros',
-                            valor: '-\$1,150.00',
+                            valor: '-${dinero(r.retiros)}',
                           ),
                           const SizedBox(height: 8),
                           _FilaTicket(
                             etiqueta: 'Total Esperado',
-                            valor: '\$12,350.50',
+                            valor: dinero(r.esperado),
                             bold: true,
                           ),
                           _FilaTicket(
                             etiqueta: 'Total Contado',
-                            valor: '\$12,300.50',
+                            valor: dinero(corte.contado ?? 0),
                             bold: true,
                           ),
 
@@ -136,22 +180,25 @@ class ReciboCierre extends StatelessWidget {
 
                           _FilaTicket(
                             etiqueta: 'DIFERENCIA',
-                            valor: '-\$50.00',
+                            valor:
+                                '${diferencia < 0 ? '-' : ''}${dinero(diferencia.abs())}',
                             bold: true,
                           ),
                           const SizedBox(height: 8),
-                          const Text(
-                            'Justificación:',
-                            style: TextStyle(fontSize: 12),
-                          ),
-                          Text(
-                            'Faltó cambio al cliente de la mañana',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey[800],
-                              fontStyle: FontStyle.italic,
+                          if (corte.nota != null) ...[
+                            const Text(
+                              'Justificación:',
+                              style: TextStyle(fontSize: 12),
                             ),
-                          ),
+                            Text(
+                              corte.nota!,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: Colors.grey[800],
+                                fontStyle: FontStyle.italic,
+                              ),
+                            ),
+                          ],
 
                           const SizedBox(height: 48),
                           Text(
@@ -182,7 +229,8 @@ class ReciboCierre extends StatelessWidget {
                         children: [
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () {},
+                              onPressed: () =>
+                                  _pdf(context, ref, imprimirCorte),
                               icon: const Icon(Icons.print_rounded, size: 20),
                               label: const Text('Imprimir'),
                               style: OutlinedButton.styleFrom(
@@ -199,7 +247,8 @@ class ReciboCierre extends StatelessWidget {
                           const SizedBox(width: 16),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () {},
+                              onPressed: () =>
+                                  _pdf(context, ref, compartirCorte),
                               icon: const Icon(
                                 Icons.picture_as_pdf_rounded,
                                 size: 20,
@@ -269,12 +318,14 @@ class _FilaTicket extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(
-            etiqueta,
-            style: TextStyle(
-              fontSize: 14,
-              color: Colors.grey[800],
-              fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+          Expanded(
+            child: Text(
+              etiqueta,
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[800],
+                fontWeight: bold ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           ),
           Text(

@@ -128,3 +128,97 @@ Future<void> compartirTicket(DetalleVenta v, AjustesNegocio negocio) async =>
       bytes: await ticketPdf(v, negocio),
       filename: nombreTicket(v),
     );
+
+/// Comprobante del corte de caja en PDF, del ancho de un rollo de 80 mm.
+Future<Uint8List> cortePdf(Turno t, AjustesNegocio negocio) async {
+  final doc = pw.Document(title: 'Corte ${t.diaNegocio}', author: 'Anaquel');
+  const chica = pw.TextStyle(fontSize: 8);
+  final negrita = pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold);
+  final r = t.resumen;
+
+  pw.Widget fila(String izq, String der, {pw.TextStyle? estilo}) => pw.Row(
+    mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+    children: [
+      pw.Expanded(child: pw.Text(izq, style: estilo ?? chica)),
+      pw.Text(der, style: estilo ?? chica),
+    ],
+  );
+
+  doc.addPage(
+    pw.Page(
+      pageFormat: PdfPageFormat.roll80,
+      margin: const pw.EdgeInsets.all(12),
+      build: (_) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.stretch,
+        children: [
+          pw.Text(
+            negocio.nombreNegocio ?? 'Depósito',
+            textAlign: pw.TextAlign.center,
+            style: pw.TextStyle(fontSize: 12, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Text(
+            'Corte de caja',
+            textAlign: pw.TextAlign.center,
+            style: chica,
+          ),
+          pw.SizedBox(height: 6),
+          fila('Día', t.diaNegocio),
+          fila(
+            'Turno',
+            '${hora(t.apertura)} - ${t.cierre == null ? 'abierto' : hora(t.cierre!)}',
+          ),
+          if (t.usuarioCierre != null || t.usuarioApertura != null)
+            fila('Cajero', (t.usuarioCierre ?? t.usuarioApertura)!.nombre),
+          pw.Divider(thickness: 0.5),
+          pw.Text('VENTAS', style: negrita),
+          fila('Ventas (${r.ventas})', ''),
+          fila('Efectivo', dinero(r.ventasEfectivo)),
+          fila('Tarjeta', dinero(r.ventasTarjeta)),
+          fila('Envases (incluido)', dinero(r.envases)),
+          if (r.devoluciones > 0)
+            fila('Devoluciones', '-${dinero(r.devoluciones)}'),
+          if (r.canceladas > 0) fila('Canceladas', '${r.canceladas}'),
+          pw.Divider(thickness: 0.5),
+          pw.Text('ARQUEO', style: negrita),
+          fila('Fondo inicial', dinero(t.fondo)),
+          fila('Ventas en efectivo', dinero(r.ventasEfectivo)),
+          fila('Ingresos', dinero(r.ingresos)),
+          fila('Retiros', '-${dinero(r.retiros)}'),
+          fila('Total esperado', dinero(r.esperado), estilo: negrita),
+          if (t.contado != null)
+            fila('Total contado', dinero(t.contado!), estilo: negrita),
+          if (t.diferencia != null)
+            fila(
+              'DIFERENCIA',
+              '${t.diferencia! < 0 ? '-' : ''}${dinero(t.diferencia!.abs())}',
+              estilo: negrita,
+            ),
+          if (t.nota != null) ...[
+            pw.SizedBox(height: 4),
+            pw.Text('Justificación: ${t.nota}', style: chica),
+          ],
+          pw.SizedBox(height: 24),
+          pw.Text('________________________', textAlign: pw.TextAlign.center),
+          pw.Text(
+            'Firma del cajero',
+            textAlign: pw.TextAlign.center,
+            style: chica,
+          ),
+        ],
+      ),
+    ),
+  );
+  return doc.save();
+}
+
+Future<void> imprimirCorte(Turno t, AjustesNegocio negocio) =>
+    Printing.layoutPdf(
+      name: 'corte-${t.diaNegocio}.pdf',
+      onLayout: (_) => cortePdf(t, negocio),
+    );
+
+Future<void> compartirCorte(Turno t, AjustesNegocio negocio) async =>
+    Printing.sharePdf(
+      bytes: await cortePdf(t, negocio),
+      filename: 'corte-${t.diaNegocio}.pdf',
+    );
