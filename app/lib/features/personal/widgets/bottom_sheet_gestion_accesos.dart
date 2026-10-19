@@ -8,11 +8,17 @@ class BottomSheetGestionAccesos extends StatelessWidget {
     required this.nombre,
     required this.rol,
     required this.alSuspender,
+    required this.alVerVentas,
+    required this.alCambiarPin,
+    this.activo = true,
   });
 
   final String nombre;
   final String rol;
+  final bool activo;
   final VoidCallback alSuspender;
+  final VoidCallback alVerVentas;
+  final VoidCallback alCambiarPin;
 
   void _confirmarSuspension(BuildContext context) {
     final c = context.colores;
@@ -102,7 +108,7 @@ class BottomSheetGestionAccesos extends StatelessWidget {
               _OpcionBottomSheet(
                 icono: Icons.bar_chart_rounded,
                 texto: 'Ver Ventas del Empleado',
-                alPresionar: () => Navigator.pop(context),
+                alPresionar: alVerVentas,
               ),
               const SizedBox(height: 16),
 
@@ -110,7 +116,7 @@ class BottomSheetGestionAccesos extends StatelessWidget {
               _OpcionBottomSheet(
                 icono: Icons.vpn_key_outlined,
                 texto: 'Cambiar PIN',
-                alPresionar: () => Navigator.pop(context),
+                alPresionar: alCambiarPin,
               ),
               const SizedBox(height: 16),
 
@@ -118,7 +124,9 @@ class BottomSheetGestionAccesos extends StatelessWidget {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: () => _confirmarSuspension(context),
+                  onPressed: activo
+                      ? () => _confirmarSuspension(context)
+                      : alSuspender,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: c.alerta.withValues(alpha: 0.05),
                     foregroundColor: c.alerta,
@@ -129,9 +137,14 @@ class BottomSheetGestionAccesos extends StatelessWidget {
                       side: BorderSide(color: c.alerta.withValues(alpha: 0.2)),
                     ),
                   ),
-                  child: const Text(
-                    'Suspender Acceso / Dar de Baja',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+                  child: Text(
+                    activo
+                        ? 'Suspender Acceso / Dar de Baja'
+                        : 'Reactivar Acceso',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ),

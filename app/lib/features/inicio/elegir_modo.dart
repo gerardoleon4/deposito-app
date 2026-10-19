@@ -1,3 +1,5 @@
+import '../personal/estado/personal_provider.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -96,7 +98,18 @@ class ElegirModo extends ConsumerWidget {
                             context,
                             MaterialPageRoute(
                               builder: (_) => CrearCuentaMaestra(
-                                alCompletar: (n, p) {
+                                alCompletar: (negocio, nombre, pin) {
+                                  // El servidor aún no arranca: el dueño se
+                                  // crea en cuanto la caja esté lista.
+                                  ref
+                                      .read(
+                                        cuentaMaestraPendienteProvider.notifier,
+                                      )
+                                      .guardar((
+                                        negocio: negocio,
+                                        nombre: nombre,
+                                        pin: pin,
+                                      ));
                                   Navigator.pushReplacement(
                                     context,
                                     MaterialPageRoute(

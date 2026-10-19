@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../personal/estado/personal_provider.dart';
 import '../../../app/tema/colores.dart';
 import '../../../core/api/fallo_api.dart';
 import '../../../core/api/proveedores.dart';
@@ -44,6 +45,7 @@ Future<void> _registrarVenta(
       envModo: carrito.envModo.name,
       envCliente: carrito.envCliente,
       envCredito: carrito.credito,
+      usuarioId: ref.read(usuarioActualProvider)?.id,
       claveIdempotencia: carrito.claveCobro,
     );
     ref.read(carritoProvider.notifier).vaciar();

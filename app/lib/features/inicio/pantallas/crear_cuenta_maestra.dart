@@ -7,7 +7,8 @@ import '../../../../core/widgets/teclado_numerico.dart';
 class CrearCuentaMaestra extends StatefulWidget {
   const CrearCuentaMaestra({super.key, required this.alCompletar});
 
-  final void Function(String nombre, String pin) alCompletar;
+  /// Nombre del negocio, nombre del dueño y su PIN de 6 dígitos.
+  final void Function(String negocio, String nombre, String pin) alCompletar;
 
   @override
   State<CrearCuentaMaestra> createState() => _CrearCuentaMaestraState();
@@ -88,7 +89,11 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
     } else {
       if (_pinConfirmacion.length == 6) {
         if (_pin == _pinConfirmacion) {
-          widget.alCompletar(_nombreCtrl.text.trim(), _pin);
+          widget.alCompletar(
+            _negocioCtrl.text.trim(),
+            _nombreCtrl.text.trim(),
+            _pin,
+          );
         } else {
           // Error, no coinciden
           setState(() {

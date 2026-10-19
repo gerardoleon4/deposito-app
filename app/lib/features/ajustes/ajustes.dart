@@ -5,10 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/tema/colores.dart';
 import '../../core/config/configuracion.dart';
 import '../../core/servidor/servidor_embebido.dart';
+import '../../core/api/fallo_api.dart';
+import '../../core/api/proveedores.dart';
+import '../../core/ticket/ticket_pdf.dart';
 import '../../core/widgets/estados.dart';
+import '../personal/estado/personal_provider.dart';
+import '../personal/pantallas/gestion_personal.dart';
+import '../personal/pantallas/seguridad_respaldo.dart';
 
-/// Ajustes de este dispositivo. Los del negocio (nombre, días de alerta,
-/// respaldo, PIN) llegan en el Sprint 4.
+/// Ajustes de este dispositivo y, en la caja, los del negocio (para el
+/// ticket), el personal y el respaldo.
 class PantallaAjustes extends ConsumerWidget {
   const PantallaAjustes({super.key});
 
@@ -118,15 +124,52 @@ class PantallaAjustes extends ConsumerWidget {
                     ),
                   ],
                 ),
-                _Grupo(
-                  titulo: 'Próximamente',
-                  children: [
-                    Text(
-                      'Nombre del negocio, días de alerta de caducidad, PIN del dueño, respaldo y restauración (Sprint 4).',
-                      style: TextStyle(color: c.tinta2),
-                    ),
-                  ],
-                ),
+                if (esCaja) ...[
+                  const _Grupo(titulo: 'Negocio', children: [_DatosNegocio()]),
+                  _Grupo(
+                    titulo: 'Personal y seguridad',
+                    children: [
+                      _Dato(
+                        'En la caja',
+                        ref.watch(usuarioActualProvider)?.nombre ??
+                            'Sin personal registrado',
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 10,
+                        runSpacing: 10,
+                        children: [
+                          OutlinedButton.icon(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const GestionPersonal(),
+                              ),
+                            ),
+                            icon: const Icon(Icons.badge_outlined),
+                            label: const Text('Gestión de personal'),
+                          ),
+                          OutlinedButton.icon(
+                            onPressed: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => const SeguridadRespaldo(),
+                              ),
+                            ),
+                            icon: const Icon(Icons.shield_outlined),
+                            label: const Text('Seguridad y respaldo'),
+                          ),
+                          if (ref.watch(usuarioActualProvider) != null)
+                            OutlinedButton.icon(
+                              onPressed: () => ref
+                                  .read(usuarioActualProvider.notifier)
+                                  .salir(),
+                              icon: const Icon(Icons.logout_rounded),
+                              label: const Text('Cambiar de usuario'),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ],
               ],
             ),
           ),
@@ -186,4 +229,90 @@ class _Dato extends StatelessWidget {
       ),
     ],
   );
+}
+
+/// Nombre, dirección, teléfono y mensaje del ticket (`PUT /ajustes`).
+class _DatosNegocio extends ConsumerStatefulWidget {
+  const _DatosNegocio();
+
+  @override
+  ConsumerState<_DatosNegocio> createState() => _DatosNegocioState();
+}
+
+class _DatosNegocioState extends ConsumerState<_DatosNegocio> {
+  final _campos = {
+    for (final clave in AjustesNegocio.claves) clave: TextEditingController(),
+  };
+  bool _cargado = false;
+  bool _guardando = false;
+
+  static const _etiquetas = {
+    'nombreNegocio': ('Nombre del negocio', 80),
+    'direccion': ('Dirección', 80),
+    'telefono': ('Teléfono', 20),
+    'mensajeTicket': ('Mensaje al pie del ticket', 120),
+  };
+
+  @override
+  void dispose() {
+    for (final c in _campos.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    setState(() => _guardando = true);
+    try {
+      final api = await ref.read(apiProvider.future);
+      await api.guardarAjustes({
+        for (final e in _campos.entries)
+          e.key: e.value.text.trim().isEmpty ? null : e.value.text.trim(),
+      });
+      ref.invalidate(ajustesNegocioProvider);
+      if (mounted) avisar(context, 'Datos del negocio guardados');
+    } on FalloApi catch (e) {
+      if (mounted) {
+        avisar(context, e.campos.values.firstOrNull ?? mensajeDeError(e));
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ajustes = ref.watch(ajustesNegocioProvider).value;
+    if (ajustes != null && !_cargado) {
+      _cargado = true;
+      final valores = ajustes.toJson();
+      for (final e in _campos.entries) {
+        e.value.text = valores[e.key] as String? ?? '';
+      }
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 10,
+      children: [
+        for (final e in _campos.entries)
+          TextField(
+            controller: e.value,
+            maxLength: _etiquetas[e.key]!.$2,
+            keyboardType: e.key == 'telefono' ? TextInputType.phone : null,
+            decoration: InputDecoration(
+              labelText: _etiquetas[e.key]!.$1,
+              counterText: '',
+            ),
+          ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _guardando ? null : _guardar,
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Guardar'),
+          ),
+        ),
+      ],
+    );
+  }
 }

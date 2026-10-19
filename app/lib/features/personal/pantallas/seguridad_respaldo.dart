@@ -1,9 +1,77 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/tema/colores.dart';
+import '../../../../core/api/proveedores.dart';
+import '../../../../core/formato/formato.dart';
+import '../../../../core/respaldo/respaldos.dart';
+import '../../../../core/widgets/estados.dart';
 
-class SeguridadRespaldo extends StatelessWidget {
+/// Seguridad y respaldo (diseño de Pablo): copia completa de la base para
+/// guardarla fuera del iPad. Además, cada corte de caja guarda una sola.
+class SeguridadRespaldo extends ConsumerStatefulWidget {
   const SeguridadRespaldo({super.key});
+
+  @override
+  ConsumerState<SeguridadRespaldo> createState() => _SeguridadRespaldoState();
+}
+
+class _SeguridadRespaldoState extends ConsumerState<SeguridadRespaldo> {
+  File? _ultimo;
+  bool _generando = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _cargarUltimo();
+  }
+
+  Future<void> _cargarUltimo() async {
+    try {
+      final todos = await respaldosLocales();
+      if (mounted) setState(() => _ultimo = todos.firstOrNull);
+    } catch (_) {
+      // Sin carpeta de documentos (web, pruebas): no hay respaldos locales.
+    }
+  }
+
+  Future<void> _generar(BuildContext context) async {
+    setState(() => _generando = true);
+    try {
+      final api = await ref.read(apiProvider.future);
+      final archivo = await guardarRespaldo(api);
+      if (!mounted) return;
+      setState(() {
+        _ultimo = archivo;
+        _generando = false;
+      });
+      if (context.mounted) _mostrarAlertaExportar(context);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _generando = false);
+      if (context.mounted) avisar(context, 'No se pudo generar: $e');
+    }
+  }
+
+  Future<void> _compartir(BuildContext context) async {
+    Navigator.pop(context);
+    final archivo = _ultimo;
+    if (archivo == null) return;
+    try {
+      await compartirRespaldo(archivo);
+    } catch (e) {
+      if (mounted) avisar(this.context, 'No se pudo compartir: $e');
+    }
+  }
+
+  String get _textoUltimo {
+    final f = _ultimo;
+    if (f == null) return 'Aún no se ha creado';
+    final kb = (f.lengthSync() / 1024).ceil();
+    return '${fechaHora(f.lastModifiedSync().toUtc().toIso8601String())} · $kb KB';
+  }
 
   void _mostrarAlertaExportar(BuildContext context) {
     final c = context.colores;
@@ -137,7 +205,7 @@ class SeguridadRespaldo extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'respaldo_pos.sqlite',
+                _ultimo?.uri.pathSegments.last ?? 'anaquel.db',
                 style: TextStyle(fontSize: 14, color: c.tinta2),
               ),
               const SizedBox(height: 32),
@@ -147,17 +215,17 @@ class SeguridadRespaldo extends StatelessWidget {
                   _OpcionCompartir(
                     icono: Icons.wifi_tethering,
                     texto: 'AirDrop',
-                    alPresionar: () => Navigator.pop(context),
+                    alPresionar: () => _compartir(context),
                   ),
                   _OpcionCompartir(
                     icono: Icons.folder_rounded,
                     texto: 'Guardar en\nArchivos',
-                    alPresionar: () => Navigator.pop(context),
+                    alPresionar: () => _compartir(context),
                   ),
                   _OpcionCompartir(
                     icono: Icons.ios_share_rounded,
                     texto: 'Compartir',
-                    alPresionar: () => Navigator.pop(context),
+                    alPresionar: () => _compartir(context),
                   ),
                 ],
               ),
@@ -289,7 +357,7 @@ class SeguridadRespaldo extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'Aún no se ha creado',
+                                _textoUltimo,
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w600,
@@ -306,7 +374,7 @@ class SeguridadRespaldo extends StatelessWidget {
                   const SizedBox(height: 24),
 
                   ElevatedButton(
-                    onPressed: () => _mostrarAlertaExportar(context),
+                    onPressed: _generando ? null : () => _generar(context),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: c.azul,
                       foregroundColor: Colors.white,
@@ -316,8 +384,8 @@ class SeguridadRespaldo extends StatelessWidget {
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    child: const Text(
-                      'Generar Respaldo Manual',
+                    child: Text(
+                      _generando ? 'Generando...' : 'Generar Respaldo Manual',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,

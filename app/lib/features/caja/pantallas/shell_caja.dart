@@ -1,3 +1,7 @@
+import '../../personal/estado/personal_provider.dart';
+import '../../auth/pantallas/login_diario.dart';
+import '../../../core/api/fallo_api.dart';
+
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -29,7 +33,9 @@ class ShellCaja extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final servidor = ref.watch(servidorEmbebidoProvider);
     return switch (servidor) {
-      AsyncData() => _Marco(seccion: seccion, child: child),
+      AsyncData() => _ConPersonal(
+        child: _Marco(seccion: seccion, child: child),
+      ),
       AsyncError(:final error) => Scaffold(
         appBar: AppBar(
           backgroundColor: Colors.transparent,
@@ -546,4 +552,45 @@ class _BotonConectar extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// Con el servidor listo: crea la cuenta maestra pendiente y, si hay
+/// personal registrado, pide el inicio de turno antes de entrar a la caja.
+class _ConPersonal extends ConsumerStatefulWidget {
+  const _ConPersonal({required this.child});
+
+  final Widget child;
+
+  @override
+  ConsumerState<_ConPersonal> createState() => _ConPersonalState();
+}
+
+class _ConPersonalState extends ConsumerState<_ConPersonal> {
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() async {
+      try {
+        await ref.read(cuentaMaestraPendienteProvider.notifier).aplicar();
+      } on FalloApi catch (e) {
+        if (mounted) {
+          avisar(context, 'No se creó la cuenta maestra: ${mensajeDeError(e)}');
+        }
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final actual = ref.watch(usuarioActualProvider);
+    final activos = [
+      for (final u in ref.watch(usuariosProvider).value ?? const <Usuario>[])
+        if (u.activo) u,
+    ];
+    if (actual != null || activos.isEmpty) return widget.child;
+    return LoginDiario(
+      usuarios: activos,
+      alEntrar: ref.read(usuarioActualProvider.notifier).entrar,
+    );
+  }
 }

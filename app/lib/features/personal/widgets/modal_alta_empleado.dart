@@ -152,9 +152,9 @@ class _ModalAltaEmpleadoState extends State<ModalAltaEmpleado> {
               controller: _pinCtrl,
               keyboardType: TextInputType.number,
               obscureText: true,
-              maxLength: 4,
+              maxLength: 6,
               decoration: InputDecoration(
-                hintText: '4 dígitos numéricos',
+                hintText: 'De 4 a 6 dígitos',
                 hintStyle: TextStyle(color: c.tinta2.withValues(alpha: 0.5)),
                 counterText: '',
                 filled: true,

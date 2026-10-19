@@ -2,6 +2,7 @@ import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../personal/estado/personal_provider.dart';
 import '../../../core/api/fallo_api.dart';
 import '../../../core/api/idempotencia.dart';
 import '../../../core/widgets/estados.dart';
@@ -20,13 +21,16 @@ class SeccionCorte extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final usuario = ref.watch(usuarioActualProvider);
     return switch (ref.watch(turnoProvider)) {
       AsyncData(value: DetalleTurno(turno: null)) => AperturaCaja(
-        nombreCajero: 'Caja principal',
-        inicialesCajero: 'CP',
+        nombreCajero: usuario?.nombre ?? 'Caja principal',
+        inicialesCajero: usuario == null ? 'CP' : inicialesDe(usuario.nombre),
         alAbrir: (fondo) => _ejecutar(
           context,
-          () => ref.read(turnoProvider.notifier).abrir(fondo),
+          () => ref
+              .read(turnoProvider.notifier)
+              .abrir(fondo, usuarioId: usuario?.id),
         ),
       ),
       AsyncData(:final value) => _TurnoAbierto(detalle: value),
@@ -129,7 +133,12 @@ class _ArqueoState extends ConsumerState<_Arqueo> {
         try {
           final corte = await ref
               .read(turnoProvider.notifier)
-              .cerrar(contado: contado, nota: nota, claveIdempotencia: _clave);
+              .cerrar(
+                contado: contado,
+                nota: nota,
+                usuarioId: ref.read(usuarioActualProvider)?.id,
+                claveIdempotencia: _clave,
+              );
           navegador.pushAndRemoveUntil(
             MaterialPageRoute(
               builder: (_) => ReciboCierre(

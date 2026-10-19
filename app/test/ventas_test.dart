@@ -118,7 +118,19 @@ void main() {
       pinAutoriza: '9999',
     );
     await conUnaVenta(api);
-    await abrirVentas(tester, api);
+    await montarApp(tester, preferencias: prefsCaja, api: api);
+    // Hay personal: primero el inicio de turno.
+    expect(find.text('Selecciona tu usuario para comenzar'), findsOneWidget);
+    await tester.tap(find.text('Ana'));
+    await tester.pumpAndSettle();
+    for (final d in '1111'.split('')) {
+      await tester.tap(find.text(d).last);
+      await tester.pump();
+    }
+    await tester.tap(find.text('Entrar'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ventas').first);
+    await tester.pumpAndSettle();
     await abrirTicket(tester);
 
     await tester.tap(find.text('Cancelar Venta'));

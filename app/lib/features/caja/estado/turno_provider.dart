@@ -1,8 +1,13 @@
+import 'dart:async';
+
 import 'package:deposito_backend/deposito_backend.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/api/api.dart';
 import '../../../core/api/idempotencia.dart';
 import '../../../core/api/proveedores.dart';
+import '../../../core/respaldo/respaldos.dart';
 import '../../../core/tiempo_real/tiempo_real.dart';
 
 /// El turno abierto con sus movimientos (`turno: null` si la caja está
@@ -75,6 +80,17 @@ class TurnoNotifier extends AsyncNotifier<DetalleTurno> {
       claveIdempotencia: claveIdempotencia,
     );
     await refrescar();
+    // Respaldo automático del cierre, en segundo plano: el corte ya quedó y
+    // el recibo no espera.
+    if (!kIsWeb) unawaited(_respaldar(api));
     return corte;
+  }
+
+  Future<void> _respaldar(Api api) async {
+    try {
+      await guardarRespaldo(api);
+    } catch (_) {
+      // Sin carpeta de documentos (pruebas) o sin espacio: se sigue.
+    }
   }
 }

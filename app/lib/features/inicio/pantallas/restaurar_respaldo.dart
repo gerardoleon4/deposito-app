@@ -1,46 +1,82 @@
+import 'package:deposito_backend/deposito_backend.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/tema/colores.dart';
+import '../../../../core/config/configuracion.dart';
+import '../../../../core/servidor/servidor_embebido.dart';
 import '../../../../core/widgets/campo_pin.dart';
+import '../../../../core/widgets/estados.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
 import '../../../../core/widgets/cargador_nexo.dart';
 
-class RestaurarRespaldo extends StatefulWidget {
+/// Restaurar la caja desde un respaldo (diseño de Pablo): se elige el
+/// archivo, se confirma con el PIN del dueño de ESE respaldo y reemplaza la
+/// base antes de que arranque el servidor.
+class RestaurarRespaldo extends ConsumerStatefulWidget {
   const RestaurarRespaldo({super.key});
 
   @override
-  State<RestaurarRespaldo> createState() => _RestaurarRespaldoState();
+  ConsumerState<RestaurarRespaldo> createState() => _RestaurarRespaldoState();
 }
 
-class _RestaurarRespaldoState extends State<RestaurarRespaldo> {
-  bool _archivoSeleccionado = false;
+class _RestaurarRespaldoState extends ConsumerState<RestaurarRespaldo> {
+  String? _ruta;
+  bool get _archivoSeleccionado => _ruta != null;
   bool _restaurando = false;
   String _pin = '';
   bool _errorPin = false;
 
-  void _seleccionarArchivo() {
-    // Simula abrir el selector nativo y cargar un archivo
-    setState(() {
-      _archivoSeleccionado = true;
-    });
+  Future<void> _seleccionarArchivo() async {
+    final PlatformFile? archivo;
+    try {
+      archivo = await FilePicker.pickFile(dialogTitle: 'Respaldo de Anaquel');
+    } catch (e) {
+      if (mounted) avisar(context, 'No se pudo abrir el selector: $e');
+      return;
+    }
+    final ruta = archivo?.path;
+    if (ruta == null || !mounted) return;
+    switch (verificarRespaldo(ruta)) {
+      case EstadoRespaldo.noEsRespaldo:
+        avisar(context, 'Ese archivo no es un respaldo de Anaquel');
+      case EstadoRespaldo.valido:
+        await _restaurar(ruta);
+      case EstadoRespaldo.requierePin || EstadoRespaldo.pinIncorrecto:
+        setState(() => _ruta = ruta);
+    }
+  }
+
+  Future<void> _restaurar(String ruta) async {
+    setState(() => _restaurando = true);
+    try {
+      restaurarRespaldo(ruta, rutaBaseDatosCaja(await carpetaCaja()));
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _restaurando = false);
+      avisar(context, 'No se pudo restaurar: $e');
+      return;
+    }
+    if (!mounted) return;
+    // La caja arranca con la base restaurada.
+    await ref
+        .read(configuracionProvider.notifier)
+        .elegirModo(ModoDispositivo.caja);
+    if (mounted) Navigator.of(context).popUntil((r) => r.isFirst);
   }
 
   void _teclear(String tecla) {
     if (_restaurando || _pin.length >= 6) return;
-
     setState(() {
       _pin += tecla;
       _errorPin = false;
     });
-
-    if (_pin.length == 6) {
-      _validarPin();
-    }
+    if (_pin.length == 6) _validarPin();
   }
 
   void _borrar() {
     if (_restaurando || _pin.isEmpty) return;
-
     setState(() {
       _pin = _pin.substring(0, _pin.length - 1);
       _errorPin = false;
@@ -48,15 +84,8 @@ class _RestaurarRespaldoState extends State<RestaurarRespaldo> {
   }
 
   void _validarPin() {
-    // Simulación de validación
-    if (_pin == '123456') {
-      setState(() => _restaurando = true);
-      Future.delayed(const Duration(seconds: 3), () {
-        if (mounted) {
-          // En la vida real aquí redirigiría al sistema (Login)
-          Navigator.pop(context);
-        }
-      });
+    if (verificarRespaldo(_ruta!, pin: _pin) == EstadoRespaldo.valido) {
+      _restaurar(_ruta!);
     } else {
       setState(() => _errorPin = true);
       Future.delayed(const Duration(milliseconds: 600), () {
@@ -203,7 +232,7 @@ class _ConstruirPaso2 extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Text(
-                'Desencriptar Respaldo',
+                'Verificar Respaldo',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.w700,
@@ -212,7 +241,7 @@ class _ConstruirPaso2 extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Ingresa el PIN Maestro original para desencriptar',
+                'Ingresa el PIN Maestro del dueño de este respaldo',
                 style: TextStyle(fontSize: 16, color: c.tinta2),
                 textAlign: TextAlign.center,
               ),
