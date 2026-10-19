@@ -25,9 +25,19 @@ void montarRutasVentas(Router r, ServicioVentas ventas) {
     return respuestaJson(venta, estado: 201);
   });
 
-  r.post('/api/v1/ventas/<id>/cancelar', (Request p, String id) {
+  r.post('/api/v1/ventas/<id>/cancelar', (Request p, String id) async {
     final sesion = exigirCaja(p);
-    ventas.cancelar(id, origen: sesion.nombre);
+    ventas.cancelar(id, await leerObjetoJsonOpcional(p), origen: sesion.nombre);
     return Response(204);
+  });
+
+  r.post('/api/v1/ventas/<id>/devolver', (Request p, String id) async {
+    final sesion = exigirCaja(p);
+    final res = ventas.devolverParte(
+      id,
+      await leerObjetoJson(p),
+      origen: sesion.nombre,
+    );
+    return respuestaJson(res, estado: 201);
   });
 }

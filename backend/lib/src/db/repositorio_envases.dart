@@ -38,14 +38,73 @@ class RepositorioEnvases {
     required String formato,
     required int cantidad,
     required String fecha,
+    String? telefono,
     String? ventaId,
   }) {
     _db.execute(
-      'INSERT INTO prestamos_envases (id, cliente, formato, cantidad, fecha, venta_id) '
-      'VALUES (?, ?, ?, ?, ?, ?)',
-      [id, cliente, formato, cantidad, fecha, ventaId],
+      'INSERT INTO prestamos_envases (id, cliente, telefono, formato, cantidad, fecha, venta_id) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, cliente, telefono, formato, cantidad, fecha, ventaId],
     );
   }
+
+  /// Baja lo pendiente de un préstamo sin pasarlo a bodega (la venta que lo
+  /// originó se devolvió). Si queda en 0, el préstamo se cierra.
+  void reducirPrestamo(String id, int cantidad) {
+    _db.execute(
+      'UPDATE prestamos_envases SET devuelto = CASE WHEN cantidad = ? THEN 1 ELSE 0 END, '
+      'cantidad = CASE WHEN cantidad = ? THEN cantidad ELSE cantidad - ? END '
+      'WHERE id = ?',
+      [cantidad, cantidad, cantidad, id],
+    );
+  }
+
+  /// Anota un cambio del balance en la bitácora de envases.
+  void registrarMovimiento({
+    required String fecha,
+    required String formato,
+    required String tipo,
+    int bodega = 0,
+    int prestados = 0,
+    String? cliente,
+    int? monto,
+    String? referencia,
+    required String origen,
+  }) {
+    _db.execute(
+      'INSERT INTO envase_movimientos (fecha, formato, tipo, bodega, prestados, '
+      'cliente, monto, referencia, origen) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        fecha,
+        formato,
+        tipo,
+        bodega,
+        prestados,
+        cliente,
+        monto,
+        referencia,
+        origen,
+      ],
+    );
+  }
+
+  List<Map<String, Object?>> movimientos(int limite) => [
+    for (final f in _db.select(
+      'SELECT * FROM envase_movimientos ORDER BY id DESC LIMIT ?',
+      [limite],
+    ))
+      {
+        'id': f['id'],
+        'fecha': f['fecha'],
+        'formato': f['formato'],
+        'tipo': f['tipo'],
+        'bodega': f['bodega'],
+        'prestados': f['prestados'],
+        'cliente': f['cliente'],
+        'monto': f['monto'],
+        'referencia': f['referencia'],
+      },
+  ];
 
   /// Préstamos sin devolver que salieron con esa venta.
   List<Row> prestamosPendientesDeVenta(String ventaId) => _db.select(
@@ -72,6 +131,7 @@ class RepositorioEnvases {
           (f) => {
             'id': f['id'],
             'cliente': f['cliente'],
+            'telefono': f['telefono'],
             'formato': f['formato'],
             'cantidad': f['cantidad'],
             'devueltos': f['devueltos'],

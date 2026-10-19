@@ -170,6 +170,7 @@ void main() {
         'ventasEfectivo': 6600,
         'ventasTarjeta': 8400,
         'envases': 2400,
+        'devoluciones': 4200,
         'ingresos': 10000,
         'retiros': 3000,
         'esperado': 50000 + 6600 + 10000 - 3000,
@@ -500,16 +501,14 @@ void main() {
       expect(await siguiente(caja), 'caja.abierta');
 
       await cobrar(pid);
-      // Antes de la venta llegan producto.actualizado y envases.actualizado.
+      // Sin envModo el balance de envases no cambia: no hay envases.actualizado.
       expect(await hasta(caja, 'venta.registrada'), [
         'producto.actualizado',
-        'envases.actualizado',
         'venta.registrada',
       ]);
       // La terminal no recibió caja.abierta: lo primero es la venta.
       expect(await hasta(terminal, 'venta.registrada'), [
         'producto.actualizado',
-        'envases.actualizado',
         'venta.registrada',
       ]);
       expect(
@@ -534,16 +533,8 @@ void main() {
       final terminal = await conectar(await s.registrarTerminal());
 
       await s.post('/api/v1/ventas/${venta['id']}/cancelar', null);
-      final tipos = [
-        await siguiente(terminal),
-        await siguiente(terminal),
-        await siguiente(terminal),
-      ];
-      expect(tipos, [
-        'producto.actualizado',
-        'envases.actualizado',
-        'venta.cancelada',
-      ]);
+      final tipos = [await siguiente(terminal), await siguiente(terminal)];
+      expect(tipos, ['producto.actualizado', 'venta.cancelada']);
       expect(terminal.current['datos'], {'id': venta['id']});
     });
   });

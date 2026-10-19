@@ -8,6 +8,7 @@ abstract final class TiposEvento {
   static const balanceEnvasesActualizado = 'envases.actualizado';
   static const ventaRegistrada = 'venta.registrada';
   static const ventaCancelada = 'venta.cancelada';
+  static const ventaDevuelta = 'venta.devuelta';
 
   /// Los eventos `caja.*` solo se mandan a la caja: traen montos.
   static const cajaAbierta = 'caja.abierta';

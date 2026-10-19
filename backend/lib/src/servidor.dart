@@ -22,14 +22,19 @@ import 'db/repositorio_caja.dart';
 import 'db/repositorio_idempotencia.dart';
 import 'db/repositorio_productos.dart';
 import 'db/repositorio_terminales.dart';
+import 'db/repositorio_usuarios.dart';
+import 'rutas/rutas_ajustes.dart';
 import 'rutas/rutas_caja.dart';
 import 'rutas/rutas_productos.dart';
 import 'rutas/rutas_terminales.dart';
+import 'rutas/rutas_usuarios.dart';
 import 'seed/datos_ejemplo.dart';
 import 'seed/fotos_ejemplo.dart';
+import 'servicios/servicio_ajustes.dart';
 import 'servicios/servicio_caja.dart';
 import 'servicios/servicio_productos.dart';
 import 'servicios/servicio_terminales.dart';
+import 'servicios/servicio_usuarios.dart';
 import 'ws/hub.dart';
 import 'db/repositorio_envases.dart';
 import 'db/repositorio_ventas.dart';
@@ -142,13 +147,33 @@ class DepositoServer {
         hub: hub,
         reloj: _reloj,
       );
-      final envases = ServicioEnvases(
+      final usuarios = ServicioUsuarios(
         db: db,
-        repositorio: repoEnvases,
+        repo: RepositorioUsuarios(db),
+        reloj: _reloj,
+      );
+      final servicioAjustes = ServicioAjustes(
+        db: db,
+        repo: ajustes,
+        reloj: _reloj,
+      );
+      final caja = ServicioCaja(
+        db: db,
+        repo: repoCaja,
+        idempotencia: idempotencia,
+        ajustes: ajustes,
+        usuarios: usuarios,
         hub: hub,
         reloj: _reloj,
       );
-
+      final envases = ServicioEnvases(
+        db: db,
+        repositorio: repoEnvases,
+        idempotencia: idempotencia,
+        caja: caja,
+        hub: hub,
+        reloj: _reloj,
+      );
       final ventas = ServicioVentas(
         db: db,
         repoVentas: repoVentas,
@@ -157,15 +182,7 @@ class DepositoServer {
         repoAjustes: ajustes,
         repoCaja: repoCaja,
         idempotencia: idempotencia,
-        hub: hub,
-        reloj: _reloj,
-      );
-
-      final caja = ServicioCaja(
-        db: db,
-        repo: repoCaja,
-        idempotencia: idempotencia,
-        ajustes: ajustes,
+        usuarios: usuarios,
         hub: hub,
         reloj: _reloj,
       );
@@ -211,6 +228,8 @@ class DepositoServer {
       montarRutasVentas(router, ventas);
       montarRutasPedidos(router, pedidos);
       montarRutasCaja(router, caja);
+      montarRutasUsuarios(router, usuarios);
+      montarRutasAjustes(router, servicioAjustes);
 
       final manejador = const Pipeline()
           .addMiddleware(registrarPeticiones(bitacora))

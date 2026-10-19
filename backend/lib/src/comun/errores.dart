@@ -83,6 +83,24 @@ class ErrorApi implements Exception {
     'La venta es de un turno que ya tiene corte: no se puede cancelar',
   );
 
+  factory ErrorApi.pinInvalido() => ErrorApi(
+    403,
+    'pin_invalido',
+    'Se necesita el PIN de un gerente o del dueño',
+  );
+
+  factory ErrorApi.sinPermiso() => ErrorApi(
+    403,
+    'sin_permiso',
+    'Ese PIN no tiene permiso para autorizar esta acción',
+  );
+
+  factory ErrorApi.demasiadosIntentos() => ErrorApi(
+    429,
+    'demasiados_intentos',
+    'Demasiados PIN incorrectos: espera un minuto',
+  );
+
   factory ErrorApi.interno() => ErrorApi(
     500,
     'error_interno',

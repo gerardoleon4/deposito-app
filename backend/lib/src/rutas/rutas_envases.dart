@@ -20,9 +20,18 @@ void montarRutasEnvases(
     return respuestaJson({'prestamos': envases.prestamos()});
   });
 
+  r.get('/api/v1/envases/movimientos', (Request p) {
+    return respuestaJson({
+      'movimientos': envases.movimientos(p.url.queryParameters),
+    });
+  });
+
   r.post('/api/v1/envases/prestamos', (Request p) async {
-    exigirCaja(p);
-    final res = envases.registrarPrestamo(await leerObjetoJson(p));
+    final sesion = exigirCaja(p);
+    final res = envases.registrarPrestamo(
+      await leerObjetoJson(p),
+      origen: sesion.nombre,
+    );
     return respuestaJson(res, estado: 201);
   });
 
@@ -30,15 +39,41 @@ void montarRutasEnvases(
     Request p,
     String id,
   ) async {
-    exigirCaja(p);
-    envases.devolver(id, await leerObjetoJsonOpcional(p));
+    final sesion = exigirCaja(p);
+    envases.devolver(
+      id,
+      await leerObjetoJsonOpcional(p),
+      origen: sesion.nombre,
+    );
     return Response(204);
   });
 
   r.post('/api/v1/envases/entrada', (Request p) async {
-    exigirCaja(p);
-    final balance = envases.registrarEntrada(await leerObjetoJson(p));
+    final sesion = exigirCaja(p);
+    final balance = envases.registrarEntrada(
+      await leerObjetoJson(p),
+      origen: sesion.nombre,
+    );
     return respuestaJson({'balance': balance});
+  });
+
+  r.post('/api/v1/envases/salida', (Request p) async {
+    final sesion = exigirCaja(p);
+    final balance = envases.registrarSalida(
+      await leerObjetoJson(p),
+      origen: sesion.nombre,
+    );
+    return respuestaJson({'balance': balance});
+  });
+
+  r.post('/api/v1/envases/devolucion-deposito', (Request p) async {
+    final sesion = exigirCaja(p);
+    final res = envases.devolverDeposito(
+      await leerObjetoJson(p),
+      origen: sesion.nombre,
+      claveIdempotencia: p.headers[cabeceraIdempotencia],
+    );
+    return respuestaJson(res, estado: 201);
   });
 
   r.post('/api/v1/envases/venta-vacios', (Request p) async {

@@ -12,7 +12,9 @@ import '../db/repositorio_caja.dart';
 import '../db/repositorio_idempotencia.dart';
 import '../modelos/caja.dart';
 import '../modelos/evento.dart';
+import '../modelos/usuario.dart';
 import '../ws/hub.dart';
+import 'servicio_usuarios.dart';
 
 /// Turnos de caja: apertura con fondo, movimientos de efectivo y corte.
 class ServicioCaja {
@@ -21,6 +23,7 @@ class ServicioCaja {
     required this._repo,
     required this._idempotencia,
     required this._ajustes,
+    required this._usuarios,
     required this._hub,
     this._reloj = relojSistema,
   });
@@ -29,6 +32,7 @@ class ServicioCaja {
   final RepositorioCaja _repo;
   final RepositorioIdempotencia _idempotencia;
   final RepositorioAjustes _ajustes;
+  final ServicioUsuarios _usuarios;
   final Hub _hub;
   final Reloj _reloj;
 
@@ -76,17 +80,20 @@ class ServicioCaja {
       max: 1000000000,
       mensaje: 'Debe ser un entero de 0 a 1,000,000,000 (centavos)',
     );
+    final usuarioId = v.texto('usuarioId', requerido: false, max: 40);
     v.comprobar();
 
     final ahora = _reloj();
     final id = generarId('tur');
     final turno = transaccion(_db, () {
       if (_repo.abierto() != null) throw ErrorApi.cajaAbierta();
+      _usuarios.activo(usuarioId);
       _repo.abrir(
         id: id,
         apertura: instanteIso(ahora),
         diaNegocio: diaNegocio(ahora, _ajustes.zonaHoraria),
         fondo: fondo!,
+        usuarioId: usuarioId,
       );
       return _turnoDe(_repo.porId(id)!);
     });
@@ -119,47 +126,70 @@ class ServicioCaja {
         return (jsonDecode(guardada) as Map).cast<String, Object?>();
       }
 
-      final fila = _repo.abierto();
-      if (fila == null) throw ErrorApi.cajaCerrada();
-      final turnoId = fila['id'] as String;
-      if (tipo == 'retiro') {
-        final esperado = _repo.resumen(turnoId, fila['fondo'] as int).esperado;
-        if (monto! > esperado) {
-          throw ErrorApi.datosInvalidos({
-            'monto':
-                'El retiro ($monto) es mayor que el efectivo esperado en '
-                'caja ($esperado)',
-          });
-        }
-      }
-
-      final movimiento = MovimientoCaja(
-        id: generarId('mc'),
+      final r = movimientoDentro(
         tipo: tipo!,
         monto: monto!,
         motivo: motivo!,
         fecha: fecha,
-      );
-      _repo.registrarMovimiento(
-        id: movimiento.id,
-        turnoId: turnoId,
-        tipo: movimiento.tipo,
-        monto: movimiento.monto,
-        motivo: movimiento.motivo,
-        fecha: fecha,
         origen: origen,
       );
-      turnoJson = _turnoDe(_repo.porId(turnoId)!).toJson();
-      final r = {'movimiento': movimiento.toJson(), 'turno': turnoJson};
+      turnoJson = r['turno'] as Map<String, Object?>;
       _idempotencia.guardarRespuesta(clave, jsonEncode(r), fecha);
       return r;
     });
 
-    if (!repetida) {
-      _hub.emitirACaja(TiposEvento.cajaActualizada, {'turno': turnoJson});
-    }
+    if (!repetida) emitirActualizada(turnoJson!);
     return respuesta;
   }
+
+  /// Registra un movimiento en el turno abierto, dentro de la transacción
+  /// de quien llama (por ejemplo, la devolución de depósito de envases).
+  /// Regresa `{ movimiento, turno }`; el aviso lo da [emitirActualizada]
+  /// después de confirmar.
+  Map<String, Object?> movimientoDentro({
+    required String tipo,
+    required int monto,
+    required String motivo,
+    required String fecha,
+    required String origen,
+  }) {
+    final fila = _repo.abierto();
+    if (fila == null) throw ErrorApi.cajaCerrada();
+    final turnoId = fila['id'] as String;
+    if (tipo == 'retiro') {
+      final esperado = _repo.resumen(turnoId, fila['fondo'] as int).esperado;
+      if (monto > esperado) {
+        throw ErrorApi.datosInvalidos({
+          'monto':
+              'El retiro ($monto) es mayor que el efectivo esperado en '
+              'caja ($esperado)',
+        });
+      }
+    }
+    final movimiento = MovimientoCaja(
+      id: generarId('mc'),
+      tipo: tipo,
+      monto: monto,
+      motivo: motivo,
+      fecha: fecha,
+    );
+    _repo.registrarMovimiento(
+      id: movimiento.id,
+      turnoId: turnoId,
+      tipo: tipo,
+      monto: monto,
+      motivo: motivo,
+      fecha: fecha,
+      origen: origen,
+    );
+    return {
+      'movimiento': movimiento.toJson(),
+      'turno': _turnoDe(_repo.porId(turnoId)!).toJson(),
+    };
+  }
+
+  void emitirActualizada(Map<String, Object?> turno) =>
+      _hub.emitirACaja(TiposEvento.cajaActualizada, {'turno': turno});
 
   /// Corte: guarda el esperado, lo contado y la diferencia. Regresa el turno
   /// cerrado como JSON (`{ turno }`).
@@ -175,6 +205,7 @@ class ServicioCaja {
       mensaje: 'Debe ser un entero de 0 a 1,000,000,000 (centavos)',
     );
     final nota = v.texto('nota', requerido: false, max: 200);
+    final usuarioId = v.texto('usuarioId', requerido: false, max: 40);
     final clave = v.claveIdempotencia(claveIdempotencia);
     v.comprobar();
 
@@ -190,6 +221,7 @@ class ServicioCaja {
 
       final fila = _repo.abierto();
       if (fila == null) throw ErrorApi.cajaCerrada();
+      _usuarios.activo(usuarioId);
       final id = fila['id'] as String;
       final esperado = _repo.resumen(id, fila['fondo'] as int).esperado;
       final diferencia = contado! - esperado;
@@ -208,6 +240,7 @@ class ServicioCaja {
         esperado: esperado,
         contado: contado,
         nota: nota,
+        usuarioId: usuarioId,
       );
       final r = {'turno': _turnoDe(_repo.porId(id)!).toJson()};
       _idempotencia.guardarRespuesta(clave, jsonEncode(r), cierre);
@@ -233,6 +266,7 @@ class ServicioCaja {
         ventasEfectivo: resumen.ventasEfectivo,
         ventasTarjeta: resumen.ventasTarjeta,
         envases: resumen.envases,
+        devoluciones: resumen.devoluciones,
         ingresos: resumen.ingresos,
         retiros: resumen.retiros,
         esperado: f['esperado'] as int,
@@ -249,6 +283,10 @@ class ServicioCaja {
       contado: f['contado'] as int?,
       diferencia: f['diferencia'] as int?,
       nota: f['nota'] as String?,
+      usuarioApertura: UsuarioBreve.deJson(
+        _repo.usuario(f['usuario_apertura']),
+      ),
+      usuarioCierre: UsuarioBreve.deJson(_repo.usuario(f['usuario_cierre'])),
     );
   }
 }

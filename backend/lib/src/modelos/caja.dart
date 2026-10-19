@@ -1,3 +1,5 @@
+import 'usuario.dart';
+
 /// Totales de un turno de caja. Todo en centavos salvo los conteos.
 class ResumenTurno {
   const ResumenTurno({
@@ -6,6 +8,7 @@ class ResumenTurno {
     required this.ventasEfectivo,
     required this.ventasTarjeta,
     required this.envases,
+    this.devoluciones = 0,
     required this.ingresos,
     required this.retiros,
     required this.esperado,
@@ -24,6 +27,10 @@ class ResumenTurno {
   /// Informativo: ya está dentro de [ventasEfectivo] y [ventasTarjeta].
   final int envases;
 
+  /// Regresado por cancelaciones y devoluciones parciales, de los dos
+  /// métodos. Informativo: ya se restó de las ventas.
+  final int devoluciones;
+
   /// Movimientos de caja.
   final int ingresos;
   final int retiros;
@@ -37,6 +44,7 @@ class ResumenTurno {
     ventasEfectivo: j['ventasEfectivo'] as int,
     ventasTarjeta: j['ventasTarjeta'] as int,
     envases: j['envases'] as int,
+    devoluciones: j['devoluciones'] as int? ?? 0,
     ingresos: j['ingresos'] as int,
     retiros: j['retiros'] as int,
     esperado: j['esperado'] as int,
@@ -48,6 +56,7 @@ class ResumenTurno {
     'ventasEfectivo': ventasEfectivo,
     'ventasTarjeta': ventasTarjeta,
     'envases': envases,
+    'devoluciones': devoluciones,
     'ingresos': ingresos,
     'retiros': retiros,
     'esperado': esperado,
@@ -67,6 +76,8 @@ class Turno {
     this.contado,
     this.diferencia,
     this.nota,
+    this.usuarioApertura,
+    this.usuarioCierre,
   });
 
   final String id;
@@ -92,6 +103,10 @@ class Turno {
   final int? diferencia;
   final String? nota;
 
+  /// Quién abrió y quién hizo el corte, si se indicó.
+  final UsuarioBreve? usuarioApertura;
+  final UsuarioBreve? usuarioCierre;
+
   bool get abierto => estado == 'abierto';
 
   factory Turno.fromJson(Map<String, Object?> j) => Turno(
@@ -105,6 +120,8 @@ class Turno {
     contado: j['contado'] as int?,
     diferencia: j['diferencia'] as int?,
     nota: j['nota'] as String?,
+    usuarioApertura: UsuarioBreve.deJson(j['usuarioApertura']),
+    usuarioCierre: UsuarioBreve.deJson(j['usuarioCierre']),
   );
 
   Map<String, Object?> toJson() => {
@@ -118,6 +135,8 @@ class Turno {
     'contado': contado,
     'diferencia': diferencia,
     'nota': nota,
+    'usuarioApertura': usuarioApertura?.toJson(),
+    'usuarioCierre': usuarioCierre?.toJson(),
   };
 }
 

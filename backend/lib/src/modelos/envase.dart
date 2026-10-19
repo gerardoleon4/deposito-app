@@ -49,6 +49,7 @@ class PrestamoEnvase {
   const PrestamoEnvase({
     required this.id,
     required this.cliente,
+    this.telefono,
     required this.formato,
     required this.cantidad,
     this.devueltos = 0,
@@ -57,6 +58,7 @@ class PrestamoEnvase {
 
   final String id;
   final String cliente;
+  final String? telefono;
 
   /// Uno de [formatosEnvase].
   final String formato;
@@ -73,6 +75,7 @@ class PrestamoEnvase {
   factory PrestamoEnvase.fromJson(Map<String, Object?> j) => PrestamoEnvase(
     id: j['id'] as String,
     cliente: j['cliente'] as String,
+    telefono: j['telefono'] as String?,
     formato: j['formato'] as String,
     cantidad: j['cantidad'] as int,
     devueltos: j['devueltos'] as int? ?? 0,
@@ -82,9 +85,69 @@ class PrestamoEnvase {
   Map<String, Object?> toJson() => {
     'id': id,
     'cliente': cliente,
+    'telefono': telefono,
     'formato': formato,
     'cantidad': cantidad,
     'devueltos': devueltos,
     'fecha': fecha,
+  };
+}
+
+/// Un cambio del balance de envases (`GET /api/v1/envases/movimientos`).
+class MovimientoEnvase {
+  const MovimientoEnvase({
+    required this.id,
+    required this.fecha,
+    required this.formato,
+    required this.tipo,
+    required this.bodega,
+    required this.prestados,
+    this.cliente,
+    this.monto,
+    this.referencia,
+  });
+
+  final int id;
+
+  /// ISO 8601 UTC.
+  final String fecha;
+  final String formato;
+
+  /// `entrada`, `salida`, `prestamo`, `devolucion_prestamo`, `venta_trae`,
+  /// `venta_prestamo`, `credito`, `venta_vacios`, `devolucion_deposito` o
+  /// `cancelacion`.
+  final String tipo;
+
+  /// Cambio con signo.
+  final int bodega;
+  final int prestados;
+  final String? cliente;
+
+  /// Centavos que entraron (+) o salieron (−) de caja, o `null`.
+  final int? monto;
+  final String? referencia;
+
+  factory MovimientoEnvase.fromJson(Map<String, Object?> j) => MovimientoEnvase(
+    id: j['id'] as int,
+    fecha: j['fecha'] as String,
+    formato: j['formato'] as String,
+    tipo: j['tipo'] as String,
+    bodega: j['bodega'] as int,
+    prestados: j['prestados'] as int,
+    cliente: j['cliente'] as String?,
+    monto: j['monto'] as int?,
+    referencia: j['referencia'] as String?,
+  );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'fecha': fecha,
+    'formato': formato,
+    'tipo': tipo,
+    'bodega': bodega,
+    'prestados': prestados,
+    'cliente': cliente,
+    'monto': monto,
+    'referencia': referencia,
   };
 }
