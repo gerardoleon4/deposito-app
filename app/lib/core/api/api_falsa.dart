@@ -13,10 +13,14 @@ class ApiFalsa implements Api {
     List<Terminal>? terminales,
     Map<String, BalanceEnvase>? envases,
     List<PrestamoEnvase>? prestamos,
+    bool cajaAbierta = true,
   }) : productos = productos ?? productosDePrueba(),
        terminales = terminales ?? [],
-       envases = envases ?? balanceDePrueba(),
-       prestamos = prestamos ?? [];
+       envases = envases ?? balanceDePrueba(prestamos: prestamos ?? []),
+       prestamos = prestamos ?? [] {
+    // Como el servidor con datos de ejemplo: se puede cobrar desde el inicio.
+    if (cajaAbierta) _abrir(fondoDePrueba);
+  }
 
   final List<Producto> productos;
   final List<Terminal> terminales;
@@ -217,6 +221,7 @@ class ApiFalsa implements Api {
   }) async {
     final repetida = ventas[claveIdempotencia];
     if (repetida != null) return repetida;
+    final turnoId = _turnoAbiertoId();
 
     var total = 0;
     final piezas = <String, int>{};
@@ -254,7 +259,41 @@ class ApiFalsa implements Api {
         'existenciaPiezas': p.existenciaPiezas - e.value,
       });
     }
+    return _cobrar(
+      claveIdempotencia: claveIdempotencia,
+      turnoId: turnoId,
+      total: total,
+      metodo: metodo,
+      recibido: recibido,
+      envModo: 'na',
+      envN: 0,
+      envMonto: 0,
+      lineas: lineasTicket,
+    );
+  }
+
+  VentaRegistrada _cobrar({
+    required String claveIdempotencia,
+    required String turnoId,
+    required int total,
+    required String metodo,
+    required int? recibido,
+    required String envModo,
+    required int envN,
+    required int envMonto,
+    required List<LineaTicket> lineas,
+  }) {
     final pagado = metodo == 'tarjeta' ? total : (recibido ?? total);
+    if (pagado < total) {
+      throw FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {
+          'recibido': 'Recibido ($pagado) es menor que el total ($total)',
+        },
+        estado: 400,
+      );
+    }
     final venta = VentaRegistrada(
       id: 'v_${ventas.length + 1}',
       folio: 1001 + ventas.length,
@@ -264,6 +303,7 @@ class ApiFalsa implements Api {
       metodo: metodo,
       recibido: pagado,
       cambio: pagado - total,
+      turnoId: turnoId,
     );
     ventas[claveIdempotencia] = venta;
     detalles.insert(
@@ -277,12 +317,13 @@ class ApiFalsa implements Api {
         metodo: metodo,
         recibido: pagado,
         cambio: pagado - total,
-        envModo: 'na',
-        envN: 0,
-        envMonto: 0,
+        envModo: envModo,
+        envN: envN,
+        envMonto: envMonto,
         origen: 'Caja',
         cancelada: false,
-        lineas: lineasTicket,
+        turnoId: turnoId,
+        lineas: lineas,
       ),
     );
     return venta;
@@ -292,18 +333,24 @@ class ApiFalsa implements Api {
   final detalles = <DetalleVenta>[];
 
   @override
-  Future<List<ResumenVenta>> listarVentas() async => [
-    for (final d in detalles)
-      ResumenVenta(
-        id: d.id,
-        folio: d.folio,
-        fecha: d.fecha,
-        total: d.total,
-        metodo: d.metodo,
-        origen: d.origen,
-        cancelada: d.cancelada,
-      ),
-  ];
+  Future<List<ResumenVenta>> listarVentas({String? turno}) async {
+    final turnoId = turno == 'actual' ? _abierto?.id : turno;
+    if (turno != null && turnoId == null) return [];
+    return [
+      for (final d in detalles)
+        if (turnoId == null || d.turnoId == turnoId)
+          ResumenVenta(
+            id: d.id,
+            folio: d.folio,
+            fecha: d.fecha,
+            total: d.total,
+            metodo: d.metodo,
+            origen: d.origen,
+            cancelada: d.cancelada,
+            turnoId: d.turnoId,
+          ),
+    ];
+  }
 
   @override
   Future<DetalleVenta> obtenerVenta(String id) async => _detalle(id);
@@ -317,6 +364,13 @@ class ApiFalsa implements Api {
         'Revisa los campos marcados',
         campos: {'cancelada': 'La venta ya fue cancelada'},
         estado: 400,
+      );
+    }
+    if (d.turnoId == null || d.turnoId != _abierto?.id) {
+      throw const FalloApi(
+        'turno_cerrado',
+        'La venta es de un turno que ya tiene corte: no se puede cancelar',
+        estado: 409,
       );
     }
     for (final l in d.lineas) {
@@ -368,7 +422,7 @@ class ApiFalsa implements Api {
   }
 
   @override
-  Future<void> devolverPrestamo(String id) async {
+  Future<void> devolverPrestamo(String id, {int? cantidad}) async {
     final p =
         prestamos.where((p) => p.id == id).firstOrNull ??
         (throw const FalloApi(
@@ -376,8 +430,65 @@ class ApiFalsa implements Api {
           'No existe el préstamo',
           estado: 404,
         ));
-    prestamos.remove(p);
-    _moverEnvases(p.formato, bodega: p.cantidad, prestados: -p.cantidad);
+    final n = cantidad ?? p.cantidad;
+    if (n < 1 || n > p.cantidad) {
+      throw FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {'cantidad': 'Solo faltan ${p.cantidad} envases por devolver'},
+        estado: 400,
+      );
+    }
+    final i = prestamos.indexOf(p);
+    if (n == p.cantidad) {
+      prestamos.removeAt(i);
+    } else {
+      prestamos[i] = PrestamoEnvase(
+        id: p.id,
+        cliente: p.cliente,
+        formato: p.formato,
+        cantidad: p.cantidad - n,
+        devueltos: p.devueltos + n,
+        fecha: p.fecha,
+      );
+    }
+    _moverEnvases(p.formato, bodega: n, prestados: -n);
+  }
+
+  @override
+  Future<VentaRegistrada> venderVacios({
+    required String formato,
+    required int cantidad,
+    required String metodo,
+    int? recibido,
+    required String claveIdempotencia,
+  }) async {
+    final repetida = ventas[claveIdempotencia];
+    if (repetida != null) return repetida;
+    final turnoId = _turnoAbiertoId();
+    final b = envases[formato]!;
+    if (b.bodega < cantidad) {
+      throw FalloApi(
+        'envases_insuficientes',
+        'No hay suficientes envases $formato vacíos: quedan ${b.bodega} en '
+            'bodega',
+        estado: 409,
+      );
+    }
+    final total = cantidad * b.precio;
+    final venta = _cobrar(
+      claveIdempotencia: claveIdempotencia,
+      turnoId: turnoId,
+      total: total,
+      metodo: metodo,
+      recibido: recibido,
+      envModo: 'cobrar',
+      envN: cantidad,
+      envMonto: total,
+      lineas: const [],
+    );
+    _moverEnvases(formato, bodega: -cantidad);
+    return venta;
   }
 
   @override
@@ -387,6 +498,184 @@ class ApiFalsa implements Api {
   }) async {
     _moverEnvases(formato, bodega: cantidad);
     return Map.of(envases);
+  }
+
+  // --- Caja ---
+
+  _TurnoFalso? _abierto;
+  final _cortes = <_TurnoFalso>[];
+  var _turnos = 0;
+  var _movimientos = 0;
+
+  /// Respuestas de movimientos y cierres, por clave de idempotencia.
+  final _respuestasCaja = <String, Object>{};
+
+  String _turnoAbiertoId() =>
+      _abierto?.id ??
+      (throw const FalloApi(
+        'caja_cerrada',
+        'La caja está cerrada: abre un turno para continuar',
+        estado: 409,
+      ));
+
+  _TurnoFalso _abrir(int fondo) =>
+      _abierto = _TurnoFalso('tur_${++_turnos}', fondo);
+
+  Turno _turno(_TurnoFalso t) {
+    final propias = [
+      for (final d in detalles)
+        if (d.turnoId == t.id) d,
+    ];
+    final validas = propias.where((d) => !d.cancelada);
+    int suma(Iterable<int> xs) => xs.fold(0, (a, b) => a + b);
+    final efectivo = suma([
+      for (final d in validas)
+        if (d.metodo == 'efectivo') d.total,
+    ]);
+    final ingresos = suma([
+      for (final m in t.movimientos)
+        if (m.tipo == 'ingreso') m.monto,
+    ]);
+    final retiros = suma([
+      for (final m in t.movimientos)
+        if (m.tipo == 'retiro') m.monto,
+    ]);
+    return Turno(
+      id: t.id,
+      estado: t.contado == null ? 'abierto' : 'cerrado',
+      apertura: '2026-10-02T14:00:00Z',
+      cierre: t.contado == null ? null : '2026-10-02T23:00:00Z',
+      diaNegocio: '2026-10-02',
+      fondo: t.fondo,
+      resumen: ResumenTurno(
+        ventas: validas.length,
+        canceladas: propias.length - validas.length,
+        ventasEfectivo: efectivo,
+        ventasTarjeta: suma([
+          for (final d in validas)
+            if (d.metodo == 'tarjeta') d.total,
+        ]),
+        envases: suma([for (final d in validas) d.envMonto]),
+        ingresos: ingresos,
+        retiros: retiros,
+        esperado: t.fondo + efectivo + ingresos - retiros,
+      ),
+      contado: t.contado,
+      diferencia: t.contado == null
+          ? null
+          : t.contado! - (t.fondo + efectivo + ingresos - retiros),
+      nota: t.nota,
+    );
+  }
+
+  @override
+  Future<DetalleTurno> turnoActual() async {
+    final t = _abierto;
+    if (t == null) return const DetalleTurno(turno: null, movimientos: []);
+    return DetalleTurno(turno: _turno(t), movimientos: List.of(t.movimientos));
+  }
+
+  @override
+  Future<Turno> abrirCaja({required int fondo}) async {
+    if (_abierto != null) {
+      throw const FalloApi(
+        'caja_abierta',
+        'Ya hay un turno de caja abierto',
+        estado: 409,
+      );
+    }
+    return _turno(_abrir(fondo));
+  }
+
+  @override
+  Future<({MovimientoCaja movimiento, Turno turno})> registrarMovimientoCaja({
+    required String tipo,
+    required int monto,
+    required String motivo,
+    required String claveIdempotencia,
+  }) async {
+    final repetida = _respuestasCaja[claveIdempotencia];
+    if (repetida != null) {
+      return repetida as ({MovimientoCaja movimiento, Turno turno});
+    }
+    _turnoAbiertoId();
+    final t = _abierto!;
+    if (tipo == 'retiro' && monto > _turno(t).resumen.esperado) {
+      throw FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {
+          'monto':
+              'El retiro ($monto) es mayor que el efectivo esperado en '
+              'caja (${_turno(t).resumen.esperado})',
+        },
+        estado: 400,
+      );
+    }
+    final m = MovimientoCaja(
+      id: 'mc_${++_movimientos}',
+      tipo: tipo,
+      monto: monto,
+      motivo: motivo.trim(),
+      fecha: '2026-10-02T18:30:00Z',
+    );
+    t.movimientos.add(m);
+    final r = (movimiento: m, turno: _turno(t));
+    _respuestasCaja[claveIdempotencia] = r;
+    return r;
+  }
+
+  @override
+  Future<Turno> cerrarCaja({
+    required int contado,
+    String? nota,
+    required String claveIdempotencia,
+  }) async {
+    final repetida = _respuestasCaja[claveIdempotencia];
+    if (repetida != null) return repetida as Turno;
+    _turnoAbiertoId();
+    final t = _abierto!;
+    final esperado = _turno(t).resumen.esperado;
+    final textoNota = nota?.trim();
+    if (contado != esperado && (textoNota == null || textoNota.isEmpty)) {
+      final diferencia = contado - esperado;
+      throw FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {
+          'nota':
+              'Explica la diferencia: hay '
+              '${diferencia < 0 ? 'un faltante' : 'un sobrante'} de '
+              '${diferencia.abs()} centavos',
+        },
+        estado: 400,
+      );
+    }
+    t
+      ..contado = contado
+      ..nota = textoNota;
+    _abierto = null;
+    _cortes.insert(0, t);
+    final corte = _turno(t);
+    _respuestasCaja[claveIdempotencia] = corte;
+    return corte;
+  }
+
+  @override
+  Future<List<Turno>> listarCortes({String? desde, String? hasta}) async => [
+    for (final t in _cortes) _turno(t),
+  ];
+
+  @override
+  Future<DetalleTurno> obtenerCorte(String id) async {
+    final t =
+        [?_abierto, ..._cortes].where((t) => t.id == id).firstOrNull ??
+        (throw const FalloApi(
+          'no_encontrado',
+          'No existe el turno',
+          estado: 404,
+        ));
+    return DetalleTurno(turno: _turno(t), movimientos: List.of(t.movimientos));
   }
 
   void _moverEnvases(String formato, {int bodega = 0, int prestados = 0}) {
@@ -400,27 +689,50 @@ class ApiFalsa implements Api {
   }
 }
 
-/// El balance con que arranca la base (migración m002).
-Map<String, BalanceEnvase> balanceDePrueba() => {
-  'mega': const BalanceEnvase(
-    formato: 'mega',
-    bodega: 84,
-    prestados: 36,
-    precio: 800,
-  ),
-  'media': const BalanceEnvase(
-    formato: 'media',
-    bodega: 240,
-    prestados: 48,
-    precio: 300,
-  ),
-  'cuarto': const BalanceEnvase(
-    formato: 'cuarto',
-    bodega: 168,
-    prestados: 24,
-    precio: 300,
-  ),
-};
+/// Fondo del turno con que arranca la caja falsa, como el servidor con datos
+/// de ejemplo: $500.00.
+const fondoDePrueba = 50000;
+
+/// Turno en memoria de [ApiFalsa]; cerrado cuando tiene [contado].
+class _TurnoFalso {
+  _TurnoFalso(this.id, this.fondo);
+
+  final String id;
+  final int fondo;
+  final movimientos = <MovimientoCaja>[];
+  int? contado;
+  String? nota;
+}
+
+/// El balance con que arranca la base (migraciones m002 y m005). Como en el
+/// servidor, los prestados son la suma de lo pendiente de [prestamos].
+Map<String, BalanceEnvase> balanceDePrueba({
+  List<PrestamoEnvase> prestamos = const [],
+}) {
+  int prestados(String formato) => prestamos
+      .where((p) => p.formato == formato)
+      .fold(0, (t, p) => t + p.cantidad);
+  return {
+    'mega': BalanceEnvase(
+      formato: 'mega',
+      bodega: 84,
+      prestados: prestados('mega'),
+      precio: 800,
+    ),
+    'media': BalanceEnvase(
+      formato: 'media',
+      bodega: 240,
+      prestados: prestados('media'),
+      precio: 300,
+    ),
+    'cuarto': BalanceEnvase(
+      formato: 'cuarto',
+      bodega: 168,
+      prestados: prestados('cuarto'),
+      precio: 300,
+    ),
+  };
+}
 
 List<Producto> productosDePrueba() {
   Producto p(

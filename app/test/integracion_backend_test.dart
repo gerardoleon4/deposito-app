@@ -163,6 +163,90 @@ void main() {
     expect(await caja.listarPrestamos(), isEmpty);
   });
 
+  test('la caja hace su turno completo hasta el corte', () async {
+    // Con datos de ejemplo el servidor arranca con un turno abierto.
+    final inicio = await caja.turnoActual();
+    final turno = inicio.turno!;
+    expect(turno.abierto, isTrue);
+    expect(turno.fondo, 50000);
+    await expectLater(
+      caja.abrirCaja(fondo: 0),
+      throwsA(
+        isA<FalloApi>().having((f) => f.codigo, 'codigo', 'caja_abierta'),
+      ),
+    );
+
+    final hielo = (await caja.buscarPorCodigo('7502000000017'))!;
+    final venta = await caja.registrarVenta(
+      lineas: [LineaVenta(productoId: hielo.id, porCaja: false, cantidad: 1)],
+      metodo: 'efectivo',
+      claveIdempotencia: 'cobro-integracion-turno',
+    );
+    expect(venta.turnoId, turno.id);
+    final vacios = await caja.venderVacios(
+      formato: 'mega',
+      cantidad: 2,
+      metodo: 'efectivo',
+      claveIdempotencia: 'vacios-integracion-turno',
+    );
+    expect(vacios.total, 1600);
+    expect(await caja.listarVentas(turno: 'actual'), hasLength(2));
+
+    final mov = await caja.registrarMovimientoCaja(
+      tipo: 'retiro',
+      monto: 1000,
+      motivo: 'Pago proveedor hielo',
+      claveIdempotencia: 'retiro-integracion-1',
+    );
+    expect(mov.movimiento.motivo, 'Pago proveedor hielo');
+    final esperado = 50000 + hielo.precio + 1600 - 1000;
+    expect(mov.turno.resumen.esperado, esperado);
+
+    await expectLater(
+      caja.cerrarCaja(contado: 0, claveIdempotencia: 'corte-integracion-0'),
+      throwsA(isA<FalloApi>().having((f) => f.campos.keys, 'campos', ['nota'])),
+    );
+    final corte = await caja.cerrarCaja(
+      contado: esperado,
+      claveIdempotencia: 'corte-integracion-1',
+    );
+    expect(corte.estado, 'cerrado');
+    expect(corte.diferencia, 0);
+
+    expect((await caja.turnoActual()).turno, isNull);
+    await expectLater(
+      caja.registrarVenta(
+        lineas: [LineaVenta(productoId: hielo.id, porCaja: false, cantidad: 1)],
+        metodo: 'efectivo',
+        claveIdempotencia: 'cobro-integracion-cerrada',
+      ),
+      throwsA(
+        isA<FalloApi>().having((f) => f.codigo, 'codigo', 'caja_cerrada'),
+      ),
+    );
+    expect((await caja.listarCortes()).single.id, turno.id);
+    final detalle = await caja.obtenerCorte(turno.id);
+    expect(detalle.movimientos.single.tipo, 'retiro');
+
+    final nuevo = await caja.abrirCaja(fondo: 20000);
+    expect(nuevo.id, isNot(turno.id));
+  });
+
+  test('un préstamo se devuelve por partes', () async {
+    final prestamo = await caja.prestarEnvases(
+      cliente: 'Don Pedro',
+      formato: 'mega',
+      cantidad: 10,
+    );
+    await caja.devolverPrestamo(prestamo.id, cantidad: 3);
+    final activo = (await caja.listarPrestamos()).single;
+    expect(activo.cantidad, 7);
+    expect(activo.devueltos, 3);
+    await caja.devolverPrestamo(prestamo.id);
+    expect(await caja.listarPrestamos(), isEmpty);
+    expect((await caja.obtenerBalanceEnvases())['mega']!.prestados, 0);
+  });
+
   test('sin existencias el error llega como stock_insuficiente', () async {
     final p = (await caja.listarProductos()).first;
     await expectLater(
