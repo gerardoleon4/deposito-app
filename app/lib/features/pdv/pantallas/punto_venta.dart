@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../app/tema/colores.dart';
 import '../../../core/formato/formato.dart';
 import '../../../core/widgets/estados.dart';
+import '../../../core/widgets/ilustracion_producto.dart';
 import '../../catalogo/estado/productos.dart';
 import '../../terminal/pantallas/escaner.dart';
 import '../estado/carrito.dart';
@@ -674,14 +675,6 @@ class _TarjetaProducto extends StatelessWidget {
   final int enCarrito;
   final VoidCallback alTocar;
 
-  IconData get _icono => switch (producto.categoria) {
-    'cerveza' => Icons.sports_bar_rounded,
-    'botana' => Icons.fastfood_rounded,
-    'hielo' => Icons.ac_unit_rounded,
-    'refresco' => Icons.local_drink_rounded,
-    _ => Icons.inventory_2_rounded,
-  };
-
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
@@ -703,20 +696,11 @@ class _TarjetaProducto extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Expanded(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: c.superficie2,
-                      borderRadius: const BorderRadius.vertical(
-                        top: Radius.circular(16),
-                      ),
+                  child: ClipRRect(
+                    borderRadius: const BorderRadius.vertical(
+                      top: Radius.circular(16),
                     ),
-                    child: Center(
-                      child: Icon(
-                        _icono,
-                        size: 48,
-                        color: c.azul.withValues(alpha: 0.5),
-                      ),
-                    ),
+                    child: IlustracionProducto(producto: producto, radio: 0),
                   ),
                 ),
                 Padding(

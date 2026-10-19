@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:test/test.dart';
 import 'package:web_socket_channel/io.dart';
 
@@ -368,7 +370,39 @@ void main() {
       addTearDown(conEjemplos.cerrar);
       final lista =
           json(await conEjemplos.get('/api/v1/productos'))['productos'] as List;
-      expect(lista, hasLength(11));
+      expect(lista, hasLength(12));
+    },
+  );
+
+  test(
+    'con datos de ejemplo los productos traen las fotos de la app',
+    () async {
+      final carpeta = '../app/$carpetaFotosEjemplo';
+      final fotos = {
+        for (final archivo in fotosDeEjemplo.values.toSet())
+          archivo: File('$carpeta/$archivo').readAsBytesSync(),
+      };
+      final demo = await crearServidorDePrueba(
+        datosEjemplo: true,
+        fotosEjemplo: fotos,
+      );
+      addTearDown(demo.cerrar);
+
+      final productos =
+          json(await demo.get('/api/v1/productos'))['productos'] as List;
+      final porCodigo = {
+        for (final p in productos.cast<Map<String, Object?>>()) p['codigo']: p,
+      };
+      for (final codigo in fotosDeEjemplo.keys) {
+        expect(porCodigo[codigo]!['foto'], isNotNull, reason: codigo);
+      }
+      expect(porCodigo['7502000000024']!['foto'], isNull, reason: 'Coca-Cola');
+
+      final victoria = porCodigo['7501064191015']!;
+      final foto = await demo.get(victoria['foto'] as String);
+      expect(foto.statusCode, 200);
+      expect(foto.headers['content-type'], 'image/webp');
+      expect(foto.bodyBytes, fotos['victoria.webp']);
     },
   );
 }

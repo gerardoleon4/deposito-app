@@ -36,6 +36,10 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  # Fotos de los productos de ejemplo (fotosDeEjemplo en el backend).
+  assets:
+    - assets/productos/
+
   # Barlow (licencia OFL, assets/fonts/OFL.txt). Va dentro de la app porque
   # el depósito no tiene internet.
   fonts:
