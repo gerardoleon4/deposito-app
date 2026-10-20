@@ -3,6 +3,24 @@
 Formato: una sección por versión del backend (tag), con lo que se agregó y lo que cambió en el contrato de la API.
 
 ## Sin publicar (rumbo a v0.1.0)
+
+### Caja, personal, devoluciones y envases completos
+
+#### Contrato
+- Caja: turno (`GET/POST /caja/turno`, cerrar con corte), movimientos de efectivo y cortes con arqueo. Ventas y cobros exigen turno abierto (`caja_cerrada`).
+- Usuarios con PIN (dueño, gerente, cajero), verificación de PIN con bloqueo tras 5 intentos y autorización de gerente o dueño para acciones sensibles.
+- Ajustes del negocio para el ticket y respaldo de la base (crear, verificar y restaurar).
+- Ventas: descuento por renglón, crédito por vacíos extra (`envCredito`), quién cobró (`usuarioId`), devolución parcial por `lineaId` y cancelación como devolución del resto.
+- Envases: salida sin cobro, devolución de depósito y movimientos.
+- Eventos `venta.devuelta` y `caja.*` (solo a la caja).
+
+#### Backend
+- Migración 005: turnos, movimientos de caja, cortes y conciliación de envases prestados.
+- Migración 006: usuarios, devoluciones, descuentos, crédito por vacíos y movimientos de envases.
+- Fotos de los productos de ejemplo (diseño de Pablo).
+
+#### App
+- API de caja, personal, devoluciones, descuentos y envases, también en `ApiFalsa`.
 Migración 002: tablas para ventas, venta_lineas, pedidos y balance_envases.   
 Endpoints POST/GET /api/v1/ventas, POST/GET/DELETE /api/v1/pedidos y GET/POST /api/v1/envases.   
 Eventos de tiempo real para actualización de envases y creación de pedidos.  
