@@ -5,11 +5,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../app/tema/colores.dart';
 import '../../app/tema/tema.dart';
 import '../api/proveedores.dart';
+import '../servidor/servidor_embebido.dart' show cargarDatosEjemplo;
 
-/// Imagen del producto: su foto si tiene (se pide a la caja con la clave),
-/// y si no, o mientras carga, o si falla, una ilustración: una botella, lata,
-/// bolsa o bolsa de hielo según su envase y categoría, sobre el color de su
-/// categoría. La ilustración se dibuja en código: no pesa ni necesita red.
+/// Imagen del producto, en este orden:
+/// 1. su foto subida (se pide a la caja con la clave);
+/// 2. si es un producto de ejemplo, la foto del diseño de Pablo que viene en
+///    los assets (`fotosDeEjemplo`): así se ve también en web, en pruebas y
+///    mientras la foto del servidor carga o si falla;
+/// 3. si no, una ilustración: una botella, lata, bolsa o bolsa de hielo según
+///    su envase y categoría, sobre el color de su categoría. Se dibuja en
+///    código: no pesa ni necesita red.
 class IlustracionProducto extends ConsumerWidget {
   const IlustracionProducto({
     super.key,
@@ -31,27 +36,39 @@ class IlustracionProducto extends ConsumerWidget {
       ),
       child: const SizedBox.expand(),
     );
+    final archivoEjemplo = cargarDatosEjemplo
+        ? fotosDeEjemplo[producto.codigo]
+        : null;
+    final ejemplo = archivoEjemplo == null
+        ? null
+        : Padding(
+            padding: const EdgeInsets.all(8),
+            child: Image.asset(
+              '$carpetaFotosEjemplo/$archivoEjemplo',
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => dibujo,
+            ),
+          );
+    final respaldo = ejemplo ?? dibujo;
     final foto = producto.foto;
     final api = foto == null ? null : ref.watch(apiProvider).value;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radio),
       child: ColoredBox(
         // Las fotos de producto suelen venir sobre fondo blanco.
-        color: api == null
+        color: api == null && ejemplo == null
             ? c.fondoCategoria(producto.categoria)
             : Colors.white,
         child: api == null
-            ? dibujo
-            : Padding(
-                padding: const EdgeInsets.all(8),
-                child: Image.network(
-                  api.base.resolve(foto!).toString(),
-                  headers: {cabeceraClave: api.clave},
-                  fit: BoxFit.contain,
-                  frameBuilder: (_, imagen, cuadro, _) =>
-                      cuadro == null ? dibujo : imagen,
-                  errorBuilder: (_, _, _) => dibujo,
-                ),
+            ? respaldo
+            : Image.network(
+                api.base.resolve(foto!).toString(),
+                headers: {cabeceraClave: api.clave},
+                fit: BoxFit.contain,
+                frameBuilder: (_, imagen, cuadro, _) => cuadro == null
+                    ? respaldo
+                    : Padding(padding: const EdgeInsets.all(8), child: imagen),
+                errorBuilder: (_, _, _) => respaldo,
               ),
       ),
     );

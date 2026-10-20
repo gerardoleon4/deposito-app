@@ -15,7 +15,7 @@ import 'fallo_api.dart';
 /// En pruebas se sobrescribe con `ApiFalsa`.
 final apiProvider = FutureProvider<Api>((ref) async {
   if (kIsWeb) {
-    return ApiFalsa();
+    return ApiFalsa(productos: productosDeDemo());
   }
   final config = ref.watch(configuracionProvider);
   switch (config.modo) {

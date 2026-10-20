@@ -1255,39 +1255,39 @@ Map<String, BalanceEnvase> balanceDePrueba({
   };
 }
 
-List<Producto> productosDePrueba() {
-  Producto p(
-    String id,
-    String codigo,
-    String nombre,
-    String categoria,
-    String presentacion,
-    int precio,
-    int existencia,
-    int minimo, {
-    int? precioCaja,
-    int? piezasPorCaja,
-    String? envase,
-    String? caducidad,
-  }) => Producto(
-    id: id,
-    codigo: codigo,
-    nombre: nombre,
-    categoria: categoria,
-    presentacion: presentacion,
-    precio: precio,
-    precioCaja: precioCaja,
-    piezasPorCaja: piezasPorCaja,
-    existenciaPiezas: existencia,
-    minimo: minimo,
-    envase: envase,
-    caducidad: caducidad,
-    creado: '2026-10-02T18:30:00Z',
-    actualizado: '2026-10-02T18:30:00Z',
-  );
+Producto _p(
+  String id,
+  String codigo,
+  String nombre,
+  String categoria,
+  String presentacion,
+  int precio,
+  int existencia,
+  int minimo, {
+  int? precioCaja,
+  int? piezasPorCaja,
+  String? envase,
+  String? caducidad,
+}) => Producto(
+  id: id,
+  codigo: codigo,
+  nombre: nombre,
+  categoria: categoria,
+  presentacion: presentacion,
+  precio: precio,
+  precioCaja: precioCaja,
+  piezasPorCaja: piezasPorCaja,
+  existenciaPiezas: existencia,
+  minimo: minimo,
+  envase: envase,
+  caducidad: caducidad,
+  creado: '2026-10-02T18:30:00Z',
+  actualizado: '2026-10-02T18:30:00Z',
+);
 
+List<Producto> productosDePrueba() {
   return [
-    p(
+    _p(
       'p_1',
       '7501064191015',
       'Victoria Mega',
@@ -1301,7 +1301,7 @@ List<Producto> productosDePrueba() {
       envase: 'mega',
       caducidad: '2027-01-29',
     ),
-    p(
+    _p(
       'p_2',
       '7501064191022',
       'Corona Mega',
@@ -1315,7 +1315,7 @@ List<Producto> productosDePrueba() {
       envase: 'mega',
       caducidad: '2027-01-04',
     ),
-    p(
+    _p(
       'p_3',
       '7501064191046',
       'Corona Cuarto',
@@ -1329,7 +1329,7 @@ List<Producto> productosDePrueba() {
       envase: 'cuarto',
       caducidad: '2026-10-21',
     ),
-    p(
+    _p(
       'p_4',
       '7502000000017',
       'Hielo en bolsa',
@@ -1339,7 +1339,7 @@ List<Producto> productosDePrueba() {
       18,
       10,
     ),
-    p(
+    _p(
       'p_5',
       '7502000000024',
       'Coca-Cola',
@@ -1350,7 +1350,7 @@ List<Producto> productosDePrueba() {
       24,
       caducidad: '2027-02-28',
     ),
-    p(
+    _p(
       'p_6',
       '7502000000048',
       'Papas adobadas',
@@ -1363,3 +1363,45 @@ List<Producto> productosDePrueba() {
     ),
   ];
 }
+
+/// El catálogo de la app en web (no hay servidor): el de pruebas más los
+/// productos de las fotos del diseño de Pablo.
+List<Producto> productosDeDemo() => [
+  ...productosDePrueba(),
+  _p(
+    'p_7',
+    '7501064191039',
+    'Modelo Especial',
+    'cerveza',
+    'Media 355 ml',
+    2400,
+    120,
+    48,
+    precioCaja: 54000,
+    piezasPorCaja: 24,
+    envase: 'media',
+    caducidad: '2026-11-29',
+  ),
+  _p(
+    'p_8',
+    '7502000000055',
+    'Cacahuates japoneses',
+    'botana',
+    'Bolsa 100 g',
+    1800,
+    6,
+    15,
+    caducidad: '2026-12-04',
+  ),
+  _p(
+    'p_9',
+    '7502000000062',
+    'Doritos Nacho',
+    'botana',
+    'Bolsa 62 g',
+    1800,
+    15,
+    10,
+    caducidad: '2026-12-19',
+  ),
+];
