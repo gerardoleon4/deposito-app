@@ -7,12 +7,12 @@ import '../../../core/formato/formato.dart';
 import '../../../core/widgets/estados.dart';
 import '../../../core/widgets/ilustracion_producto.dart';
 import '../../catalogo/estado/productos.dart';
-import '../../terminal/pantallas/escaner.dart';
 import '../../envases/datos/modelos_envases.dart';
 import '../../envases/pantallas/modal_recepcion_envases.dart';
 import '../../envases/pantallas/modal_registro_prestamo.dart';
 import '../../envases/pantallas/modal_salida_envases.dart';
 import '../estado/carrito.dart';
+import 'escaner_continuo.dart';
 import 'flujo_cobro.dart';
 
 /// Sección "Vender" de la caja: catálogo real a la izquierda y la venta en
@@ -74,13 +74,16 @@ class _PuntoVentaState extends ConsumerState<PuntoVenta>
   }
 
   void _agregarAlCarrito(Producto prod, {bool porCaja = false}) {
+    final motivo = _agregarSinAviso(prod, porCaja: porCaja);
+    if (motivo != null) _mostrarAlertaInventario(motivo);
+  }
+
+  /// Agrega y resalta el renglón. Regresa el motivo si no alcanza.
+  String? _agregarSinAviso(Producto prod, {bool porCaja = false}) {
     final motivo = ref
         .read(carritoProvider.notifier)
         .agregar(prod, porCaja: porCaja);
-    if (motivo != null) {
-      _mostrarAlertaInventario(motivo);
-      return;
-    }
+    if (motivo != null) return motivo;
     final clave = '${prod.id}_${porCaja ? 'caja' : 'pieza'}';
     setState(() => _itemRecienteClave = clave);
     _rebote.forward(from: 0);
@@ -89,6 +92,7 @@ class _PuntoVentaState extends ConsumerState<PuntoVenta>
         setState(() => _itemRecienteClave = null);
       }
     });
+    return null;
   }
 
   void _alTocarProducto(Producto prod) {
@@ -109,19 +113,29 @@ class _PuntoVentaState extends ConsumerState<PuntoVenta>
     setState(() {});
   }
 
-  Future<void> _abrirEscaner(List<Producto> productos) async {
-    final codigo = await escanearCodigo(
-      context,
-      titulo: 'Escanear producto',
-      ayuda: 'Apunta al código de barras',
+  /// Escáner continuo: cada código leído entra a la venta sin cerrar la
+  /// cámara.
+  void _abrirEscaner(List<Producto> productos) {
+    Navigator.of(context, rootNavigator: true).push(
+      MaterialPageRoute(
+        fullscreenDialog: true,
+        builder: (_) => EscanerContinuo(
+          alEscanear: (codigo) {
+            final p = porCodigo(productos, codigo);
+            if (p == null) {
+              return (
+                agregado: false,
+                mensaje: 'El código $codigo no está en el catálogo',
+              );
+            }
+            final motivo = _agregarSinAviso(p);
+            return motivo == null
+                ? (agregado: true, mensaje: 'Agregado: ${p.nombre}')
+                : (agregado: false, mensaje: motivo);
+          },
+        ),
+      ),
     );
-    if (codigo == null || !mounted) return;
-    final p = porCodigo(productos, codigo);
-    if (p == null) {
-      _mostrarAlertaInventario('El código $codigo no está en el catálogo');
-    } else {
-      _agregarAlCarrito(p);
-    }
   }
 
   void _mostrarModalVariante(Producto prod) {
@@ -215,6 +229,9 @@ class _PuntoVentaState extends ConsumerState<PuntoVenta>
     final r = await ModalRecepcionEnvases.mostrar(
       context,
       modo: ModoVacios.credito,
+      cantidadInicial: carrito.totalRetornables > 0
+          ? carrito.totalRetornables
+          : 1,
       formatoInicial: carrito.retornables.isEmpty
           ? FormatoEnvase.media
           : FormatoEnvase.de(carrito.retornables.keys.first),
@@ -281,6 +298,8 @@ class _PuntoVentaState extends ConsumerState<PuntoVenta>
       context: context,
       useRootNavigator: true,
       isScrollControlled: true,
+      // La agarradera es la del diseño de Pablo, dentro del panel.
+      showDragHandle: false,
       backgroundColor: Colors.transparent,
       builder: (contextoHoja) => Container(
         height: MediaQuery.of(contextoHoja).size.height * 0.75,
@@ -462,7 +481,7 @@ class _PuntoVentaState extends ConsumerState<PuntoVenta>
                   color: Colors.white,
                 ),
                 label: Text(
-                  'Cobrar ${dinero(total)}',
+                  dinero(total),
                   style: const TextStyle(
                     color: Colors.white,
                     fontSize: 20,
@@ -664,14 +683,27 @@ class _PanelVenta extends ConsumerWidget {
                             ),
                             const SizedBox(width: 8),
                             Expanded(
-                              child: Text(
-                                'Crédito por Envase (${e.value} '
-                                '${FormatoEnvase.de(e.key).etiqueta})',
-                                style: TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  color: c.verde,
-                                  fontSize: 13,
-                                ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Crédito por Envase (${e.value} '
+                                    '${FormatoEnvase.de(e.key).etiqueta})',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      color: c.verde,
+                                      fontSize: 13,
+                                    ),
+                                  ),
+                                  if (!movil)
+                                    Text(
+                                      'Descontado del subtotal',
+                                      style: TextStyle(
+                                        fontSize: 11,
+                                        color: c.verde.withValues(alpha: 0.8),
+                                      ),
+                                    ),
+                                ],
                               ),
                             ),
                             Text(
@@ -715,25 +747,52 @@ class _PanelVenta extends ConsumerWidget {
           padding: const EdgeInsets.all(24),
           decoration: BoxDecoration(
             color: c.superficie,
-            border: Border(top: BorderSide(color: c.linea)),
+            border: movil ? Border(top: BorderSide(color: c.linea)) : null,
+            boxShadow: movil
+                ? null
+                : [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, -5),
+                    ),
+                  ],
           ),
           child: SafeArea(
             top: false,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                if (!movil)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Text(
+                          'Subtotal',
+                          style: TextStyle(color: c.tinta2, fontSize: 16),
+                        ),
+                        Text(
+                          dinero(carrito.subtotal),
+                          style: TextStyle(color: c.tinta, fontSize: 16),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (credito > 0)
                   renglonTotal(
-                    'Crédito por Envases',
+                    movil ? 'Crédito por Envases' : 'Crédito Envases',
                     '-${dinero(credito)}',
                     c.verde,
                   ),
                 if (deposito > 0)
                   renglonTotal(
-                    'Depósito de Envases',
+                    movil ? 'Cargo Depósitos' : 'Depósito Envases',
                     '+${dinero(deposito)}',
                     c.alerta,
                   ),
+                const SizedBox(height: 6),
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -815,37 +874,59 @@ class _AvisoEnvases extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
-    final (texto, color) = switch (modo) {
+    // Colores de Pablo: depósito en alerta, intercambio en verde y préstamo
+    // en azul con el apretón de manos.
+    final (icono, texto, color, monto) = switch (modo) {
       ModoEnvases.cobrar => (
-        'Depósito de Envases (+${dinero(deposito)})',
+        Icons.inventory_2_outlined,
+        'Depósito de Envases',
         c.alerta,
+        '+${dinero(deposito)}',
       ),
-      ModoEnvases.trae => ('Envases: el cliente entrega vacíos', c.verde),
+      ModoEnvases.trae => (
+        Icons.swap_horiz_rounded,
+        'Intercambio: el cliente entrega vacíos',
+        c.verde,
+        null,
+      ),
       ModoEnvases.prestamo => (
-        'Envases prestados a ${cliente ?? 'cliente'}',
-        const Color(0xFFD97706),
+        Icons.handshake_outlined,
+        'Préstamo a: ${cliente ?? 'cliente'}',
+        c.azul,
+        null,
       ),
-      ModoEnvases.na => ('', c.tinta),
+      ModoEnvases.na => (Icons.help_outline, '', c.tinta, null),
     };
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      padding: const EdgeInsets.only(left: 12, top: 4, bottom: 4),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
         children: [
+          Icon(icono, color: color, size: 18),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               texto,
               style: TextStyle(
                 fontWeight: FontWeight.bold,
-                color: c.tinta,
+                color: modo == ModoEnvases.cobrar ? c.tinta : color,
                 fontSize: 13,
               ),
             ),
           ),
+          if (monto != null)
+            Text(
+              monto,
+              style: TextStyle(
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+                color: color,
+              ),
+            ),
           TextButton(onPressed: alCambiar, child: const Text('Cambiar')),
         ],
       ),
@@ -1100,6 +1181,13 @@ class _TarjetaProducto extends StatelessWidget {
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               border: Border.all(color: enCarrito > 0 ? c.azul : c.linea),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,

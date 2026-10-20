@@ -509,10 +509,13 @@ class _BarraSuperior extends ConsumerWidget {
                 style: Theme.of(context).textTheme.headlineLarge,
               ),
             ),
+            // La fecha cede espacio en pantallas angostas (iPad vertical).
             if (!compacta)
-              Pildora(
-                texto: fechaLarga(DateTime.now()),
-                icono: Icons.calendar_today_rounded,
+              Flexible(
+                child: Pildora(
+                  texto: fechaLarga(DateTime.now()),
+                  icono: Icons.calendar_today_rounded,
+                ),
               ),
             IconButton.outlined(
               tooltip: oscuro ? 'Tema claro' : 'Tema oscuro',

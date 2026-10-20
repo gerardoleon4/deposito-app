@@ -64,7 +64,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('Cobrar'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Confirmar y pagar'));
+    await tester.tap(find.text('Confirmar y Pagar'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('Tarjeta'));
     for (var i = 0; i < 10; i++) {
