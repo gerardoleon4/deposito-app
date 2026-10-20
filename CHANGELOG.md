@@ -21,6 +21,9 @@ Formato: una sección por versión del backend (tag), con lo que se agregó y lo
 
 #### App
 - API de caja, personal, devoluciones, descuentos y envases, también en `ApiFalsa`.
+- Pantallas del diseño de Pablo conectadas al servidor: envases (tablero, historial, recepción, préstamo, devolución de depósito y salida al cobrar), ventas del turno (detalle, cancelación y devolución parcial, merma o inventario, autorización con PIN, reimpresión), Vender y Cobro completos (descuento, vacíos, saldo por envases, efectivo, tarjeta, recibo con vista previa del ticket), escáner continuo, caja (apertura, movimientos, corte, arqueo y recibo), personal, inicio de turno, cuenta maestra y respaldo.
+- Ticket y corte en PDF para imprimir o compartir.
+- Las fotos de los productos de ejemplo se ven también en web y mientras carga la del servidor.
 Migración 002: tablas para ventas, venta_lineas, pedidos y balance_envases.   
 Endpoints POST/GET /api/v1/ventas, POST/GET/DELETE /api/v1/pedidos y GET/POST /api/v1/envases.   
 Eventos de tiempo real para actualización de envases y creación de pedidos.  
