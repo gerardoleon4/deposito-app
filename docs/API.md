@@ -15,7 +15,7 @@ Los cambios a este archivo se hacen por pull request con la etiqueta `contrato`.
 | Instantes | ISO 8601 en UTC, sin milisegundos: `2026-10-02T18:30:00Z` |
 | Fechas de calendario | `AAAA-MM-DD` en la hora local del negocio: `2027-03-15` (caducidad, día de un reporte) |
 | Existencias | Siempre en piezas. Las cajas son solo visuales |
-| IDs | Texto generado por el servidor, con prefijo por tipo: `p_` producto, `t_` terminal, `v_` venta, `ped_` pedido, `pre_` préstamo |
+| IDs | Texto generado por el servidor, con prefijo por tipo: `p_` producto, `t_` terminal, `v_` venta, `ped_` pedido, `pre_` préstamo, `tur_` turno de caja, `mc_` movimiento de caja, `u_` usuario, `dev_` devolución |
 | Autenticación | Encabezado `X-Clave-Terminal` en toda petición, salvo las marcadas como públicas |
 | Reintentos | Los cobros llevan el encabezado `X-Clave-Idempotencia` (ver [Registrar venta](#registrar-venta)) |
 | Errores | `{ "error": { "codigo": "stock_insuficiente", "mensaje": "..." } }` |
@@ -42,7 +42,12 @@ Un endpoint marcado **Solo caja** responde `403 solo_caja` a una terminal.
 | `409` | `codigo_duplicado` | Ya existe un producto activo con ese código de barras |
 | `409` | `stock_insuficiente` | No hay piezas suficientes para una venta o una merma |
 | `409` | `envases_insuficientes` | No hay suficientes envases vacíos en bodega para venderlos |
-| `409` | `caja_cerrada` | Se intenta cobrar sin turno abierto (caja, Sprint 3) |
+| `409` | `caja_cerrada` | Se intenta cobrar, registrar un movimiento de caja o cerrar sin turno abierto |
+| `409` | `caja_abierta` | Se intenta abrir la caja con un turno ya abierto |
+| `409` | `turno_cerrado` | Se intenta cancelar o devolver una venta de un turno que ya tiene corte |
+| `403` | `pin_invalido` | Falta el PIN de autorización o no es de un usuario activo |
+| `403` | `sin_permiso` | El PIN es válido pero su rol no puede autorizar esa acción |
+| `429` | `demasiados_intentos` | Cinco PIN incorrectos seguidos: se bloquea la verificación 1 minuto |
 | `500` | `error_interno` | Error no previsto. El detalle queda en el log del servidor |
 
 Los errores de validación dicen qué campo falló, para que la app lo muestre junto al campo:
@@ -354,7 +359,11 @@ Cobra, descuenta existencias y mueve envases en una sola transacción: o pasa to
 | `tarjeta` | texto o ausente | Tipo de tarjeta, hasta 20 caracteres |
 | `envModo` | texto | Qué pasa con los envases retornables: `na` (por omisión), `cobrar` (se cobra el depósito), `trae` (el cliente trae vacíos: suben a bodega), `prestamo` (se le prestan) |
 | `envCliente` | texto o ausente | Nombre del cliente para `prestamo`, hasta 80 caracteres |
-| `lineas` | lista | Al menos una. `unidad` es `pieza` o `caja`; `cantidad` es entero mayor que 0. Un producto puede venir en varias líneas |
+| `envCredito` | objeto o ausente | Vacíos **extra** que entrega el cliente para que se le descuente su depósito: `{ "mega": 2, "media": 0 }`. Entran a bodega. El crédito es `cantidad × precio` del formato y se resta del total. No puede dejar el total en negativo (para eso está [Devolver depósito](#devolver-depósito)). Se combina con cualquier `envModo` |
+| `usuarioId` | texto o ausente | Quien cobra (`u_...`), para el historial y "ventas del empleado" |
+| `lineas` | lista | Al menos una. `unidad` es `pieza` o `caja`; `cantidad` es entero mayor que 0. Un producto puede venir en varias líneas. `descuento` (opcional) es un porcentaje entero de 0 a 99 |
+
+**Descuento:** se calcula por unidad y se trunca al centavo: `precioUnit = precio − (precio × descuento ÷ 100)`, con división entera. Así cada unidad tiene un precio exacto y una devolución parcial regresa exactamente lo cobrado. Ejemplo: $42.00 con 15 % es `4200 − 630 = 3570`.
 
 - Respuesta `201`:
 
@@ -367,34 +376,207 @@ Cobra, descuenta existencias y mueve envases en una sola transacción: o pasa to
   "total": 56400,
   "metodo": "efectivo",
   "recibido": 60000,
-  "cambio": 3600
+  "cambio": 3600,
+  "turnoId": "tur_4m8q2x7k1z"
 }
 ```
 
-- Emite `producto.actualizado` por cada producto y, si hubo envases, `envases.actualizado`.
-- `400 datos_invalidos` (incluye falta de `X-Clave-Idempotencia`), `404 no_encontrado` (producto), `409 stock_insuficiente`.
+- `total` = productos (ya con descuento) + depósito de envases − crédito por vacíos.
+- Requiere turno abierto: la venta queda en ese turno (`turnoId`). Ver [Caja](#caja).
+- Emite `producto.actualizado` por cada producto, `venta.registrada` y, si hubo envases, `envases.actualizado`.
+- `400 datos_invalidos` (incluye falta de `X-Clave-Idempotencia`, un `usuarioId` que no existe o está inactivo, y un crédito mayor que el total), `404 no_encontrado` (producto), `409 stock_insuficiente`, `409 caja_cerrada`.
 
 #### Listar ventas
 
-`GET /api/v1/ventas?dia=2026-10-02`
+`GET /api/v1/ventas?dia=2026-10-02` o `GET /api/v1/ventas?turno=actual`
 
-- `dia` (opcional): día de negocio `AAAA-MM-DD`. Sin él, las últimas 100.
-- Respuesta `200`: `{ "ventas": [ { "id", "folio", "fecha", "total", "metodo", "origen", "cancelada" }, ... ] }`, del folio más nuevo al más viejo.
+- `dia` (opcional): día de negocio `AAAA-MM-DD`.
+- `turno` (opcional): `actual` para las del turno abierto (lista vacía si la caja está cerrada) o el id de un turno (`tur_...`). No se combina con `dia`: si vienen los dos, `400 datos_invalidos`.
+- `usuario` (opcional): solo las que cobró ese usuario (`u_...`). Se combina con `dia` o `turno`.
+- Sin filtros, las últimas 100.
+- Respuesta `200`: `{ "ventas": [ { "id", "folio", "fecha", "total", "metodo", "origen", "cancelada", "turnoId", "devuelto", "usuario" }, ... ] }`, del folio más nuevo al más viejo. `turnoId` es `null` en las ventas anteriores a la caja. `devuelto` son los centavos ya regresados por devoluciones parciales o cancelación. `usuario` es `{ "id", "nombre" }` o `null`.
 
 #### Detalle de venta
 
 `GET /api/v1/ventas/{id}`
 
-- Respuesta `200`: la venta con `tarjeta`, `envModo`, `envN`, `envMonto`, `origen`, `cancelada` y `lineas` (`productoId`, `nombre`, `unidad`, `cantidad`, `piezas`, `precioUnit`, `subtotal`). `404 no_encontrado`.
+- Respuesta `200`: la venta con `tarjeta`, `envModo`, `envN`, `envMonto`, `envCredito` (centavos), `origen`, `cancelada`, `turnoId`, `devuelto`, `usuario` y `lineas` (`lineaId`, `productoId`, `nombre`, `unidad`, `cantidad`, `piezas`, `precioLista`, `descuento`, `precioUnit`, `subtotal`, `devueltas`), más `devoluciones`: `[ { "id", "fecha", "monto", "destino", "motivo", "autorizo" } ]`. `devueltas` es cuántas unidades de la línea ya se devolvieron. `404 no_encontrado`.
+
+#### Autorización
+
+Cancelar y devolver necesitan el **PIN de un gerente o del dueño** en el campo `pin`, si hay al menos un usuario activo con esos roles. Mientras nadie se haya registrado (antes de crear la cuenta maestra), no se pide. Un PIN de cajero responde `403 sin_permiso`; uno que no existe, `403 pin_invalido`. Quien autorizó queda en la devolución (`autorizo`).
 
 #### Cancelar venta
 
 `POST /api/v1/ventas/{id}/cancelar` · Solo caja
 
+```json
+{ "pin": "4321", "destino": "inventario", "motivo": "El cliente se arrepintió" }
+```
+
+El cuerpo es opcional: sin `destino` es `inventario`. `destino` es `inventario` (la mercancía regresa a existencias) o `merma` (llegó rota o abierta: no regresa). `motivo` hasta 120 caracteres.
+
 Regresa las existencias (queda como movimiento `cancelacion`) y revierte los envases: los vacíos que entraron a bodega, los vacíos vendidos (que regresan a bodega) y los préstamos de esa venta que no se han devuelto.
 
-- Respuesta `204`. Emite `producto.actualizado` y `envases.actualizado`.
-- `400 datos_invalidos` si ya estaba cancelada, `404 no_encontrado`.
+Solo se cancelan ventas del turno abierto: el dinero que se devuelve sale de ese turno y deja de contar en su resumen. Una venta de un turno con corte ya no se cancela, para que el corte no cambie después de cerrarse. Si ya tenía devoluciones parciales, se regresa solo lo que falta. También revierte el crédito por vacíos (esos vacíos salen de bodega).
+
+- Respuesta `204`. Emite `producto.actualizado`, `envases.actualizado` y `venta.cancelada`.
+- `400 datos_invalidos` si ya estaba cancelada, `403 pin_invalido` o `sin_permiso`, `404 no_encontrado`, `409 turno_cerrado` si la venta es de otro turno o anterior a la caja, `409 envases_insuficientes` si era `trae` (o tenía crédito) y esos vacíos ya no están en bodega (por ejemplo, se vendieron).
+
+#### Devolver parte de una venta
+
+`POST /api/v1/ventas/{id}/devolver` · Solo caja
+
+El cliente regresa algunos productos. Mismas reglas de turno y autorización que [Cancelar venta](#cancelar-venta).
+
+```json
+{
+  "lineas": [{ "lineaId": 12, "cantidad": 1 }],
+  "destino": "merma",
+  "motivo": "Botella rota",
+  "pin": "4321"
+}
+```
+
+- `cantidad` en la unidad de la línea (piezas o cajas), sin pasar de lo que falta por devolver.
+- Se regresa `precioUnit × cantidad` de cada línea. Si la venta fue con `envModo`:
+  - `cobrar`: también el depósito de esos envases;
+  - `trae`: los vacíos que dejó el cliente salen de bodega;
+  - `prestamo`: el préstamo de esa venta baja en esas piezas.
+- Si con esta devolución ya no queda nada por devolver, la venta queda cancelada, igual que con [Cancelar venta](#cancelar-venta).
+- Respuesta `201`: `{ "devolucion": { "id", "fecha", "monto", "destino", "motivo", "autorizo" }, "venta": <detalle de venta> }`. Emite `producto.actualizado` (si `inventario`), `envases.actualizado` si cambió el balance, y `venta.devuelta` (`{ "id", "monto" }`).
+- `400 datos_invalidos` (línea que no es de la venta o cantidad de más), `403 pin_invalido` o `sin_permiso`, `404 no_encontrado`, `409 turno_cerrado`, `409 envases_insuficientes`.
+
+### Caja
+
+Un turno empieza al abrir la caja con un fondo inicial y termina con el corte: se cuenta el efectivo y se compara con lo esperado. Solo puede haber un turno abierto. Sin turno abierto no se cobra (`409 caja_cerrada`). Un turno puede cruzar la medianoche: el corte es del turno, no del día.
+
+Todo en esta sección es **Solo caja**.
+
+Con datos de ejemplo (`datosEjemplo`, la app en desarrollo y `bin/server.dart`), el servidor abre un turno con fondo de $500.00 la primera vez que arranca, para poder cobrar desde el inicio. Después de un corte, la caja se queda cerrada.
+
+**El turno** (`<turno>`), igual abierto que cerrado:
+
+```json
+{
+  "id": "tur_4m8q2x7k1z",
+  "estado": "abierto",
+  "apertura": "2026-10-24T14:00:00Z",
+  "cierre": null,
+  "diaNegocio": "2026-10-24",
+  "fondo": 50000,
+  "resumen": {
+    "ventas": 42,
+    "canceladas": 1,
+    "ventasEfectivo": 1250000,
+    "ventasTarjeta": 380000,
+    "envases": 9600,
+    "devoluciones": 0,
+    "ingresos": 20000,
+    "retiros": 15000,
+    "esperado": 1305000
+  },
+  "contado": null,
+  "diferencia": null,
+  "nota": null
+}
+```
+
+| Campo | Regla |
+| --- | --- |
+| `estado` | `abierto` o `cerrado` |
+| `diaNegocio` | Día de negocio de la apertura |
+| `fondo` | Centavos en efectivo con que se abrió |
+| `resumen.ventas` | Ventas no canceladas del turno, incluidas las de vacíos |
+| `resumen.canceladas` | Ventas del turno que se cancelaron |
+| `resumen.ventasEfectivo`, `resumen.ventasTarjeta` | Lo cobrado por método, menos lo devuelto (cancelaciones y devoluciones parciales) de ese método. El total ya incluye el depósito de envases y el crédito por vacíos |
+| `resumen.envases` | De esas sumas, cuánto fue depósito de envases y venta de vacíos, menos el crédito por vacíos. Es informativo: no se suma otra vez |
+| `resumen.devoluciones` | Centavos regresados en el turno por cancelaciones y devoluciones parciales, de los dos métodos. Informativo |
+| `resumen.ingresos`, `resumen.retiros` | Suma de los [movimientos de caja](#registrar-movimiento) |
+| `resumen.esperado` | `fondo + ventasEfectivo + ingresos − retiros`: el efectivo que debe haber en el cajón |
+| `contado` | Efectivo contado al cerrar. `null` mientras está abierto |
+| `diferencia` | `contado − esperado`. Negativo es faltante, positivo es sobrante. `null` mientras está abierto |
+| `nota` | Justificación del cierre, o `null` |
+| `usuarioApertura`, `usuarioCierre` | `{ "id", "nombre" }` de quien abrió o cerró, o `null` |
+
+El `resumen` de un turno cerrado queda fijo al cerrar: no cambia aunque después se edite un producto o un envase.
+
+**El movimiento de caja** (`<movimiento>`): efectivo que entra o sale del cajón sin ser una venta (pagar el hielo al proveedor, poner más cambio).
+
+```json
+{ "id": "mc_9x2k7d1m3q", "tipo": "retiro", "monto": 15000, "motivo": "Pago proveedor hielo", "fecha": "2026-10-24T17:20:00Z" }
+```
+
+#### Turno actual
+
+`GET /api/v1/caja/turno`
+
+- Respuesta `200`: `{ "turno": <turno>, "movimientos": [ <movimiento>, ... ] }`, con los movimientos del más viejo al más nuevo. Si la caja está cerrada: `{ "turno": null, "movimientos": [] }`.
+
+#### Abrir caja
+
+`POST /api/v1/caja/abrir`
+
+```json
+{ "fondo": 50000, "usuarioId": "u_..." }
+```
+
+- `fondo`: entero mayor o igual que 0, en centavos. `usuarioId` opcional: quien abre.
+- Respuesta `201`: `{ "turno": <turno> }`. Emite `caja.abierta`.
+- `400 datos_invalidos`, `409 caja_abierta`.
+
+#### Registrar movimiento
+
+`POST /api/v1/caja/movimientos`
+
+Lleva el encabezado obligatorio `X-Clave-Idempotencia`, igual que [Registrar venta](#registrar-venta): un reintento no registra el retiro dos veces.
+
+```json
+{ "tipo": "retiro", "monto": 15000, "motivo": "Pago proveedor hielo" }
+```
+
+| Campo | Regla |
+| --- | --- |
+| `tipo` | `ingreso` o `retiro` |
+| `monto` | Entero mayor que 0, en centavos. Un retiro no puede dejar el esperado en negativo |
+| `motivo` | Obligatorio, de 1 a 120 caracteres |
+
+- Respuesta `201`: `{ "movimiento": <movimiento>, "turno": <turno> }`. Emite `caja.actualizada`.
+- `400 datos_invalidos` (incluye un retiro mayor que el esperado), `409 caja_cerrada`.
+
+#### Cerrar caja (corte)
+
+`POST /api/v1/caja/cerrar`
+
+Lleva el encabezado obligatorio `X-Clave-Idempotencia`: si la respuesta se pierde y la app reintenta, recibe el mismo corte en lugar de `409 caja_cerrada`.
+
+```json
+{ "contado": 1300000, "nota": "Faltó cambio al cliente de la mañana", "usuarioId": "u_..." }
+```
+
+| Campo | Regla |
+| --- | --- |
+| `contado` | Entero mayor o igual que 0, en centavos |
+| `nota` | Hasta 200 caracteres. **Obligatoria si `contado` no coincide con el esperado** |
+| `usuarioId` | Opcional: quien hace el corte |
+
+- Respuesta `200`: `{ "turno": <turno> }`, ya `cerrado`, con `contado`, `diferencia` y `nota`. Emite `caja.cerrada`.
+- `400 datos_invalidos` (incluye falta de `nota` con diferencia), `409 caja_cerrada`.
+
+#### Cortes anteriores
+
+`GET /api/v1/caja/cortes?desde=2026-10-01&hasta=2026-10-31`
+
+- `desde` y `hasta` (opcionales): días de negocio `AAAA-MM-DD`, inclusivos, sobre el `diaNegocio` del turno. Sin ellos, los últimos 30 cortes.
+- Respuesta `200`: `{ "cortes": [ <turno>, ... ] }`, solo turnos cerrados, del más nuevo al más viejo.
+
+#### Detalle de corte
+
+`GET /api/v1/caja/cortes/{id}`
+
+- Respuesta `200`: `{ "turno": <turno>, "movimientos": [ <movimiento>, ... ] }`. Sirve también para el turno abierto. `404 no_encontrado`.
+
+Las ventas del turno se piden con [Listar ventas](#listar-ventas) y `?turno=tur_...`.
 
 ### Pedidos
 
@@ -451,25 +633,34 @@ Los formatos retornables son `mega`, `media` y `cuarto`. `precio` es el depósit
 
 `GET /api/v1/envases/prestamos`
 
-- Respuesta `200`: `{ "prestamos": [ { "id", "cliente", "formato", "cantidad", "fecha" }, ... ] }`, sin los devueltos.
+- Respuesta `200`: `{ "prestamos": [ { "id", "cliente", "telefono", "formato", "cantidad", "devueltos", "fecha" }, ... ] }`, sin los devueltos por completo. `cantidad` es lo que falta por devolver y `devueltos`, lo que ya regresó en devoluciones parciales.
 
 #### Prestar envases
 
 `POST /api/v1/envases/prestamos` · Solo caja
 
 ```json
-{ "cliente": "Don Pedro", "formato": "mega", "cantidad": 10 }
+{ "cliente": "Don Pedro", "telefono": "55 1234 5678", "formato": "mega", "cantidad": 10 }
 ```
 
-- Respuesta `201`: el préstamo. Emite `envases.actualizado`. `400 datos_invalidos`.
+Se le prestan **vacíos de bodega**: salen de bodega y pasan a prestados. (Los préstamos que nacen de una venta con `envModo: "prestamo"` no tocan bodega: salen llenos.)
+
+- `telefono` opcional, hasta 20 caracteres.
+- Respuesta `201`: el préstamo. Emite `envases.actualizado`. `400 datos_invalidos`, `409 envases_insuficientes`.
 
 #### Devolver préstamo
 
 `POST /api/v1/envases/prestamos/{id}/devolver` · Solo caja
 
-Los envases regresan a bodega.
+Los envases regresan a bodega. El cuerpo es opcional:
 
-- Respuesta `204`. Emite `envases.actualizado`. `404 no_encontrado` si no existe o ya se devolvió.
+```json
+{ "cantidad": 4 }
+```
+
+- Sin cuerpo (o sin `cantidad`) se devuelve todo lo pendiente.
+- `cantidad`: entero mayor que 0 y no mayor que lo pendiente. Si es menor, el préstamo sigue activo con lo que falta.
+- Respuesta `204`. Emite `envases.actualizado`. `400 datos_invalidos`, `404 no_encontrado` si no existe o ya se devolvió.
 
 #### Recibir vacíos
 
@@ -484,6 +675,66 @@ Entran envases vacíos a bodega sin una venta (por ejemplo, los que deja el prov
 - `cantidad`: entero mayor que 0.
 - Respuesta `200`: `{ "balance": <balance> }`. Emite `envases.actualizado`. `400 datos_invalidos`.
 
+#### Sacar vacíos
+
+`POST /api/v1/envases/salida` · Solo caja
+
+Salen vacíos de bodega sin cobro (por ejemplo, se los lleva el proveedor o se rompieron).
+
+```json
+{ "formato": "mega", "cantidad": 24, "motivo": "Cambio con el proveedor" }
+```
+
+- `motivo` obligatorio, hasta 120 caracteres.
+- Respuesta `200`: `{ "balance": <balance> }`. Emite `envases.actualizado`. `400 datos_invalidos`, `409 envases_insuficientes`.
+
+#### Devolver depósito
+
+`POST /api/v1/envases/devolucion-deposito` · Solo caja
+
+El cliente regresa vacíos por los que pagó depósito y se le devuelve el dinero en efectivo. Los vacíos entran a bodega y el dinero sale del cajón como un [retiro de caja](#registrar-movimiento) con motivo "Devolución de depósito". Lleva `X-Clave-Idempotencia`.
+
+```json
+{ "formato": "media", "cantidad": 12, "cliente": "Don José" }
+```
+
+- `cliente` opcional, hasta 80 caracteres. El monto es `cantidad × precio` del formato.
+- Respuesta `201`: `{ "balance": <balance>, "movimiento": <movimiento de caja>, "turno": <turno> }`. Emite `envases.actualizado` y `caja.actualizada`.
+- `400 datos_invalidos` (incluye un monto mayor que el efectivo esperado), `409 caja_cerrada`.
+
+#### Movimientos de envases
+
+`GET /api/v1/envases/movimientos?limite=50`
+
+Bitácora de todo lo que cambia el balance, del más nuevo al más viejo. `limite` de 1 a 200, 50 por omisión.
+
+- Respuesta `200`:
+
+```json
+{
+  "movimientos": [
+    {
+      "id": 31,
+      "fecha": "2026-10-24T17:20:00Z",
+      "formato": "media",
+      "tipo": "devolucion_deposito",
+      "bodega": 12,
+      "prestados": 0,
+      "cliente": "Don José",
+      "monto": -3600,
+      "referencia": null
+    }
+  ]
+}
+```
+
+| Campo | Regla |
+| --- | --- |
+| `tipo` | `entrada`, `salida`, `prestamo`, `devolucion_prestamo`, `venta_trae`, `venta_prestamo`, `credito`, `venta_vacios`, `devolucion_deposito`, `cancelacion` |
+| `bodega`, `prestados` | Cambio con signo en cada uno |
+| `monto` | Centavos que entraron (+) o salieron (−) de caja por ese movimiento, o `null` |
+| `referencia` | `Folio 1001` u otra referencia, o `null` |
+
 #### Vender vacíos
 
 `POST /api/v1/envases/venta-vacios` · Solo caja
@@ -497,8 +748,92 @@ Lleva el encabezado obligatorio `X-Clave-Idempotencia`, igual que [Registrar ven
 ```
 
 - `metodo`, `recibido` y `tarjeta` siguen las reglas de Registrar venta. El total es `cantidad × precio` del formato.
-- Respuesta `201`: la venta, con la misma forma que en Registrar venta. Emite `envases.actualizado`.
-- `400 datos_invalidos`, `409 envases_insuficientes`.
+- Requiere turno abierto, igual que Registrar venta.
+- Respuesta `201`: la venta, con la misma forma que en Registrar venta. Emite `envases.actualizado` y `venta.registrada`.
+- `400 datos_invalidos`, `409 envases_insuficientes`, `409 caja_cerrada`.
+
+### Usuarios
+
+Personal del depósito con PIN. El primero es el dueño (la "cuenta maestra"). Todo es **Solo caja**.
+
+**El usuario** (`<usuario>`); el PIN nunca sale del servidor:
+
+```json
+{ "id": "u_8k2m4x9q1z", "nombre": "Sofía Vega", "rol": "cajero", "activo": true, "creado": "2026-10-24T14:00:00Z" }
+```
+
+- `rol`: `dueno`, `gerente` o `cajero`.
+- El PIN es de 4 a 6 dígitos y no se repite entre usuarios activos: así un PIN solo identifica a una persona.
+
+#### Listar usuarios
+
+`GET /api/v1/usuarios`
+
+- Respuesta `200`: `{ "usuarios": [ <usuario>, ... ] }`, por nombre, activos e inactivos.
+
+#### Crear usuario
+
+`POST /api/v1/usuarios`
+
+```json
+{ "nombre": "Sofía Vega", "rol": "cajero", "pin": "482913" }
+```
+
+- El primer usuario debe ser `dueno`. Después, crear un usuario necesita `pinAutoriza`: el PIN de un dueño o gerente activo (`403 pin_invalido` o `sin_permiso`).
+- Respuesta `201`: `{ "usuario": <usuario> }`. `400 datos_invalidos` (incluye un PIN repetido).
+
+#### Editar usuario
+
+`PUT /api/v1/usuarios/{id}`
+
+```json
+{ "nombre": "Sofía Vega", "rol": "gerente", "activo": true, "pin": "123456", "pinAutoriza": "4321" }
+```
+
+- Todos los campos son opcionales salvo `pinAutoriza` (dueño o gerente activo). Solo un dueño puede crear, editar o dar de baja a otro dueño.
+- No se puede dejar el depósito sin un dueño activo (`400 datos_invalidos`).
+- Respuesta `200`: `{ "usuario": <usuario> }`. `403`, `404 no_encontrado`.
+
+#### Verificar PIN
+
+`POST /api/v1/usuarios/verificar`
+
+```json
+{ "pin": "482913", "usuarioId": "u_8k2m4x9q1z" }
+```
+
+Para el inicio de turno ("selecciona tu usuario y escribe tu PIN") y para pedir autorización antes de una acción. `usuarioId` es opcional: sin él, busca de quién es el PIN.
+
+- Respuesta `200`: `{ "usuario": <usuario> }`. `403 pin_invalido`, `429 demasiados_intentos`.
+
+### Ajustes
+
+Datos del negocio para el ticket y la cuenta maestra.
+
+#### Leer ajustes
+
+`GET /api/v1/ajustes`
+
+- Respuesta `200`: `{ "nombreNegocio": "Depósito Don Beto", "direccion": "Av. Central Pte. 120", "telefono": "961 123 4567", "mensajeTicket": "Gracias por su compra" }`. Los que no se han capturado son `null`.
+
+#### Guardar ajustes
+
+`PUT /api/v1/ajustes` · Solo caja
+
+- Mismos campos, todos opcionales: los que vienen se reemplazan. `nombreNegocio` y `direccion` hasta 80 caracteres, `telefono` hasta 20 y `mensajeTicket` hasta 120. `null` borra un campo.
+- Respuesta `200`: los ajustes. `400 datos_invalidos`.
+
+### Respaldo
+
+#### Descargar respaldo
+
+`GET /api/v1/respaldo` · Solo caja
+
+Copia completa y consistente de la base, para guardarla fuera del iPad.
+
+- Respuesta `200`: el archivo SQLite (`application/vnd.sqlite3`), con `content-disposition: attachment; filename="anaquel-AAAAMMDD-HHMMSS.db"`.
+
+Restaurar un respaldo lo hace la app **antes** de arrancar el servidor (al configurar la caja): reemplaza el archivo de la base. No hay endpoint para restaurar con el servidor andando.
 
 ## WebSocket
 
@@ -520,6 +855,14 @@ Todos los mensajes del servidor tienen esta forma:
 | `pedido.creado` | Una terminal manda un pedido | `{ "pedido": <pedido> }` |
 | `pedido.atendido` | La caja descarta o cobra un pedido | `{ "id": "ped_..." }` |
 | `envases.actualizado` | Cambia el balance de envases | `{ "balance": <balance> }` |
+| `venta.registrada` | Se cobra una venta o una venta de vacíos | `{ "venta": <venta> }`, con la forma de la respuesta de Registrar venta y `turnoId` |
+| `venta.cancelada` | Se cancela una venta | `{ "id": "v_..." }` |
+| `venta.devuelta` | Se devuelve parte de una venta | `{ "id": "v_...", "monto": 4200 }` |
+| `caja.abierta` | Se abre un turno | `{ "turno": <turno> }` |
+| `caja.actualizada` | Se registra un movimiento de caja | `{ "turno": <turno> }` |
+| `caja.cerrada` | Se hace el corte | `{ "turno": <turno> }` |
+
+Los eventos `caja.*` **solo se mandan a la caja**: el `<turno>` trae montos que una terminal no puede pedir (la sección [Caja](#caja) es Solo caja). Los demás eventos llegan a todos.
 
 - El servidor manda ping cada 20 segundos. Si no hay respuesta, cierra la conexión.
 - Al reconectarse, la app vuelve a pedir los datos completos con `GET` en lugar de confiar en los eventos que se perdió.
@@ -529,5 +872,4 @@ Todos los mensajes del servidor tienen esta forma:
 
 Se documentarán aquí, en este orden:
 
-- **Sprint 3:** caja y cortes (turnos, `409 caja_cerrada`).
-- **Sprint 4:** alertas, reportes, resurtido, ajustes, PIN del dueño, respaldo y diagnóstico.
+- **Sprint 4:** alertas, reportes, resurtido y diagnóstico.

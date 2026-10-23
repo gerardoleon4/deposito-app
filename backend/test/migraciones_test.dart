@@ -66,4 +66,23 @@ void main() {
       throwsA(anything),
     );
   });
+
+  test(
+    'la base no permite dos turnos de caja abiertos ni cerrar sin corte',
+    () {
+      final db = abrirBaseDatos(enMemoria);
+      addTearDown(db.close);
+      aplicarMigraciones(db);
+      const abrir =
+          'INSERT INTO turnos (id, apertura, dia_negocio, fondo) '
+          "VALUES (?, 't', '2026-10-24', 0)";
+      db.execute(abrir, ['tur_1']);
+      expect(() => db.execute(abrir, ['tur_2']), throwsA(anything));
+      expect(
+        () => db.execute("UPDATE turnos SET abierto = 0 WHERE id = 'tur_1'"),
+        throwsA(anything),
+        reason: 'un corte necesita cierre, esperado, contado y diferencia',
+      );
+    },
+  );
 }

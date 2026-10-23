@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:path/path.dart' as p;
@@ -12,6 +13,8 @@ import 'package:path/path.dart' as p;
 ///   BASE_DATOS      datos/anaquel.db por omisión (ignorado por git).
 ///   CLAVE_CAJA      fija la clave de caja; si no, se genera una por arranque.
 ///   SIN_EJEMPLOS=1  no carga los productos del prototipo.
+///
+/// Las fotos de ejemplo se leen de `../app/assets/productos/`.
 Future<void> main() async {
   final entorno = Platform.environment;
   final rutaBase = entorno['BASE_DATOS'] ?? p.join('datos', 'anaquel.db');
@@ -22,6 +25,7 @@ Future<void> main() async {
     puerto: int.tryParse(entorno['PUERTO'] ?? '') ?? 8080,
     claveCaja: entorno['CLAVE_CAJA'],
     datosEjemplo: entorno['SIN_EJEMPLOS'] != '1',
+    fotosEjemplo: _leerFotosEjemplo(),
     bitacora: Bitacora(rutaArchivo: p.join(p.dirname(rutaBase), 'anaquel.log')),
   );
   await servidor.iniciar();
@@ -44,4 +48,14 @@ Future<void> main() async {
     await servidor.detener();
     exit(0);
   });
+}
+
+/// Fotos de [fotosDeEjemplo] desde los assets de la app, si están a mano.
+Map<String, Uint8List> _leerFotosEjemplo() {
+  final carpeta = p.join('..', 'app', carpetaFotosEjemplo);
+  return {
+    for (final archivo in fotosDeEjemplo.values.toSet())
+      if (File(p.join(carpeta, archivo)).existsSync())
+        archivo: File(p.join(carpeta, archivo)).readAsBytesSync(),
+  };
 }

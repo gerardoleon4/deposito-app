@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:path/path.dart' as p;
 import 'package:shelf/shelf.dart';
@@ -17,13 +18,23 @@ import 'db/almacen_fotos.dart';
 import 'db/base_datos.dart';
 import 'db/migraciones.dart';
 import 'db/repositorio_ajustes.dart';
+import 'db/repositorio_caja.dart';
+import 'db/repositorio_idempotencia.dart';
 import 'db/repositorio_productos.dart';
 import 'db/repositorio_terminales.dart';
+import 'db/repositorio_usuarios.dart';
+import 'rutas/rutas_ajustes.dart';
+import 'rutas/rutas_caja.dart';
 import 'rutas/rutas_productos.dart';
 import 'rutas/rutas_terminales.dart';
+import 'rutas/rutas_usuarios.dart';
 import 'seed/datos_ejemplo.dart';
+import 'seed/fotos_ejemplo.dart';
+import 'servicios/servicio_ajustes.dart';
+import 'servicios/servicio_caja.dart';
 import 'servicios/servicio_productos.dart';
 import 'servicios/servicio_terminales.dart';
+import 'servicios/servicio_usuarios.dart';
 import 'ws/hub.dart';
 import 'db/repositorio_envases.dart';
 import 'db/repositorio_ventas.dart';
@@ -33,6 +44,9 @@ import 'rutas/rutas_pedidos.dart';
 import 'servicios/servicio_envases.dart';
 import 'servicios/servicio_ventas.dart';
 import 'servicios/servicio_pedidos.dart';
+
+/// Fondo del turno que se abre solo con datos de ejemplo: $500.00.
+const fondoEjemplo = 50000;
 
 /// Versión del servidor; se manda en `conexion.lista`.
 const versionServidor = '0.1.0';
@@ -54,6 +68,7 @@ class DepositoServer {
     String? claveCaja,
     this.carpetaFotos,
     this.datosEjemplo = false,
+    this.fotosEjemplo = const {},
     Bitacora? bitacora,
     this._reloj = relojSistema,
   }) : direccion = direccion ?? InternetAddress.anyIPv4,
@@ -74,8 +89,14 @@ class DepositoServer {
   /// la base; con [enMemoria], una carpeta temporal que se borra al detener.
   final String? carpetaFotos;
 
-  /// Carga los productos del prototipo si la base está vacía.
+  /// Carga los productos del prototipo si la base está vacía y abre un turno
+  /// de caja con [fondoEjemplo] si nunca hubo uno.
   final bool datosEjemplo;
+
+  /// Bytes de las fotos de ejemplo por nombre de archivo (ver
+  /// [fotosDeEjemplo]). Con [datosEjemplo], se ponen a los productos de
+  /// ejemplo que no tengan foto. La app las lee de sus assets.
+  final Map<String, Uint8List> fotosEjemplo;
   final Bitacora bitacora;
   final Reloj _reloj;
 
@@ -112,6 +133,8 @@ class DepositoServer {
       final repoProductos = RepositorioProductos(db);
       final repoEnvases = RepositorioEnvases(db);
       final repoVentas = RepositorioVentas(db);
+      final repoCaja = RepositorioCaja(db);
+      final idempotencia = RepositorioIdempotencia(db);
       final productos = ServicioProductos(
         db: db,
         repositorio: repoProductos,
@@ -124,19 +147,42 @@ class DepositoServer {
         hub: hub,
         reloj: _reloj,
       );
-      final envases = ServicioEnvases(
+      final usuarios = ServicioUsuarios(
         db: db,
-        repositorio: repoEnvases,
+        repo: RepositorioUsuarios(db),
+        reloj: _reloj,
+      );
+      final servicioAjustes = ServicioAjustes(
+        db: db,
+        repo: ajustes,
+        reloj: _reloj,
+      );
+      final caja = ServicioCaja(
+        db: db,
+        repo: repoCaja,
+        idempotencia: idempotencia,
+        ajustes: ajustes,
+        usuarios: usuarios,
         hub: hub,
         reloj: _reloj,
       );
-
+      final envases = ServicioEnvases(
+        db: db,
+        repositorio: repoEnvases,
+        idempotencia: idempotencia,
+        caja: caja,
+        hub: hub,
+        reloj: _reloj,
+      );
       final ventas = ServicioVentas(
         db: db,
         repoVentas: repoVentas,
         repoProductos: repoProductos,
         repoEnvases: repoEnvases,
         repoAjustes: ajustes,
+        repoCaja: repoCaja,
+        idempotencia: idempotencia,
+        usuarios: usuarios,
         hub: hub,
         reloj: _reloj,
       );
@@ -156,6 +202,13 @@ class DepositoServer {
         );
         bitacora.info('Datos de ejemplo cargados');
       }
+      if (datosEjemplo) _ponerFotosEjemplo(productos, repoProductos);
+      // En demo se puede cobrar desde el primer arranque. Solo si nunca hubo
+      // un turno: después de un corte, la caja se queda cerrada.
+      if (datosEjemplo && repoCaja.contar() == 0) {
+        caja.abrir({'fondo': fondoEjemplo});
+        bitacora.info('Turno de caja de ejemplo abierto');
+      }
 
       final router =
           Router(
@@ -174,6 +227,9 @@ class DepositoServer {
       montarRutasEnvases(router, envases, ventas);
       montarRutasVentas(router, ventas);
       montarRutasPedidos(router, pedidos);
+      montarRutasCaja(router, caja);
+      montarRutasUsuarios(router, usuarios);
+      montarRutasAjustes(router, servicioAjustes);
 
       final manejador = const Pipeline()
           .addMiddleware(registrarPeticiones(bitacora))
@@ -213,6 +269,26 @@ class DepositoServer {
     _db = null;
     _hub = null;
     bitacora.info('Servidor detenido');
+  }
+
+  /// Solo a productos sin foto: también funciona en bases ya creadas y no
+  /// reemplaza una foto que se haya subido.
+  void _ponerFotosEjemplo(
+    ServicioProductos productos,
+    RepositorioProductos repo,
+  ) {
+    for (final e in fotosDeEjemplo.entries) {
+      final bytes = fotosEjemplo[e.value];
+      final producto = repo.porCodigo(e.key);
+      if (bytes == null || producto == null || producto.foto != null) continue;
+      try {
+        productos.guardarFoto(producto.id, 'image/webp', bytes);
+      } on ErrorApi catch (error) {
+        bitacora.advertencia(
+          'Foto de ejemplo ${e.value}: ${error.campos ?? error.mensaje}',
+        );
+      }
+    }
   }
 
   String _carpetaDeFotos() {

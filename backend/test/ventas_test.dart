@@ -8,7 +8,10 @@ void main() {
   late ServidorPrueba s;
   var clavesUsadas = 0;
 
-  setUp(() async => s = await crearServidorDePrueba());
+  setUp(() async {
+    s = await crearServidorDePrueba();
+    await s.abrirCaja();
+  });
   tearDown(() => s.cerrar());
 
   /// Cobra como la caja, con una clave de idempotencia nueva salvo que se pase.
@@ -401,7 +404,8 @@ void main() {
         (json(await s.get('/api/v1/envases'))['balance'] as Map).cast(),
       );
       expect(balance.keys, unorderedEquals(['mega', 'media', 'cuarto']));
-      expect(balance['mega']!.prestados, 36 + 3);
+      // Sin préstamos previos nada está prestado (m005 reconcilia la siembra).
+      expect(balance['mega']!.prestados, 3);
       final prestamos =
           json(await s.get('/api/v1/envases/prestamos'))['prestamos'] as List;
       final p = PrestamoEnvase.fromJson((prestamos.single as Map).cast());

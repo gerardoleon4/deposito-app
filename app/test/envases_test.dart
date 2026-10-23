@@ -17,9 +17,10 @@ void main() {
   ) async {
     await abrirEnvases(tester, ApiFalsa());
 
-    // 84 + 240 + 168 en bodega y 36 + 48 + 24 prestados (balanceDePrueba).
+    // 84 + 240 + 168 en bodega y nada prestado (balanceDePrueba).
     expect(find.text('492'), findsOneWidget);
-    expect(find.text('108'), findsOneWidget);
+    expect(find.text('100% del total'), findsOneWidget);
+    expect(find.text('0% del total'), findsOneWidget);
     expect(find.text(r'$8 c/u'), findsOneWidget); // depósito del mega
     expect(find.text('No hay envases prestados'), findsOneWidget);
   });
@@ -57,7 +58,7 @@ void main() {
 
     final p = api.prestamos.single;
     expect((p.cliente, p.formato, p.cantidad), ('Don Pedro', 'mega', 2));
-    expect(api.envases['mega']!.prestados, 38);
+    expect(api.envases['mega']!.prestados, 2);
     expect(find.text('Don Pedro'), findsOneWidget);
   });
 
@@ -84,7 +85,7 @@ void main() {
 
     expect(api.prestamos, isEmpty);
     expect(api.envases['media']!.bodega, 252);
-    expect(api.envases['media']!.prestados, 36);
+    expect(api.envases['media']!.prestados, 0);
     expect(find.text('Préstamo de Taquería El Pastor saldado'), findsOneWidget);
   });
 

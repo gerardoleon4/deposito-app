@@ -31,7 +31,7 @@ void main() {
 
   test('la caja lista los productos de ejemplo', () async {
     final productos = await caja.listarProductos();
-    expect(productos, hasLength(11));
+    expect(productos, hasLength(12));
     expect(productos.map((p) => p.nombre), contains('Victoria Mega'));
   });
 
@@ -158,9 +158,187 @@ void main() {
     expect((await caja.listarPrestamos()).single.id, prestamo.id);
     await caja.devolverPrestamo(prestamo.id);
     final despues = await caja.recibirVacios(formato: 'media', cantidad: 4);
-    expect(despues['media']!.bodega, antes['media']!.bodega + 6 + 4);
+    // El préstamo sacó 6 de bodega y al devolverlos regresaron: queda la entrada.
+    expect(despues['media']!.bodega, antes['media']!.bodega + 4);
     expect(despues['media']!.prestados, antes['media']!.prestados);
     expect(await caja.listarPrestamos(), isEmpty);
+  });
+
+  test('la caja hace su turno completo hasta el corte', () async {
+    // Con datos de ejemplo el servidor arranca con un turno abierto.
+    final inicio = await caja.turnoActual();
+    final turno = inicio.turno!;
+    expect(turno.abierto, isTrue);
+    expect(turno.fondo, 50000);
+    await expectLater(
+      caja.abrirCaja(fondo: 0),
+      throwsA(
+        isA<FalloApi>().having((f) => f.codigo, 'codigo', 'caja_abierta'),
+      ),
+    );
+
+    final hielo = (await caja.buscarPorCodigo('7502000000017'))!;
+    final venta = await caja.registrarVenta(
+      lineas: [LineaVenta(productoId: hielo.id, porCaja: false, cantidad: 1)],
+      metodo: 'efectivo',
+      claveIdempotencia: 'cobro-integracion-turno',
+    );
+    expect(venta.turnoId, turno.id);
+    final vacios = await caja.venderVacios(
+      formato: 'mega',
+      cantidad: 2,
+      metodo: 'efectivo',
+      claveIdempotencia: 'vacios-integracion-turno',
+    );
+    expect(vacios.total, 1600);
+    expect(await caja.listarVentas(turno: 'actual'), hasLength(2));
+
+    final mov = await caja.registrarMovimientoCaja(
+      tipo: 'retiro',
+      monto: 1000,
+      motivo: 'Pago proveedor hielo',
+      claveIdempotencia: 'retiro-integracion-1',
+    );
+    expect(mov.movimiento.motivo, 'Pago proveedor hielo');
+    final esperado = 50000 + hielo.precio + 1600 - 1000;
+    expect(mov.turno.resumen.esperado, esperado);
+
+    await expectLater(
+      caja.cerrarCaja(contado: 0, claveIdempotencia: 'corte-integracion-0'),
+      throwsA(isA<FalloApi>().having((f) => f.campos.keys, 'campos', ['nota'])),
+    );
+    final corte = await caja.cerrarCaja(
+      contado: esperado,
+      claveIdempotencia: 'corte-integracion-1',
+    );
+    expect(corte.estado, 'cerrado');
+    expect(corte.diferencia, 0);
+
+    expect((await caja.turnoActual()).turno, isNull);
+    await expectLater(
+      caja.registrarVenta(
+        lineas: [LineaVenta(productoId: hielo.id, porCaja: false, cantidad: 1)],
+        metodo: 'efectivo',
+        claveIdempotencia: 'cobro-integracion-cerrada',
+      ),
+      throwsA(
+        isA<FalloApi>().having((f) => f.codigo, 'codigo', 'caja_cerrada'),
+      ),
+    );
+    expect((await caja.listarCortes()).single.id, turno.id);
+    final detalle = await caja.obtenerCorte(turno.id);
+    expect(detalle.movimientos.single.tipo, 'retiro');
+
+    final nuevo = await caja.abrirCaja(fondo: 20000);
+    expect(nuevo.id, isNot(turno.id));
+  });
+
+  test('personal, devoluciones, envases, ajustes y respaldo', () async {
+    final dueno = await caja.crearUsuario(
+      nombre: 'Don Beto',
+      rol: 'dueno',
+      pin: '9999',
+    );
+    final cajera = await caja.crearUsuario(
+      nombre: 'Ana',
+      rol: 'cajero',
+      pin: '1111',
+      pinAutoriza: '9999',
+    );
+    expect((await caja.verificarPin('1111')).id, cajera.id);
+    expect(await caja.listarUsuarios(), hasLength(2));
+    final renombrada = await caja.editarUsuario(
+      cajera.id,
+      nombre: 'Ana López',
+      pinAutoriza: '9999',
+    );
+    expect(renombrada.nombre, 'Ana López');
+
+    final victoria = (await caja.buscarPorCodigo('7501064191015'))!;
+    final venta = await caja.registrarVenta(
+      lineas: [
+        LineaVenta(
+          productoId: victoria.id,
+          porCaja: false,
+          cantidad: 2,
+          descuento: 10,
+        ),
+      ],
+      metodo: 'efectivo',
+      envModo: 'cobrar',
+      envCredito: const {'media': 1},
+      usuarioId: cajera.id,
+      claveIdempotencia: 'cobro-integracion-pablo',
+    );
+    // 2 × (4200 − 420) + 2 × 800 de depósito − 300 de crédito.
+    expect(venta.total, 2 * 3780 + 1600 - 300);
+    final detalle = await caja.obtenerVenta(venta.id);
+    expect(detalle.usuario?.nombre, 'Ana López');
+    expect(detalle.lineas.single.descuento, 10);
+
+    await expectLater(
+      caja.devolverVenta(venta.id, lineas: {detalle.lineas.single.lineaId: 1}),
+      throwsA(
+        isA<FalloApi>().having((f) => f.codigo, 'codigo', 'pin_invalido'),
+      ),
+    );
+    final dev = await caja.devolverVenta(
+      venta.id,
+      lineas: {detalle.lineas.single.lineaId: 1},
+      destino: 'merma',
+      pin: '9999',
+    );
+    expect(dev.devolucion.monto, 3780 + 800);
+    expect(dev.devolucion.autorizo?.id, dueno.id);
+    expect(dev.venta.lineas.single.devueltas, 1);
+    await caja.cancelarVenta(venta.id, pin: '9999', motivo: 'Prueba');
+    expect((await caja.obtenerVenta(venta.id)).cancelada, isTrue);
+    expect(await caja.listarVentas(usuario: cajera.id), hasLength(1));
+
+    final prestamo = await caja.prestarEnvases(
+      cliente: 'Don Pedro',
+      telefono: '55 1234 5678',
+      formato: 'mega',
+      cantidad: 2,
+    );
+    expect(prestamo.telefono, '55 1234 5678');
+    await caja.sacarVacios(formato: 'cuarto', cantidad: 4, motivo: 'Rotos');
+    final deposito = await caja.devolverDeposito(
+      formato: 'media',
+      cantidad: 2,
+      cliente: 'Don José',
+      claveIdempotencia: 'deposito-integracion-1',
+    );
+    expect(deposito.turno.resumen.retiros, 600);
+    final bitacora = await caja.listarMovimientosEnvases(limite: 3);
+    expect(
+      [for (final m in bitacora) m.tipo],
+      ['devolucion_deposito', 'salida', 'prestamo'],
+    );
+
+    final ajustes = await caja.guardarAjustes({
+      'nombreNegocio': 'Depósito Don Beto',
+    });
+    expect(ajustes.nombreNegocio, 'Depósito Don Beto');
+    expect((await caja.obtenerAjustes()).nombreNegocio, 'Depósito Don Beto');
+    final respaldo = await caja.descargarRespaldo();
+    expect(String.fromCharCodes(respaldo.bytes.take(15)), 'SQLite format 3');
+    expect(respaldo.nombre, startsWith('anaquel-'));
+  });
+
+  test('un préstamo se devuelve por partes', () async {
+    final prestamo = await caja.prestarEnvases(
+      cliente: 'Don Pedro',
+      formato: 'mega',
+      cantidad: 10,
+    );
+    await caja.devolverPrestamo(prestamo.id, cantidad: 3);
+    final activo = (await caja.listarPrestamos()).single;
+    expect(activo.cantidad, 7);
+    expect(activo.devueltos, 3);
+    await caja.devolverPrestamo(prestamo.id);
+    expect(await caja.listarPrestamos(), isEmpty);
+    expect((await caja.obtenerBalanceEnvases())['mega']!.prestados, 0);
   });
 
   test('sin existencias el error llega como stock_insuficiente', () async {
@@ -193,7 +371,7 @@ void main() {
         codigo: codigo.codigo,
       );
       final terminal = ApiHttp(base: base, clave: registro.clave);
-      expect(await terminal.listarProductos(), hasLength(11));
+      expect(await terminal.listarProductos(), hasLength(12));
 
       final tiempoReal = TiempoReal(terminal);
       addTearDown(tiempoReal.cerrar);

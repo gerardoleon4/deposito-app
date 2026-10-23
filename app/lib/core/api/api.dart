@@ -58,13 +58,31 @@ abstract interface class Api {
 
   Future<Producto> borrarFoto(String id);
 
-  /// Las últimas 100 ventas, del folio más nuevo al más viejo.
-  Future<List<ResumenVenta>> listarVentas();
+  /// Las últimas 100 ventas, del folio más nuevo al más viejo. Con [turno]
+  /// (`actual` o un id `tur_...`), solo las de ese turno; con [usuario],
+  /// solo las que cobró esa persona.
+  Future<List<ResumenVenta>> listarVentas({String? turno, String? usuario});
 
   Future<DetalleVenta> obtenerVenta(String id);
 
-  /// Regresa existencias y envases. Ya cancelada es `datos_invalidos`.
-  Future<void> cancelarVenta(String id);
+  /// Regresa lo que falta de la venta. Ya cancelada es `datos_invalidos`; de
+  /// un turno con corte, `turno_cerrado`. [pin] de gerente o dueño si hay
+  /// alguno registrado. [destino]: `inventario` o `merma`.
+  Future<void> cancelarVenta(
+    String id, {
+    String? pin,
+    String destino = 'inventario',
+    String? motivo,
+  });
+
+  /// Devolución parcial: [lineas] es `lineaId → unidades`.
+  Future<({Devolucion devolucion, DetalleVenta venta})> devolverVenta(
+    String id, {
+    required Map<int, int> lineas,
+    String destino = 'inventario',
+    String? motivo,
+    String? pin,
+  });
 
   /// Existencias por formato: `mega`, `media`, `cuarto`.
   Future<Map<String, BalanceEnvase>> obtenerBalanceEnvases();
@@ -72,20 +90,115 @@ abstract interface class Api {
   /// Préstamos sin devolver, del más nuevo al más viejo.
   Future<List<PrestamoEnvase>> listarPrestamos();
 
+  /// Presta vacíos de bodega. Sin suficientes, `envases_insuficientes`.
   Future<PrestamoEnvase> prestarEnvases({
     required String cliente,
+    String? telefono,
     required String formato,
     required int cantidad,
   });
 
-  /// Todos los envases del préstamo regresan a bodega.
-  Future<void> devolverPrestamo(String id);
+  /// Saca vacíos de bodega sin cobro (al proveedor, rotos...).
+  Future<Map<String, BalanceEnvase>> sacarVacios({
+    required String formato,
+    required int cantidad,
+    required String motivo,
+  });
+
+  /// El cliente regresa vacíos y se le devuelve su depósito en efectivo
+  /// (retiro de caja). Necesita la caja abierta.
+  Future<({Map<String, BalanceEnvase> balance, Turno turno})> devolverDeposito({
+    required String formato,
+    required int cantidad,
+    String? cliente,
+    required String claveIdempotencia,
+  });
+
+  /// Bitácora de envases, del más nuevo al más viejo.
+  Future<List<MovimientoEnvase>> listarMovimientosEnvases({int limite = 50});
+
+  /// Los envases regresan a bodega: todo lo pendiente o, con [cantidad],
+  /// una devolución parcial.
+  Future<void> devolverPrestamo(String id, {int? cantidad});
 
   /// Vacíos que entran a bodega sin una venta.
   Future<Map<String, BalanceEnvase>> recibirVacios({
     required String formato,
     required int cantidad,
   });
+
+  /// Cobra envases vacíos de bodega al precio de depósito. Es una venta con
+  /// folio; reintentar con la misma [claveIdempotencia] no cobra otra vez.
+  Future<VentaRegistrada> venderVacios({
+    required String formato,
+    required int cantidad,
+    required String metodo,
+    int? recibido,
+    required String claveIdempotencia,
+  });
+
+  /// El turno abierto con sus movimientos; `turno` es `null` si la caja está
+  /// cerrada.
+  Future<DetalleTurno> turnoActual();
+
+  /// Ya abierta es `caja_abierta`.
+  Future<Turno> abrirCaja({required int fondo, String? usuarioId});
+
+  /// [tipo]: `ingreso` o `retiro`. Un retiro no puede pasar del esperado.
+  Future<({MovimientoCaja movimiento, Turno turno})> registrarMovimientoCaja({
+    required String tipo,
+    required int monto,
+    required String motivo,
+    required String claveIdempotencia,
+  });
+
+  /// Corte. [nota] es obligatoria si [contado] no coincide con el esperado.
+  /// Reintentar con la misma [claveIdempotencia] regresa el mismo corte.
+  Future<Turno> cerrarCaja({
+    required int contado,
+    String? nota,
+    String? usuarioId,
+    required String claveIdempotencia,
+  });
+
+  /// Turnos cerrados, del más nuevo al más viejo. [desde] y [hasta] son días
+  /// `AAAA-MM-DD`; sin ellos, los últimos 30.
+  Future<List<Turno>> listarCortes({String? desde, String? hasta});
+
+  /// Un turno, abierto o cerrado, con sus movimientos.
+  Future<DetalleTurno> obtenerCorte(String id);
+
+  /// Personal, activos e inactivos, por nombre.
+  Future<List<Usuario>> listarUsuarios();
+
+  /// El primero debe ser `dueno` y no lleva [pinAutoriza]; los demás sí.
+  Future<Usuario> crearUsuario({
+    required String nombre,
+    required String rol,
+    required String pin,
+    String? pinAutoriza,
+  });
+
+  /// Solo cambia lo que viene. [pinAutoriza] de gerente o dueño.
+  Future<Usuario> editarUsuario(
+    String id, {
+    String? nombre,
+    String? rol,
+    bool? activo,
+    String? pin,
+    required String pinAutoriza,
+  });
+
+  /// De quién es el PIN; con [usuarioId], que sea de esa persona.
+  Future<Usuario> verificarPin(String pin, {String? usuarioId});
+
+  Future<AjustesNegocio> obtenerAjustes();
+
+  /// Reemplaza los campos de [cambios]; `null` borra.
+  Future<AjustesNegocio> guardarAjustes(Map<String, String?> cambios);
+
+  /// La base completa como archivo SQLite, con su nombre sugerido.
+  Future<({Uint8List bytes, String nombre})> descargarRespaldo();
 
   Future<CodigoEmparejamiento> crearCodigoEmparejamiento();
 
@@ -95,10 +208,17 @@ abstract interface class Api {
 
   /// Cobra en la caja. Reintentar con la misma [claveIdempotencia] regresa
   /// la misma venta en lugar de cobrar otra vez.
+  ///
+  /// [envModo]: `na`, `cobrar`, `trae` o `prestamo` (con [envCliente]).
+  /// [envCredito]: vacíos extra que entrega el cliente, por formato.
   Future<VentaRegistrada> registrarVenta({
     required List<LineaVenta> lineas,
     required String metodo,
     int? recibido,
+    String envModo = 'na',
+    String? envCliente,
+    Map<String, int> envCredito = const {},
+    String? usuarioId,
     required String claveIdempotencia,
   });
 }
@@ -266,13 +386,17 @@ class ApiHttp implements Api {
       _producto(_dio.delete('/api/v1/productos/$id/foto'));
 
   @override
-  Future<List<ResumenVenta>> listarVentas() => _pedir(() async {
-    final r = await _dio.get<Map<String, Object?>>('/api/v1/ventas');
-    return [
-      for (final v in r.data!['ventas'] as List)
-        ResumenVenta.fromJson((v as Map).cast()),
-    ];
-  });
+  Future<List<ResumenVenta>> listarVentas({String? turno, String? usuario}) =>
+      _pedir(() async {
+        final r = await _dio.get<Map<String, Object?>>(
+          '/api/v1/ventas',
+          queryParameters: {'turno': ?turno, 'usuario': ?usuario},
+        );
+        return [
+          for (final v in r.data!['ventas'] as List)
+            ResumenVenta.fromJson((v as Map).cast()),
+        ];
+      });
 
   @override
   Future<DetalleVenta> obtenerVenta(String id) => _pedir(() async {
@@ -281,8 +405,43 @@ class ApiHttp implements Api {
   });
 
   @override
-  Future<void> cancelarVenta(String id) =>
-      _pedir(() => _dio.post<void>('/api/v1/ventas/$id/cancelar'));
+  Future<void> cancelarVenta(
+    String id, {
+    String? pin,
+    String destino = 'inventario',
+    String? motivo,
+  }) => _pedir(
+    () => _dio.post<void>(
+      '/api/v1/ventas/$id/cancelar',
+      data: {'pin': ?pin, 'destino': destino, 'motivo': ?motivo},
+    ),
+  );
+
+  @override
+  Future<({Devolucion devolucion, DetalleVenta venta})> devolverVenta(
+    String id, {
+    required Map<int, int> lineas,
+    String destino = 'inventario',
+    String? motivo,
+    String? pin,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/ventas/$id/devolver',
+      data: {
+        'lineas': [
+          for (final e in lineas.entries)
+            {'lineaId': e.key, 'cantidad': e.value},
+        ],
+        'destino': destino,
+        'motivo': ?motivo,
+        'pin': ?pin,
+      },
+    );
+    return (
+      devolucion: Devolucion.fromJson((r.data!['devolucion'] as Map).cast()),
+      venta: DetalleVenta.fromJson((r.data!['venta'] as Map).cast()),
+    );
+  });
 
   @override
   Future<Map<String, BalanceEnvase>> obtenerBalanceEnvases() =>
@@ -303,19 +462,73 @@ class ApiHttp implements Api {
   @override
   Future<PrestamoEnvase> prestarEnvases({
     required String cliente,
+    String? telefono,
     required String formato,
     required int cantidad,
   }) => _pedir(() async {
     final r = await _dio.post<Map<String, Object?>>(
       '/api/v1/envases/prestamos',
-      data: {'cliente': cliente, 'formato': formato, 'cantidad': cantidad},
+      data: {
+        'cliente': cliente,
+        'telefono': ?telefono,
+        'formato': formato,
+        'cantidad': cantidad,
+      },
     );
     return PrestamoEnvase.fromJson(r.data!);
   });
 
   @override
-  Future<void> devolverPrestamo(String id) =>
-      _pedir(() => _dio.post<void>('/api/v1/envases/prestamos/$id/devolver'));
+  Future<Map<String, BalanceEnvase>> sacarVacios({
+    required String formato,
+    required int cantidad,
+    required String motivo,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/envases/salida',
+      data: {'formato': formato, 'cantidad': cantidad, 'motivo': motivo},
+    );
+    return BalanceEnvase.deJson((r.data!['balance'] as Map).cast());
+  });
+
+  @override
+  Future<({Map<String, BalanceEnvase> balance, Turno turno})> devolverDeposito({
+    required String formato,
+    required int cantidad,
+    String? cliente,
+    required String claveIdempotencia,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/envases/devolucion-deposito',
+      data: {'formato': formato, 'cantidad': cantidad, 'cliente': ?cliente},
+      options: Options(headers: {cabeceraIdempotencia: claveIdempotencia}),
+    );
+    return (
+      balance: BalanceEnvase.deJson((r.data!['balance'] as Map).cast()),
+      turno: Turno.fromJson((r.data!['turno'] as Map).cast()),
+    );
+  });
+
+  @override
+  Future<List<MovimientoEnvase>> listarMovimientosEnvases({int limite = 50}) =>
+      _pedir(() async {
+        final r = await _dio.get<Map<String, Object?>>(
+          '/api/v1/envases/movimientos',
+          queryParameters: {'limite': limite},
+        );
+        return [
+          for (final m in r.data!['movimientos'] as List)
+            MovimientoEnvase.fromJson((m as Map).cast()),
+        ];
+      });
+
+  @override
+  Future<void> devolverPrestamo(String id, {int? cantidad}) => _pedir(
+    () => _dio.post<void>(
+      '/api/v1/envases/prestamos/$id/devolver',
+      data: {'cantidad': ?cantidad},
+    ),
+  );
 
   @override
   Future<Map<String, BalanceEnvase>> recibirVacios({
@@ -328,6 +541,183 @@ class ApiHttp implements Api {
     );
     return BalanceEnvase.deJson((r.data!['balance'] as Map).cast());
   });
+
+  @override
+  Future<VentaRegistrada> venderVacios({
+    required String formato,
+    required int cantidad,
+    required String metodo,
+    int? recibido,
+    required String claveIdempotencia,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/envases/venta-vacios',
+      data: {
+        'formato': formato,
+        'cantidad': cantidad,
+        'metodo': metodo,
+        'recibido': ?recibido,
+      },
+      options: Options(headers: {cabeceraIdempotencia: claveIdempotencia}),
+    );
+    return VentaRegistrada.fromJson(r.data!);
+  });
+
+  @override
+  Future<DetalleTurno> turnoActual() => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>('/api/v1/caja/turno');
+    return DetalleTurno.fromJson(r.data!);
+  });
+
+  @override
+  Future<Turno> abrirCaja({required int fondo, String? usuarioId}) => _turno(
+    _dio.post(
+      '/api/v1/caja/abrir',
+      data: {'fondo': fondo, 'usuarioId': ?usuarioId},
+    ),
+  );
+
+  @override
+  Future<({MovimientoCaja movimiento, Turno turno})> registrarMovimientoCaja({
+    required String tipo,
+    required int monto,
+    required String motivo,
+    required String claveIdempotencia,
+  }) => _pedir(() async {
+    final r = await _dio.post<Map<String, Object?>>(
+      '/api/v1/caja/movimientos',
+      data: {'tipo': tipo, 'monto': monto, 'motivo': motivo},
+      options: Options(headers: {cabeceraIdempotencia: claveIdempotencia}),
+    );
+    return (
+      movimiento: MovimientoCaja.fromJson(
+        (r.data!['movimiento'] as Map).cast(),
+      ),
+      turno: Turno.fromJson((r.data!['turno'] as Map).cast()),
+    );
+  });
+
+  @override
+  Future<Turno> cerrarCaja({
+    required int contado,
+    String? nota,
+    String? usuarioId,
+    required String claveIdempotencia,
+  }) => _turno(
+    _dio.post(
+      '/api/v1/caja/cerrar',
+      data: {'contado': contado, 'nota': ?nota, 'usuarioId': ?usuarioId},
+      options: Options(headers: {cabeceraIdempotencia: claveIdempotencia}),
+    ),
+  );
+
+  @override
+  Future<List<Turno>> listarCortes({String? desde, String? hasta}) =>
+      _pedir(() async {
+        final r = await _dio.get<Map<String, Object?>>(
+          '/api/v1/caja/cortes',
+          queryParameters: {'desde': ?desde, 'hasta': ?hasta},
+        );
+        return [
+          for (final t in r.data!['cortes'] as List)
+            Turno.fromJson((t as Map).cast()),
+        ];
+      });
+
+  @override
+  Future<DetalleTurno> obtenerCorte(String id) => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>('/api/v1/caja/cortes/$id');
+    return DetalleTurno.fromJson(r.data!);
+  });
+
+  @override
+  Future<List<Usuario>> listarUsuarios() => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>('/api/v1/usuarios');
+    return [
+      for (final u in r.data!['usuarios'] as List)
+        Usuario.fromJson((u as Map).cast()),
+    ];
+  });
+
+  @override
+  Future<Usuario> crearUsuario({
+    required String nombre,
+    required String rol,
+    required String pin,
+    String? pinAutoriza,
+  }) => _usuario(
+    _dio.post(
+      '/api/v1/usuarios',
+      data: {
+        'nombre': nombre,
+        'rol': rol,
+        'pin': pin,
+        'pinAutoriza': ?pinAutoriza,
+      },
+    ),
+  );
+
+  @override
+  Future<Usuario> editarUsuario(
+    String id, {
+    String? nombre,
+    String? rol,
+    bool? activo,
+    String? pin,
+    required String pinAutoriza,
+  }) => _usuario(
+    _dio.put(
+      '/api/v1/usuarios/$id',
+      data: {
+        'nombre': ?nombre,
+        'rol': ?rol,
+        'activo': ?activo,
+        'pin': ?pin,
+        'pinAutoriza': pinAutoriza,
+      },
+    ),
+  );
+
+  @override
+  Future<Usuario> verificarPin(String pin, {String? usuarioId}) => _usuario(
+    _dio.post(
+      '/api/v1/usuarios/verificar',
+      data: {'pin': pin, 'usuarioId': ?usuarioId},
+    ),
+  );
+
+  @override
+  Future<AjustesNegocio> obtenerAjustes() => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>('/api/v1/ajustes');
+    return AjustesNegocio.fromJson(r.data!);
+  });
+
+  @override
+  Future<AjustesNegocio> guardarAjustes(Map<String, String?> cambios) =>
+      _pedir(() async {
+        final r = await _dio.put<Map<String, Object?>>(
+          '/api/v1/ajustes',
+          data: cambios,
+        );
+        return AjustesNegocio.fromJson(r.data!);
+      });
+
+  @override
+  Future<({Uint8List bytes, String nombre})> descargarRespaldo() =>
+      _pedir(() async {
+        final r = await _dio.get<List<int>>(
+          '/api/v1/respaldo',
+          options: Options(
+            responseType: ResponseType.bytes,
+            receiveTimeout: const Duration(minutes: 2),
+          ),
+        );
+        final disposicion = r.headers.value('content-disposition') ?? '';
+        final nombre =
+            RegExp('filename="([^"]+)"').firstMatch(disposicion)?[1] ??
+            'anaquel.db';
+        return (bytes: Uint8List.fromList(r.data!), nombre: nombre);
+      });
 
   @override
   Future<CodigoEmparejamiento> crearCodigoEmparejamiento() => _pedir(() async {
@@ -355,6 +745,10 @@ class ApiHttp implements Api {
     required List<LineaVenta> lineas,
     required String metodo,
     int? recibido,
+    String envModo = 'na',
+    String? envCliente,
+    Map<String, int> envCredito = const {},
+    String? usuarioId,
     required String claveIdempotencia,
   }) => _pedir(() async {
     final r = await _dio.post<Map<String, Object?>>(
@@ -362,12 +756,30 @@ class ApiHttp implements Api {
       data: {
         'metodo': metodo,
         'recibido': ?recibido,
+        'envModo': envModo,
+        'envCliente': ?envCliente,
+        if (envCredito.isNotEmpty) 'envCredito': envCredito,
+        'usuarioId': ?usuarioId,
         'lineas': [for (final l in lineas) l.toJson()],
       },
       options: Options(headers: {cabeceraIdempotencia: claveIdempotencia}),
     );
     return VentaRegistrada.fromJson(r.data!);
   });
+
+  /// Peticiones que responden `{ "usuario": <usuario> }`.
+  Future<Usuario> _usuario(Future<Response<Map<String, Object?>>> peticion) =>
+      _pedir(
+        () async =>
+            Usuario.fromJson(((await peticion).data!['usuario'] as Map).cast()),
+      );
+
+  /// Peticiones que responden `{ "turno": <turno> }`.
+  Future<Turno> _turno(Future<Response<Map<String, Object?>>> peticion) =>
+      _pedir(
+        () async =>
+            Turno.fromJson(((await peticion).data!['turno'] as Map).cast()),
+      );
 
   /// Peticiones que responden un producto.
   Future<Producto> _producto(Future<Response<Map<String, Object?>>> peticion) =>

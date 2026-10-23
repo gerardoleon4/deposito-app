@@ -19,6 +19,7 @@ const _tabla = '''
 7502000000031|Agua mineral|refresco|Botella 355 ml|1600|-|-|8|12|-|200
 7502000000048|Papas adobadas|botana|Bolsa 45 g|2000|-|-|25|20|-|12
 7502000000055|Cacahuates japoneses|botana|Bolsa 100 g|1800|-|-|6|15|-|45
+7502000000062|Doritos Nacho|botana|Bolsa 62 g|1800|-|-|15|10|-|60
 ''';
 
 /// Carga los productos de ejemplo. Las caducidades se calculan desde hoy en

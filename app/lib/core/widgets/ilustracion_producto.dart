@@ -1,13 +1,16 @@
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../app/tema/colores.dart';
 import '../../app/tema/tema.dart';
+import '../api/proveedores.dart';
 
-/// Ilustración del producto mientras no tenga foto (Sprint 2): una botella,
-/// lata, bolsa o bolsa de hielo según su envase y categoría, sobre el color
-/// de su categoría. Se dibuja en código: no pesa ni necesita internet.
-class IlustracionProducto extends StatelessWidget {
+/// Imagen del producto: su foto si tiene (se pide a la caja con la clave),
+/// y si no, o mientras carga, o si falla, una ilustración: una botella, lata,
+/// bolsa o bolsa de hielo según su envase y categoría, sobre el color de su
+/// categoría. La ilustración se dibuja en código: no pesa ni necesita red.
+class IlustracionProducto extends ConsumerWidget {
   const IlustracionProducto({
     super.key,
     required this.producto,
@@ -18,20 +21,38 @@ class IlustracionProducto extends StatelessWidget {
   final double radio;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colores;
+    final dibujo = CustomPaint(
+      painter: _Pintor(
+        forma: _formaDe(producto),
+        acento: _acentoDe(producto),
+        oscuro: Theme.of(context).brightness == Brightness.dark,
+      ),
+      child: const SizedBox.expand(),
+    );
+    final foto = producto.foto;
+    final api = foto == null ? null : ref.watch(apiProvider).value;
     return ClipRRect(
       borderRadius: BorderRadius.circular(radio),
       child: ColoredBox(
-        color: c.fondoCategoria(producto.categoria),
-        child: CustomPaint(
-          painter: _Pintor(
-            forma: _formaDe(producto),
-            acento: _acentoDe(producto),
-            oscuro: Theme.of(context).brightness == Brightness.dark,
-          ),
-          child: const SizedBox.expand(),
-        ),
+        // Las fotos de producto suelen venir sobre fondo blanco.
+        color: api == null
+            ? c.fondoCategoria(producto.categoria)
+            : Colors.white,
+        child: api == null
+            ? dibujo
+            : Padding(
+                padding: const EdgeInsets.all(8),
+                child: Image.network(
+                  api.base.resolve(foto!).toString(),
+                  headers: {cabeceraClave: api.clave},
+                  fit: BoxFit.contain,
+                  frameBuilder: (_, imagen, cuadro, _) =>
+                      cuadro == null ? dibujo : imagen,
+                  errorBuilder: (_, _, _) => dibujo,
+                ),
+              ),
       ),
     );
   }

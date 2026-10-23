@@ -51,6 +51,15 @@ class Hub {
     }
   }
 
+  /// Como [emitir], pero solo a las conexiones de la caja (eventos `caja.*`,
+  /// que traen montos que una terminal no puede pedir).
+  void emitirACaja(String tipo, Map<String, Object?> datos) {
+    final texto = jsonEncode(_evento(tipo, datos).toJson());
+    for (final e in _conexiones.entries.toList()) {
+      if (e.value.esCaja) _enviarTexto(e.key, texto);
+    }
+  }
+
   /// Cierra los WebSocket de una terminal revocada.
   Future<void> desconectarTerminal(String terminalId) async {
     final canales = [

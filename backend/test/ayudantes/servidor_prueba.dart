@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:http/http.dart' as http;
@@ -13,6 +14,7 @@ import 'package:http/http.dart' as http;
 /// ```
 Future<ServidorPrueba> crearServidorDePrueba({
   bool datosEjemplo = false,
+  Map<String, Uint8List> fotosEjemplo = const {},
   Reloj? reloj,
 }) async {
   final servidor = DepositoServer(
@@ -20,6 +22,7 @@ Future<ServidorPrueba> crearServidorDePrueba({
     puerto: 0,
     direccion: InternetAddress.loopbackIPv4,
     datosEjemplo: datosEjemplo,
+    fotosEjemplo: fotosEjemplo,
     bitacora: Bitacora.silenciosa(),
     reloj: reloj ?? () => DateTime.now().toUtc(),
   );
@@ -86,6 +89,13 @@ class ServidorPrueba {
       'codigo': codigo,
     }, clave: '');
     return json(r)['clave'] as String;
+  }
+
+  /// Abre un turno de caja: sin él no se cobra (`409 caja_cerrada`).
+  Future<Map<String, Object?>> abrirCaja({int fondo = 50000}) async {
+    final r = await post('/api/v1/caja/abrir', {'fondo': fondo});
+    if (r.statusCode != 201) throw StateError('No abrió la caja: ${r.body}');
+    return (json(r)['turno'] as Map).cast();
   }
 
   Future<void> cerrar() async {
