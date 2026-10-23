@@ -4,17 +4,35 @@ import '../../../app/tema/colores.dart';
 import '../datos/modelos_envases.dart';
 import 'selector_envases.dart';
 
-/// Datos de un préstamo nuevo.
-typedef NuevoPrestamo = ({String cliente, FormatoEnvase formato, int cantidad});
+/// Lo que se capturó para el préstamo.
+typedef NuevoPrestamo = ({
+  String cliente,
+  String? telefono,
+  FormatoEnvase formato,
+  int cantidad,
+});
 
-/// Registro de préstamo de envases (fiado) a un cliente.
+/// 5.4 Registro de préstamo (fiado), diseño de Pablo.
+///
+/// Con [cantidadEnvases] y [formato] el préstamo viene de una venta y ya
+/// tiene cantidad; sin ellos se eligen aquí (vacíos de bodega).
 class ModalRegistroPrestamo extends StatefulWidget {
-  const ModalRegistroPrestamo({super.key});
+  const ModalRegistroPrestamo({super.key, this.cantidadEnvases, this.formato});
 
-  /// Regresa el préstamo a registrar, o `null` si se cerró sin guardar.
-  static Future<NuevoPrestamo?> mostrar(BuildContext context) => showDialog(
+  final int? cantidadEnvases;
+  final FormatoEnvase? formato;
+
+  static Future<NuevoPrestamo?> mostrar(
+    BuildContext context, {
+    int? cantidadEnvases,
+    FormatoEnvase? formato,
+  }) => showDialog<NuevoPrestamo>(
     context: context,
-    builder: (_) => const ModalRegistroPrestamo(),
+    barrierDismissible: true,
+    builder: (_) => ModalRegistroPrestamo(
+      cantidadEnvases: cantidadEnvases,
+      formato: formato,
+    ),
   );
 
   @override
@@ -22,32 +40,40 @@ class ModalRegistroPrestamo extends StatefulWidget {
 }
 
 class _ModalRegistroPrestamoState extends State<ModalRegistroPrestamo> {
-  final _nombre = TextEditingController();
-  var _formato = FormatoEnvase.media;
-  var _cantidad = 1;
+  final _nombreCtrl = TextEditingController();
+  final _telefonoCtrl = TextEditingController();
+  bool _nombreValido = false;
+  bool _intentoGuardar = false;
+  late FormatoEnvase _formato = widget.formato ?? FormatoEnvase.media;
+  late int _cantidad = widget.cantidadEnvases ?? 1;
 
-  /// El contrato pide de 1 a 80 caracteres.
-  bool get _nombreValido {
-    final n = _nombre.text.trim().length;
-    return n >= 1 && n <= 80;
-  }
+  bool get _deVenta => widget.cantidadEnvases != null;
 
   @override
   void initState() {
     super.initState();
-    _nombre.addListener(() => setState(() {}));
+    _nombreCtrl.addListener(() {
+      final valido = _nombreCtrl.text.trim().isNotEmpty;
+      if (valido != _nombreValido) {
+        setState(() => _nombreValido = valido);
+      }
+    });
   }
 
   @override
   void dispose() {
-    _nombre.dispose();
+    _nombreCtrl.dispose();
+    _telefonoCtrl.dispose();
     super.dispose();
   }
 
   void _guardar() {
+    setState(() => _intentoGuardar = true);
     if (!_nombreValido) return;
-    Navigator.pop<NuevoPrestamo>(context, (
-      cliente: _nombre.text.trim(),
+    final telefono = _telefonoCtrl.text.trim();
+    Navigator.pop(context, (
+      cliente: _nombreCtrl.text.trim(),
+      telefono: telefono.isEmpty ? null : telefono,
       formato: _formato,
       cantidad: _cantidad,
     ));
@@ -56,9 +82,11 @@ class _ModalRegistroPrestamoState extends State<ModalRegistroPrestamo> {
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
+    final mostrarError = _intentoGuardar && !_nombreValido;
+
     return Dialog(
       backgroundColor: Colors.transparent,
-      insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
       child: Center(
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
@@ -80,18 +108,19 @@ class _ModalRegistroPrestamoState extends State<ModalRegistroPrestamo> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
+                  // Cabecera con icono
                   Row(
                     children: [
                       Container(
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: c.lagerSuave,
+                          color: Colors.amber.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(14),
                         ),
-                        child: Icon(
+                        child: const Icon(
                           Icons.handshake_outlined,
-                          color: c.lagerTinta,
+                          color: Color(0xFFD97706),
                           size: 26,
                         ),
                       ),
@@ -101,7 +130,7 @@ class _ModalRegistroPrestamoState extends State<ModalRegistroPrestamo> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'Prestar envases',
+                              'Registro de Préstamo',
                               style: TextStyle(
                                 fontSize: 22,
                                 fontWeight: FontWeight.w800,
@@ -110,7 +139,7 @@ class _ModalRegistroPrestamoState extends State<ModalRegistroPrestamo> {
                               ),
                             ),
                             Text(
-                              'Se los lleva sin pagar depósito y los regresa después',
+                              'Fiado / Envases pendientes de devolver',
                               style: TextStyle(fontSize: 13, color: c.tinta2),
                             ),
                           ],
@@ -125,66 +154,143 @@ class _ModalRegistroPrestamoState extends State<ModalRegistroPrestamo> {
                     ],
                   ),
                   const SizedBox(height: 20),
+
+                  // Resumen del préstamo (de una venta) o qué se presta
+                  if (_deVenta)
+                    Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: c.superficie2,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(color: c.linea),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.info_outline_rounded,
+                            size: 20,
+                            color: c.azul,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Text(
+                              'Préstamo de $_cantidad envases '
+                              '(${_formato.etiqueta}) asociado a esta compra.',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: c.tinta,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    SelectorEnvases(
+                      formato: _formato,
+                      cantidad: _cantidad,
+                      alCambiarFormato: (f) => setState(() => _formato = f),
+                      alCambiarCantidad: (n) => setState(() => _cantidad = n),
+                      etiquetaCantidad: 'vacíos de bodega',
+                    ),
+                  const SizedBox(height: 20),
+
+                  // Input Nombre o Apodo
                   Text(
-                    'Nombre o apodo del cliente',
+                    'Nombre o Apodo del Cliente *',
                     style: TextStyle(
                       fontSize: 14,
                       fontWeight: FontWeight.w700,
+                      color: mostrarError ? c.alerta : c.tinta,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _nombreCtrl,
+                    autofocus: _deVenta,
+                    maxLength: 80,
+                    textCapitalization: TextCapitalization.words,
+                    decoration: InputDecoration(
+                      counterText: '',
+                      hintText: 'Ej. Don Pedro, Compadre Juan, Taquería...',
+                      filled: true,
+                      fillColor: mostrarError ? c.alertaSuave : c.superficie2,
+                      prefixIcon: Icon(
+                        Icons.person_outline_rounded,
+                        color: mostrarError ? c.alerta : c.tinta2,
+                      ),
+                      enabledBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: mostrarError ? c.alerta : c.linea,
+                          width: mostrarError ? 1.5 : 1.0,
+                        ),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(14),
+                        borderSide: BorderSide(
+                          color: mostrarError ? c.alerta : c.azul,
+                          width: 2.0,
+                        ),
+                      ),
+                      errorText: mostrarError
+                          ? 'Ingresa el nombre para guardar el préstamo'
+                          : null,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+
+                  // Input Teléfono (opcional)
+                  Text(
+                    'Teléfono o WhatsApp (opcional)',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
                       color: c.tinta,
                     ),
                   ),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _nombre,
-                    autofocus: true,
-                    maxLength: 80,
-                    textCapitalization: TextCapitalization.words,
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => _guardar(),
+                    controller: _telefonoCtrl,
+                    keyboardType: TextInputType.phone,
+                    maxLength: 20,
                     decoration: InputDecoration(
-                      hintText: 'Ej. Don Pedro, Taquería El Pastor…',
                       counterText: '',
+                      hintText: 'Ej. 55 1234 5678',
                       filled: true,
                       fillColor: c.superficie2,
-                      prefixIcon: Icon(
-                        Icons.person_outline_rounded,
-                        color: c.tinta2,
-                      ),
+                      prefixIcon: Icon(Icons.phone_outlined, color: c.tinta2),
                       enabledBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
                         borderSide: BorderSide(color: c.linea),
                       ),
                       focusedBorder: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(14),
-                        borderSide: BorderSide(color: c.azul, width: 2),
+                        borderSide: BorderSide(color: c.azul, width: 2.0),
                       ),
                     ),
                   ),
-                  const SizedBox(height: 16),
-                  SelectorEnvases(
-                    formato: _formato,
-                    cantidad: _cantidad,
-                    etiquetaCantidad: _cantidad == 1
-                        ? 'envase prestado'
-                        : 'envases prestados',
-                    alCambiarFormato: (f) => setState(() => _formato = f),
-                    alCambiarCantidad: (n) => setState(() => _cantidad = n),
-                  ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
+
+                  // Botón Acción: "Guardar Préstamo"
                   SizedBox(
                     height: 54,
-                    child: FilledButton.icon(
+                    child: ElevatedButton.icon(
                       onPressed: _nombreValido ? _guardar : null,
-                      style: FilledButton.styleFrom(
+                      style: ElevatedButton.styleFrom(
                         backgroundColor: c.azul,
                         foregroundColor: Colors.white,
+                        disabledBackgroundColor: c.linea,
+                        disabledForegroundColor: c.tinta2,
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(16),
                         ),
+                        elevation: 0,
                       ),
                       icon: const Icon(Icons.check_rounded, size: 22),
                       label: const Text(
-                        'Guardar préstamo',
+                        'Guardar Préstamo',
                         style: TextStyle(
                           fontSize: 17,
                           fontWeight: FontWeight.w800,

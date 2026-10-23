@@ -7,11 +7,6 @@ import 'app/tema/tema.dart';
 import 'core/api/api_falsa.dart';
 import 'core/api/proveedores.dart';
 import 'core/config/configuracion.dart';
-import 'features/auth/pantallas/login_diario.dart';
-import 'features/caja/pantallas/arqueo_caja.dart';
-import 'features/caja/pantallas/corte_caja.dart';
-import 'features/caja/pantallas/movimientos_caja.dart';
-import 'features/caja/pantallas/recibo_cierre.dart';
 import 'features/inicio/pantalla_carga.dart';
 import 'features/inicio/pantallas/restaurar_respaldo.dart';
 import 'features/pdv/pantallas/punto_venta.dart';
@@ -61,11 +56,6 @@ class _Vitrina extends StatelessWidget {
     ),
     ('Punto de venta', 'Conectado (aquí con ApiFalsa)', PuntoVenta.new),
     ('Personal', 'Sin endpoint todavía', GestionPersonal.new),
-    ('Login diario', 'Sin endpoint todavía', LoginDiario.new),
-    ('Movimientos de caja', 'Sin endpoint todavía', MovimientosCaja.new),
-    ('Arqueo', 'Sin endpoint todavía', ArqueoCaja.new),
-    ('Corte de caja', 'Sin endpoint todavía', CorteCaja.new),
-    ('Recibo de cierre', 'Sin endpoint todavía', ReciboCierre.new),
     ('Seguridad y respaldo', 'Sin endpoint todavía', SeguridadRespaldo.new),
     ('Restaurar respaldo', 'Sin endpoint todavía', RestaurarRespaldo.new),
     ('Vinculación de terminal', 'Diseño nuevo', VinculacionTerminal.new),

@@ -823,6 +823,7 @@ class ServicioVentas {
             'precioUnit': l['precio_unit'],
             'subtotal': l['subtotal'],
             'devueltas': l['devueltas'],
+            'deposito': l['deposito'],
           },
       ],
       'devoluciones': [

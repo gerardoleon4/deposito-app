@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../../../../app/tema/colores.dart';
-import '../../auth/pantallas/login_diario.dart';
 
 class VinculacionTerminal extends StatefulWidget {
   const VinculacionTerminal({super.key});
@@ -40,10 +39,9 @@ class _VinculacionTerminalState extends State<VinculacionTerminal> {
     setState(() => _detectado = true);
     Future.delayed(const Duration(seconds: 1), () {
       if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const LoginDiario()),
-        );
+        // Diseño de demostración (sandbox): la vinculación real es
+        // VincularTerminal.
+        Navigator.maybePop(context);
       }
     });
   }

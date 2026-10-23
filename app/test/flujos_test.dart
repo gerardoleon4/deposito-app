@@ -135,11 +135,11 @@ void main() {
       await tester.tap(find.text('Hielo en bolsa'));
       await tester.tap(find.text('Hielo en bolsa'));
       await tester.pumpAndSettle();
-      expect(find.text(r'$70'), findsNWidgets(2)); // renglón y total: 2 x $35
+      expect(find.text(r'$70'), findsNWidgets(3)); // renglón, subtotal y total
 
       await tester.tap(find.text('Cobrar'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Confirmar y pagar'));
+      await tester.tap(find.text('Confirmar y Pagar'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Tarjeta'));
       // La pantalla de tarjeta tiene una animación que no termina.
@@ -151,14 +151,15 @@ void main() {
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
 
-      expect(find.text('Venta 1001 registrada'), findsOneWidget);
+      expect(find.text('¡Venta Registrada con Éxito!'), findsOneWidget);
+      expect(find.text(r'Folio #1001 • Total: $70'), findsOneWidget);
       final venta = api.ventas.values.single;
       expect(venta.total, 7000);
       expect(venta.metodo, 'tarjeta');
       final hielo = api.productos.singleWhere((p) => p.id == 'p_4');
       expect(hielo.existenciaPiezas, 16);
 
-      await tester.tap(find.text('Nueva venta'));
+      await tester.tap(find.text('Sin Recibo'));
       await tester.pumpAndSettle();
       expect(find.text('Aún no hay productos en la venta'), findsOneWidget);
     });
@@ -174,18 +175,29 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Victoria Mega (caja)'), findsOneWidget);
 
+      // Es retornable: al cobrar se decide qué pasa con los envases.
       await tester.tap(find.text('Cobrar'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Confirmar y pagar'));
+      expect(
+        find.text('¿Cómo se manejan los envases de esta compra?'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('El cliente entregó vacíos'));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Intercambio: el cliente entrega vacíos'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Confirmar y Pagar'));
       await tester.pumpAndSettle();
       await tester.tap(find.text('Efectivo'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text(r'$500'));
+      await tester.tap(find.text(r'Entregar $500'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Cobrar'));
+      await tester.tap(find.text(r'Cobrar ($500)'));
       await tester.pumpAndSettle();
       expect(find.text(r'$20'), findsOneWidget); // cambio de $500 - $480
-      await tester.tap(find.text('Cerrar venta'));
+      await tester.tap(find.text('Cerrar Venta'));
       await tester.pump();
       await tester.pump(const Duration(seconds: 2));
       await tester.pumpAndSettle();
@@ -196,6 +208,166 @@ void main() {
       expect(venta.cambio, 2000);
       final victoria = api.productos.singleWhere((p) => p.id == 'p_1');
       expect(victoria.existenciaPiezas, 66 - 12);
+      expect(api.envases['mega']!.bodega, 84 + 12, reason: 'intercambio');
+    });
+
+    Future<void> cobrarConTarjeta(WidgetTester tester) async {
+      await tester.tap(find.text('Confirmar y Pagar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tarjeta'));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Pago aprobado'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('cobrar el depósito suma los envases al total', (tester) async {
+      final api = await abrirVender(tester);
+      await tester.tap(find.text('Victoria Mega'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Vender 1 pieza'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Cobrar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cobrar depósito del envase'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cargo por Depósito de Envases'), findsOneWidget);
+      expect(find.text(r'$50'), findsOneWidget); // $42 + $8 de depósito
+      await cobrarConTarjeta(tester);
+
+      final venta = api.detalles.single;
+      expect(
+        (venta.total, venta.envModo, venta.envMonto),
+        (5000, 'cobrar', 800),
+      );
+    });
+
+    testWidgets('el descuento por renglón baja el precio por unidad', (
+      tester,
+    ) async {
+      final api = await abrirVender(tester);
+      await tester.tap(find.text('Hielo en bolsa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Hielo en bolsa').last); // renglón de la venta
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).last, '10');
+      await tester.pumpAndSettle();
+      expect(find.text(r'$35 → $31.50 c/u'), findsOneWidget);
+      Navigator.of(tester.element(find.text('Eliminar producto'))).pop();
+      await tester.pumpAndSettle();
+      expect(find.text(r'$31.50 x 1 (−10%)'), findsOneWidget);
+
+      await tester.tap(find.text('Cobrar'));
+      await tester.pumpAndSettle();
+      await cobrarConTarjeta(tester);
+      final linea = api.detalles.single.lineas.single;
+      expect((linea.descuento, linea.precioUnit), (10, 3150));
+    });
+
+    testWidgets('los vacíos extra se descuentan del ticket', (tester) async {
+      final api = await abrirVender(tester);
+      await tester.tap(find.text('Hielo en bolsa'));
+      await tester.tap(find.text('Hielo en bolsa'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('+ Recibir Vacíos'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mega 1.2 L'));
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.add_rounded));
+      await tester.pump();
+      await tester.tap(find.text(r'Aplicar Crédito al Ticket (-$16)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Crédito por Envase (2 Mega 1.2 L)'), findsOneWidget);
+      expect(find.text(r'$54'), findsOneWidget); // $70 - $16
+
+      await tester.tap(find.text('Cobrar'));
+      await tester.pumpAndSettle();
+      await cobrarConTarjeta(tester);
+      final venta = api.detalles.single;
+      expect((venta.total, venta.envCredito), (5400, 1600));
+      expect(api.envases['mega']!.bodega, 84 + 2);
+    });
+
+    testWidgets('saldo por envases descuenta los vacíos y cobra el resto', (
+      tester,
+    ) async {
+      final api = await abrirVender(tester);
+      await tester.tap(find.text('Hielo en bolsa'));
+      await tester.tap(find.text('Hielo en bolsa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cobrar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirmar y Pagar'));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Saldo por Envases'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mega 1.2 L'));
+      await tester.pump();
+      await tester.tap(find.text(r'Aplicar Crédito al Ticket (-$8)'));
+      await tester.pumpAndSettle();
+      expect(find.text('Cobro en Efectivo'), findsOneWidget);
+      expect(find.text(r'Monto Exacto ($62)'), findsOneWidget); // $70 - $8
+      await tester.tap(find.text(r'Monto Exacto ($62)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(r'Cobrar ($62)'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cerrar Venta'));
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 2));
+      await tester.pumpAndSettle();
+
+      final venta = api.detalles.single;
+      expect((venta.total, venta.envCredito), (6200, 800));
+    });
+
+    testWidgets('tarjeta rechazada deja reintentar sin registrar', (
+      tester,
+    ) async {
+      final api = await abrirVender(tester);
+      await tester.tap(find.text('Hielo en bolsa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cobrar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Confirmar y Pagar'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tarjeta'));
+      for (var i = 0; i < 10; i++) {
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+      await tester.tap(find.text('Pago rechazado'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Transacción Declinada'), findsOneWidget);
+      await tester.tap(find.text('Reintentar'));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(find.text('Transacción Declinada'), findsNothing);
+      expect(api.ventas, isEmpty);
+    });
+
+    testWidgets('el recibo muestra la vista previa del ticket real', (
+      tester,
+    ) async {
+      await abrirVender(tester);
+      await tester.tap(find.text('Hielo en bolsa'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cobrar'));
+      await tester.pumpAndSettle();
+      await cobrarConTarjeta(tester);
+
+      await tester.tap(find.text('Imprimir Ticket'));
+      await tester.pumpAndSettle();
+      expect(find.text('Folio: #1001'), findsOneWidget);
+      expect(find.text('1x Hielo en bolsa'), findsOneWidget);
+      expect(find.text('TOTAL'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Cerrar'));
+      await tester.pumpAndSettle();
+      expect(find.text('Aún no hay productos en la venta'), findsOneWidget);
     });
 
     testWidgets('no deja vender más de lo que hay', (tester) async {

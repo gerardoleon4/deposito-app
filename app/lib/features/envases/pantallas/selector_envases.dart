@@ -13,6 +13,8 @@ class SelectorEnvases extends StatelessWidget {
     required this.alCambiarFormato,
     required this.alCambiarCantidad,
     this.etiquetaCantidad = 'envases',
+    this.maximo = 9999,
+    this.formatoFijo = false,
   });
 
   final FormatoEnvase formato;
@@ -21,59 +23,67 @@ class SelectorEnvases extends StatelessWidget {
   final ValueChanged<int> alCambiarCantidad;
   final String etiquetaCantidad;
 
+  /// Tope de la cantidad (por ejemplo, lo pendiente de un préstamo).
+  final int maximo;
+
+  /// El formato ya está decidido: no se muestran los chips.
+  final bool formatoFijo;
+
   @override
   Widget build(BuildContext context) {
     final c = context.colores;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'Formato de envase',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: c.tinta,
+        if (!formatoFijo) ...[
+          Text(
+            'Formato de envase',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: c.tinta,
+            ),
           ),
-        ),
-        const SizedBox(height: 8),
-        Wrap(
-          spacing: 10,
-          runSpacing: 10,
-          children: [
-            for (final f in FormatoEnvase.values)
-              ChoiceChip(
-                selected: formato == f,
-                showCheckmark: false,
-                avatar: Icon(
-                  f.icono,
-                  size: 18,
-                  color: formato == f ? Colors.white : c.azul,
-                ),
-                label: Text(
-                  f.etiqueta,
-                  style: TextStyle(
-                    fontWeight: formato == f
-                        ? FontWeight.w700
-                        : FontWeight.w500,
-                    color: formato == f ? Colors.white : c.tinta,
-                    fontSize: 14,
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: [
+              for (final f in FormatoEnvase.values)
+                ChoiceChip(
+                  selected: formato == f,
+                  showCheckmark: false,
+                  avatar: Icon(
+                    f.icono,
+                    size: 18,
+                    color: formato == f ? Colors.white : c.azul,
                   ),
-                ),
-                selectedColor: c.azul,
-                backgroundColor: c.superficie2,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  side: BorderSide(
-                    color: formato == f ? Colors.transparent : c.linea,
+                  label: Text(
+                    f.etiqueta,
+                    style: TextStyle(
+                      fontWeight: formato == f
+                          ? FontWeight.w700
+                          : FontWeight.w500,
+                      color: formato == f ? Colors.white : c.tinta,
+                      fontSize: 14,
+                    ),
                   ),
+                  selectedColor: c.azul,
+                  backgroundColor: c.superficie2,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    side: BorderSide(
+                      color: formato == f ? Colors.transparent : c.linea,
+                    ),
+                  ),
+                  onSelected: (sel) {
+                    if (sel) alCambiarFormato(f);
+                  },
                 ),
-                onSelected: (sel) {
-                  if (sel) alCambiarFormato(f);
-                },
-              ),
-          ],
-        ),
-        const SizedBox(height: 20),
+            ],
+          ),
+          const SizedBox(height: 20),
+        ],
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
           decoration: BoxDecoration(
@@ -117,7 +127,7 @@ class SelectorEnvases extends StatelessWidget {
               _BotonCantidad(
                 icono: Icons.add_rounded,
                 principal: true,
-                alTocar: cantidad < 9999
+                alTocar: cantidad < maximo
                     ? () => alCambiarCantidad(cantidad + 1)
                     : null,
               ),

@@ -5,18 +5,28 @@ import '../../../core/api/proveedores.dart';
 import '../../../core/tiempo_real/tiempo_real.dart';
 import '../datos/modelos_envases.dart';
 
-/// Balance y préstamos de envases tal como los tiene la caja.
+/// Balance, préstamos y bitácora de envases tal como los tiene la caja.
 class EstadoEnvases {
-  const EstadoEnvases({required this.balance, required this.prestamos});
+  const EstadoEnvases({
+    required this.balance,
+    required this.prestamos,
+    this.movimientos = const [],
+  });
 
   final Map<String, BalanceEnvase> balance;
 
   /// Sin devolver, del más nuevo al más viejo.
   final List<PrestamoEnvase> prestamos;
 
+  /// Bitácora, del más nuevo al más viejo.
+  final List<MovimientoEnvase> movimientos;
+
   BalanceEnvase de(FormatoEnvase f) =>
       balance[f.clave] ??
       BalanceEnvase(formato: f.clave, bodega: 0, prestados: 0, precio: 0);
+
+  /// Depósito por envase del formato, en centavos.
+  int precio(FormatoEnvase f) => de(f).precio;
 
   int get totalBodega => balance.values.fold(0, (s, b) => s + b.bodega);
 
@@ -26,7 +36,7 @@ class EstadoEnvases {
 }
 
 /// Al día con el WebSocket: `envases.actualizado` y la reconexión vuelven a
-/// pedir balance y préstamos (el evento no trae los préstamos).
+/// pedir balance, préstamos y bitácora (el evento solo trae el balance).
 final envasesProvider = AsyncNotifierProvider<EnvasesNotifier, EstadoEnvases>(
   EnvasesNotifier.new,
   retry: (_, _) => null,
@@ -54,21 +64,24 @@ class EnvasesNotifier extends AsyncNotifier<EstadoEnvases> {
   /// Los errores llegan como `FalloApi` para mostrarlos en la pantalla.
   Future<void> prestar({
     required String cliente,
+    String? telefono,
     required FormatoEnvase formato,
     required int cantidad,
   }) async {
     final api = await ref.read(apiProvider.future);
     await api.prestarEnvases(
       cliente: cliente,
+      telefono: telefono,
       formato: formato.clave,
       cantidad: cantidad,
     );
     await refrescar();
   }
 
-  Future<void> devolver(String prestamoId) async {
+  /// Sin [cantidad], todo lo pendiente.
+  Future<void> devolver(String prestamoId, {int? cantidad}) async {
     final api = await ref.read(apiProvider.future);
-    await api.devolverPrestamo(prestamoId);
+    await api.devolverPrestamo(prestamoId, cantidad: cantidad);
     await refrescar();
   }
 
@@ -81,12 +94,49 @@ class EnvasesNotifier extends AsyncNotifier<EstadoEnvases> {
     await refrescar();
   }
 
+  Future<void> sacarVacios({
+    required FormatoEnvase formato,
+    required int cantidad,
+    required String motivo,
+  }) async {
+    final api = await ref.read(apiProvider.future);
+    await api.sacarVacios(
+      formato: formato.clave,
+      cantidad: cantidad,
+      motivo: motivo,
+    );
+    await refrescar();
+  }
+
+  /// Entrega en efectivo el depósito de [cantidad] vacíos (retiro de caja).
+  /// [claveIdempotencia] se reutiliza si se reintenta.
+  Future<void> devolverDeposito({
+    required FormatoEnvase formato,
+    required int cantidad,
+    String? cliente,
+    required String claveIdempotencia,
+  }) async {
+    final api = await ref.read(apiProvider.future);
+    await api.devolverDeposito(
+      formato: formato.clave,
+      cantidad: cantidad,
+      cliente: cliente,
+      claveIdempotencia: claveIdempotencia,
+    );
+    await refrescar();
+  }
+
   Future<EstadoEnvases> _cargar() async {
     final api = await ref.read(apiProvider.future);
-    final (balance, prestamos) = await (
+    final (balance, prestamos, movimientos) = await (
       api.obtenerBalanceEnvases(),
       api.listarPrestamos(),
+      api.listarMovimientosEnvases(limite: 30),
     ).wait;
-    return EstadoEnvases(balance: balance, prestamos: prestamos);
+    return EstadoEnvases(
+      balance: balance,
+      prestamos: prestamos,
+      movimientos: movimientos,
+    );
   }
 }

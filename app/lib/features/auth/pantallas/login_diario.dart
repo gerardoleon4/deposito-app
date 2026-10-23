@@ -1,35 +1,21 @@
 import 'dart:async';
 
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../app/tema/colores.dart';
+import '../../../../core/api/fallo_api.dart';
+import '../../../../core/api/proveedores.dart';
+import '../../../../core/widgets/estados.dart';
 import '../../../../core/widgets/teclado_numerico.dart';
-import '../../caja/pantallas/apertura_caja.dart';
-import '../../pdv/pantallas/punto_venta.dart';
-
-class EmpleadoLogin {
-  final String id;
-  final String nombre;
-  final String rol;
-  final String pinReal;
-
-  EmpleadoLogin(this.id, this.nombre, this.rol, this.pinReal);
-
-  /// `Ana Martínez` → `AM`. La app funciona sin internet: nada de fotos
-  /// de la red.
-  String get iniciales => nombre
-      .split(' ')
-      .where((p) => p.isNotEmpty)
-      .take(2)
-      .map((p) => p[0].toUpperCase())
-      .join();
-}
+import '../../personal/estado/personal_provider.dart';
 
 class _Avatar extends StatelessWidget {
   const _Avatar({required this.empleado, required this.radio});
 
-  final EmpleadoLogin empleado;
+  final Usuario empleado;
   final double radio;
 
   @override
@@ -39,7 +25,7 @@ class _Avatar extends StatelessWidget {
       radius: radio,
       backgroundColor: c.azul.withValues(alpha: 0.12),
       child: Text(
-        empleado.iniciales,
+        inicialesDe(empleado.nombre),
         style: TextStyle(
           color: c.azul,
           fontWeight: FontWeight.bold,
@@ -50,8 +36,18 @@ class _Avatar extends StatelessWidget {
   }
 }
 
+/// Inicio de turno (diseño de Pablo): cada quien elige su nombre y escribe
+/// su PIN. Quien entra queda en las ventas y la caja.
 class LoginDiario extends StatefulWidget {
-  const LoginDiario({super.key});
+  const LoginDiario({
+    super.key,
+    required this.usuarios,
+    required this.alEntrar,
+  });
+
+  /// Solo los activos.
+  final List<Usuario> usuarios;
+  final ValueChanged<Usuario> alEntrar;
 
   @override
   State<LoginDiario> createState() => _LoginDiarioState();
@@ -61,12 +57,7 @@ class _LoginDiarioState extends State<LoginDiario> {
   late Timer _timer;
   DateTime _ahora = DateTime.now();
 
-  final List<EmpleadoLogin> _empleados = [
-    EmpleadoLogin('1', 'Ana Martínez', 'Cajera', '1234'),
-    EmpleadoLogin('2', 'Carlos Ruiz', 'Cajero', '0000'),
-    EmpleadoLogin('3', 'Sofía Vega', 'Gerente', '1111'),
-    EmpleadoLogin('4', 'Diego López', 'Cajero', '2222'),
-  ];
+  List<Usuario> get _empleados => widget.usuarios;
 
   @override
   void initState() {
@@ -82,13 +73,14 @@ class _LoginDiarioState extends State<LoginDiario> {
     super.dispose();
   }
 
-  void _abrirNumpad(EmpleadoLogin emp) {
-    showModalBottomSheet(
+  Future<void> _abrirNumpad(Usuario emp) async {
+    final entro = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (ctx) => _ModalNumpad(empleado: emp),
     );
+    if (entro == true) widget.alEntrar(emp);
   }
 
   @override
@@ -211,7 +203,7 @@ class _LoginDiarioState extends State<LoginDiario> {
                             ),
                             const SizedBox(height: 4),
                             Text(
-                              emp.rol,
+                              etiquetaRol(emp.rol),
                               style: const TextStyle(
                                 fontSize: 14,
                                 color: Colors.black54,
@@ -236,7 +228,10 @@ class _LoginDiarioState extends State<LoginDiario> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       TextButton.icon(
-                        onPressed: () {},
+                        onPressed: () => avisar(
+                          context,
+                          'El reloj checador llega en una siguiente versión',
+                        ),
                         icon: const Icon(
                           Icons.access_time_rounded,
                           color: Colors.black87,
@@ -250,7 +245,10 @@ class _LoginDiarioState extends State<LoginDiario> {
                         ),
                       ),
                       TextButton.icon(
-                        onPressed: () {},
+                        onPressed: () => avisar(
+                          context,
+                          'Entra con tu PIN para abrir los ajustes',
+                        ),
                         icon: const Icon(
                           Icons.settings_outlined,
                           color: Colors.black87,
@@ -284,51 +282,50 @@ class _LoginDiarioState extends State<LoginDiario> {
   }
 }
 
-class _ModalNumpad extends StatefulWidget {
-  final EmpleadoLogin empleado;
+class _ModalNumpad extends ConsumerStatefulWidget {
   const _ModalNumpad({required this.empleado});
 
+  final Usuario empleado;
+
   @override
-  State<_ModalNumpad> createState() => _ModalNumpadState();
+  ConsumerState<_ModalNumpad> createState() => _ModalNumpadState();
 }
 
-class _ModalNumpadState extends State<_ModalNumpad> {
+class _ModalNumpadState extends ConsumerState<_ModalNumpad> {
+  static const _maximo = 6;
   String _pin = '';
   bool _error = false;
+  String? _mensaje;
+  bool _verificando = false;
 
   void _teclear(String tecla) {
-    if (_pin.length >= 4) return;
+    if (_pin.length >= _maximo || _verificando) return;
     setState(() {
       _pin += tecla;
       _error = false;
+      _mensaje = null;
     });
+  }
 
-    if (_pin.length == 4) {
-      if (_pin == widget.empleado.pinReal) {
-        Navigator.pop(context); // Cierra modal
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (_) => AperturaCaja(
-              nombreCajero: widget.empleado.nombre,
-              inicialesCajero: widget.empleado.nombre
-                  .substring(0, 2)
-                  .toUpperCase(),
-              alAbrir: (monto) {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (_) => const PuntoVenta()),
-                );
-              },
-            ),
-          ),
-        );
-      } else {
-        setState(() => _error = true);
-        Future.delayed(const Duration(milliseconds: 500), () {
-          if (mounted) setState(() => _pin = '');
-        });
-      }
+  /// El servidor revisa el PIN; tras cinco errores se bloquea un minuto.
+  Future<void> _entrar() async {
+    setState(() => _verificando = true);
+    try {
+      final api = await ref.read(apiProvider.future);
+      await api.verificarPin(_pin, usuarioId: widget.empleado.id);
+      if (mounted) Navigator.pop(context, true);
+    } on FalloApi catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _verificando = false;
+        _error = true;
+        _mensaje = e.codigo == 'pin_invalido'
+            ? 'PIN Incorrecto'
+            : mensajeDeError(e);
+      });
+      Future.delayed(const Duration(milliseconds: 500), () {
+        if (mounted) setState(() => _pin = '');
+      });
     }
   }
 
@@ -370,10 +367,10 @@ class _ModalNumpadState extends State<_ModalNumpad> {
             // Dots PIN
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
-              children: List.generate(4, (i) {
+              children: List.generate(_maximo, (i) {
                 final activo = i < _pin.length;
                 return Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 12),
+                  margin: const EdgeInsets.symmetric(horizontal: 8),
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
@@ -387,11 +384,11 @@ class _ModalNumpadState extends State<_ModalNumpad> {
             ),
 
             if (_error)
-              const Padding(
-                padding: EdgeInsets.only(top: 16),
+              Padding(
+                padding: const EdgeInsets.only(top: 16),
                 child: Text(
-                  'PIN Incorrecto',
-                  style: TextStyle(
+                  _mensaje ?? 'PIN Incorrecto',
+                  style: const TextStyle(
                     color: Colors.red,
                     fontWeight: FontWeight.bold,
                   ),
@@ -406,6 +403,18 @@ class _ModalNumpadState extends State<_ModalNumpad> {
               child: TecladoNumerico(
                 alPresionarTecla: _teclear,
                 alBorrar: _borrar,
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: 300,
+              height: 52,
+              child: FilledButton(
+                onPressed: _pin.length >= 4 && !_verificando ? _entrar : null,
+                child: const Text(
+                  'Entrar',
+                  style: TextStyle(fontWeight: FontWeight.w800),
+                ),
               ),
             ),
           ],

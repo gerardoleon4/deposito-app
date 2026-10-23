@@ -29,11 +29,9 @@ final servidorEmbebidoProvider = FutureProvider<DepositoServer>((ref) async {
     return servidor;
   }
 
-  final documentos = await getApplicationDocumentsDirectory();
-  final carpeta = Directory('${documentos.path}/anaquel')
-    ..createSync(recursive: true);
+  final carpeta = await carpetaCaja();
   final servidor = DepositoServer(
-    rutaBaseDatos: '${carpeta.path}/anaquel.db',
+    rutaBaseDatos: rutaBaseDatosCaja(carpeta),
     puerto: puertoServidor,
     datosEjemplo: cargarDatosEjemplo,
     fotosEjemplo: await _leerFotosEjemplo(),
@@ -43,6 +41,16 @@ final servidorEmbebidoProvider = FutureProvider<DepositoServer>((ref) async {
   ref.onDispose(servidor.detener);
   return servidor;
 }, retry: (_, _) => null);
+
+/// Carpeta de la caja en los documentos del dispositivo: base, fotos, log y
+/// respaldos.
+Future<Directory> carpetaCaja() async {
+  final documentos = await getApplicationDocumentsDirectory();
+  return Directory('${documentos.path}/anaquel')..createSync(recursive: true);
+}
+
+/// La base de la caja dentro de [carpeta].
+String rutaBaseDatosCaja(Directory carpeta) => '${carpeta.path}/anaquel.db';
 
 /// Fotos de los productos de ejemplo, desde los assets de la app.
 Future<Map<String, Uint8List>> _leerFotosEjemplo() async {

@@ -1,18 +1,18 @@
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
 
 import '../../../../app/tema/colores.dart';
 import '../../../../core/formato/formato.dart';
-import 'arqueo_caja.dart';
 
+/// 2.3 Corte de caja (diseño de Pablo): lo vendido y el efectivo esperado
+/// del turno abierto, antes del conteo físico.
 class CorteCaja extends StatelessWidget {
-  const CorteCaja({super.key});
+  const CorteCaja({super.key, required this.turno, required this.alArqueo});
 
-  void _irAArqueo(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (_) => const ArqueoCaja()),
-    );
-  }
+  final Turno turno;
+  final VoidCallback alArqueo;
+
+  void _irAArqueo(BuildContext context) => alArqueo();
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +56,8 @@ class CorteCaja extends StatelessWidget {
                   ),
                   const SizedBox(height: 8),
                   Text(
-                    'Turno: 08:00 AM - 04:30 PM',
+                    'Turno abierto desde ${hora(turno.apertura)}'
+                    '${turno.usuarioApertura == null ? '' : ' · ${turno.usuarioApertura!.nombre}'}',
                     style: TextStyle(fontSize: 16, color: c.tinta2),
                   ),
                   const SizedBox(height: 48),
@@ -73,20 +74,47 @@ class CorteCaja extends StatelessWidget {
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         _FilaMonto(
-                          titulo: 'Ventas Efectivo',
-                          monto: 1250050,
+                          titulo: 'Fondo inicial',
+                          monto: turno.fondo,
+                          c: c,
+                        ),
+                        const SizedBox(height: 16),
+                        _FilaMonto(
+                          titulo:
+                              'Ventas Efectivo (${turno.resumen.ventas} ventas)',
+                          monto: turno.resumen.ventasEfectivo,
                           c: c,
                         ),
                         const SizedBox(height: 16),
                         _FilaMonto(
                           titulo: 'Ventas Tarjeta',
-                          monto: 320000,
+                          monto: turno.resumen.ventasTarjeta,
                           c: c,
                         ),
                         const SizedBox(height: 16),
                         _FilaMonto(
-                          titulo: 'Envases / Extra',
-                          monto: -15000,
+                          titulo: 'Envases / Extra (incluido)',
+                          monto: turno.resumen.envases,
+                          c: c,
+                        ),
+                        if (turno.resumen.devoluciones > 0) ...[
+                          const SizedBox(height: 16),
+                          _FilaMonto(
+                            titulo: 'Devoluciones (ya restadas)',
+                            monto: -turno.resumen.devoluciones,
+                            c: c,
+                          ),
+                        ],
+                        const SizedBox(height: 16),
+                        _FilaMonto(
+                          titulo: 'Ingresos de caja',
+                          monto: turno.resumen.ingresos,
+                          c: c,
+                        ),
+                        const SizedBox(height: 16),
+                        _FilaMonto(
+                          titulo: 'Retiros de caja',
+                          monto: -turno.resumen.retiros,
                           c: c,
                         ),
                         const SizedBox(height: 32),
@@ -103,7 +131,7 @@ class CorteCaja extends StatelessWidget {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '\$12,350.50',
+                          dinero(turno.resumen.esperado),
                           style: TextStyle(
                             fontSize: 48,
                             fontWeight: FontWeight.bold,
@@ -166,7 +194,9 @@ class _FilaMonto extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(titulo, style: TextStyle(fontSize: 16, color: c.tinta)),
+        Expanded(
+          child: Text(titulo, style: TextStyle(fontSize: 16, color: c.tinta)),
+        ),
         Text(
           dinero(monto),
           style: TextStyle(

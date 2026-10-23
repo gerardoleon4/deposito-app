@@ -25,3 +25,6 @@ export 'src/seed/fotos_ejemplo.dart';
 export 'src/servidor_stub.dart'
     if (dart.library.io) 'src/servidor.dart'
     show DepositoServer, versionServidor;
+export 'src/respaldo_stub.dart'
+    if (dart.library.io) 'src/db/respaldo.dart'
+    show EstadoRespaldo, verificarRespaldo, restaurarRespaldo;

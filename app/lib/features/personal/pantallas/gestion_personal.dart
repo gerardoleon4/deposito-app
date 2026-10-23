@@ -1,68 +1,126 @@
+import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../app/tema/colores.dart';
-import '../widgets/modal_alta_empleado.dart';
+import '../../../../core/api/fallo_api.dart';
+import '../../../../core/widgets/estados.dart';
+import '../../ventas/pantallas/modal_autorizacion_numpad.dart';
+import '../estado/personal_provider.dart';
 import '../widgets/bottom_sheet_gestion_accesos.dart';
+import '../widgets/modal_alta_empleado.dart';
 import 'seguridad_respaldo.dart';
-import '../../auth/pantallas/login_diario.dart';
+import 'ventas_empleado.dart';
 
-class EmpleadoPrueba {
-  final String id;
-  final String nombre;
-  final String iniciales;
-  final String rol;
-  final bool activo;
-  final bool esDueno;
+/// Un renglón de la lista, con lo que muestra el diseño de Pablo.
+class _Fila {
+  _Fila(this.usuario);
 
-  EmpleadoPrueba(
-    this.id,
-    this.nombre,
-    this.iniciales,
-    this.rol,
-    this.activo,
-    this.esDueno,
-  );
+  final Usuario usuario;
+  String get nombre => usuario.nombre;
+  String get iniciales => inicialesDe(usuario.nombre);
+  String get rol => etiquetaRol(usuario.rol);
+  bool get activo => usuario.activo;
+  bool get esDueno => usuario.rol == 'dueno';
 }
 
-class GestionPersonal extends StatefulWidget {
+/// Gestión de personal (diseño de Pablo), con el personal del servidor.
+/// Dar de alta, cambiar PIN y suspender piden el PIN de un gerente o del
+/// dueño.
+class GestionPersonal extends ConsumerStatefulWidget {
   const GestionPersonal({super.key});
 
   @override
-  State<GestionPersonal> createState() => _GestionPersonalState();
+  ConsumerState<GestionPersonal> createState() => _GestionPersonalState();
 }
 
-class _GestionPersonalState extends State<GestionPersonal> {
-  final List<EmpleadoPrueba> _empleados = [
-    EmpleadoPrueba('1', 'MSACUATA', 'MS', 'Dueño/Admin', true, true),
-    EmpleadoPrueba('2', 'Sofía Vega', 'SO', 'Gerente', true, false),
-    EmpleadoPrueba('3', 'Ana Martínez', 'AN', 'Cajero', true, false),
+class _GestionPersonalState extends ConsumerState<GestionPersonal> {
+  List<_Fila> get _empleados => [
+    for (final u in ref.watch(usuariosProvider).value ?? const <Usuario>[])
+      _Fila(u),
   ];
 
-  EmpleadoPrueba? _empleadoSeleccionado;
+  _Fila? _empleadoSeleccionado;
+
+  /// Pide el PIN de un gerente o del dueño y ejecuta [accion] con él.
+  Future<void> _autorizado(
+    String titulo,
+    Future<void> Function(String pin) accion,
+    String exito,
+  ) async {
+    final pin = await ModalAutorizacionNumpad.mostrar(
+      context: context,
+      tituloAccion: titulo,
+    );
+    if (pin == null || !mounted) return;
+    try {
+      await accion(pin);
+      if (mounted) avisar(context, exito);
+    } on FalloApi catch (e) {
+      if (mounted) {
+        avisar(context, e.campos.values.firstOrNull ?? mensajeDeError(e));
+      }
+    }
+  }
 
   void _abrirAlta() {
     showDialog(
       context: context,
       builder: (_) => ModalAltaEmpleado(
-        alGuardar: (nombre, rol, pin) {
-          setState(() {
-            _empleados.add(
-              EmpleadoPrueba(
-                DateTime.now().toString(),
-                nombre,
-                nombre.substring(0, 2).toUpperCase(),
-                rol,
-                true,
-                false,
+        alGuardar: (nombre, rol, pin) => _autorizado(
+          'Dar de alta',
+          (autoriza) => ref
+              .read(usuariosProvider.notifier)
+              .crear(
+                nombre: nombre,
+                rol: rol == 'Gerente' ? 'gerente' : 'cajero',
+                pin: pin,
+                pinAutoriza: autoriza,
               ),
-            );
-          });
-        },
+          '$nombre ya puede entrar con su PIN',
+        ),
       ),
     );
   }
 
-  void _abrirGestion(EmpleadoPrueba emp) {
+  Future<void> _cambiarPin(_Fila emp) async {
+    final control = TextEditingController();
+    final nuevo = await showDialog<String>(
+      context: context,
+      builder: (contexto) => AlertDialog(
+        title: Text('Nuevo PIN de ${emp.nombre}'),
+        content: TextField(
+          controller: control,
+          autofocus: true,
+          keyboardType: TextInputType.number,
+          maxLength: 6,
+          obscureText: true,
+          decoration: const InputDecoration(labelText: 'De 4 a 6 dígitos'),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(contexto),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(contexto, control.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    control.dispose();
+    if (nuevo == null || nuevo.isEmpty || !mounted) return;
+    await _autorizado(
+      'Cambiar PIN',
+      (autoriza) => ref
+          .read(usuariosProvider.notifier)
+          .editar(emp.usuario.id, pin: nuevo, pinAutoriza: autoriza),
+      'PIN de ${emp.nombre} actualizado',
+    );
+  }
+
+  void _abrirGestion(_Fila emp) {
     if (emp.esDueno) return;
 
     setState(() => _empleadoSeleccionado = emp);
@@ -70,11 +128,38 @@ class _GestionPersonalState extends State<GestionPersonal> {
     showModalBottomSheet(
       context: context,
       backgroundColor: Colors.transparent,
-      builder: (_) => BottomSheetGestionAccesos(
+      builder: (contextoHoja) => BottomSheetGestionAccesos(
         nombre: emp.nombre,
         rol: emp.rol,
+        activo: emp.activo,
+        alVerVentas: () {
+          Navigator.pop(contextoHoja);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => VentasEmpleado(usuario: emp.usuario),
+            ),
+          );
+        },
+        alCambiarPin: () {
+          Navigator.pop(contextoHoja);
+          _cambiarPin(emp);
+        },
         alSuspender: () {
-          Navigator.pop(context);
+          Navigator.pop(contextoHoja);
+          _autorizado(
+            emp.activo ? 'Suspender acceso' : 'Reactivar acceso',
+            (autoriza) => ref
+                .read(usuariosProvider.notifier)
+                .editar(
+                  emp.usuario.id,
+                  activo: !emp.activo,
+                  pinAutoriza: autoriza,
+                ),
+            emp.activo
+                ? 'Acceso de ${emp.nombre} suspendido'
+                : 'Acceso de ${emp.nombre} reactivado',
+          );
         },
       ),
     ).then((_) {
@@ -118,10 +203,9 @@ class _GestionPersonalState extends State<GestionPersonal> {
               children: [
                 OutlinedButton(
                   onPressed: () {
-                    Navigator.pushReplacement(
-                      context,
-                      MaterialPageRoute(builder: (_) => const LoginDiario()),
-                    );
+                    // Regresa al inicio de turno: otra persona entra con su PIN.
+                    ref.read(usuarioActualProvider.notifier).salir();
+                    Navigator.of(context).popUntil((r) => r.isFirst);
                   },
                   style: OutlinedButton.styleFrom(
                     foregroundColor: c.azul,

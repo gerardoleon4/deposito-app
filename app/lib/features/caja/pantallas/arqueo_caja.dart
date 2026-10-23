@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 
 import '../../../../app/tema/colores.dart';
 import '../../../../core/formato/formato.dart';
-import 'recibo_cierre.dart';
 
 /// Billete o moneda del arqueo. Todo en centavos.
 class Denominacion {
@@ -14,8 +13,16 @@ class Denominacion {
   int get subtotal => valor * cantidad;
 }
 
+/// 2.4 Conteo físico (diseño de Pablo): billetes y monedas contra el
+/// efectivo esperado; con diferencia, pide la justificación.
 class ArqueoCaja extends StatefulWidget {
-  const ArqueoCaja({super.key});
+  const ArqueoCaja({super.key, required this.esperado, required this.alCerrar});
+
+  /// Centavos.
+  final int esperado;
+
+  /// Hace el corte con lo contado y la nota.
+  final Future<void> Function(int contado, String? nota) alCerrar;
 
   @override
   State<ArqueoCaja> createState() => _ArqueoCajaState();
@@ -40,21 +47,14 @@ class _ArqueoCajaState extends State<ArqueoCaja> {
     return _denominaciones.fold(0, (sum, item) => sum + item.subtotal);
   }
 
-  final int _esperado = 1235050; // Fijo para el demo, hasta que exista el corte
-
   void _calcularDiscrepancia() {
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (_) => ModalDiscrepancia(
-        esperado: _esperado,
+        esperado: widget.esperado,
         contado: _totalContado,
-        alConfirmar: () {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (_) => const ReciboCierre()),
-          );
-        },
+        alConfirmar: (nota) => widget.alCerrar(_totalContado, nota),
       ),
     );
   }
@@ -249,7 +249,9 @@ class ModalDiscrepancia extends StatefulWidget {
   /// Centavos.
   final int esperado;
   final int contado;
-  final VoidCallback alConfirmar;
+
+  /// Recibe la justificación (o `null` si cuadra).
+  final ValueChanged<String?> alConfirmar;
 
   @override
   State<ModalDiscrepancia> createState() => _ModalDiscrepanciaState();
@@ -431,7 +433,8 @@ class _ModalDiscrepanciaState extends State<ModalDiscrepancia> {
               onPressed: puedeConfirmar
                   ? () {
                       Navigator.pop(context);
-                      widget.alConfirmar();
+                      final nota = _justificacionCtrl.text.trim();
+                      widget.alConfirmar(nota.isEmpty ? null : nota);
                     }
                   : null,
               style: ElevatedButton.styleFrom(

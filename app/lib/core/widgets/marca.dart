@@ -124,12 +124,16 @@ class Pildora extends StatelessWidget {
             Icon(icono, size: 16, color: c.tinta2),
             const SizedBox(width: 6),
           ],
-          Text(
-            texto,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w500,
-              color: c.tinta2,
+          Flexible(
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+                color: c.tinta2,
+              ),
             ),
           ),
         ],
