@@ -192,6 +192,13 @@ abstract interface class Api {
   /// De quién es el PIN; con [usuarioId], que sea de esa persona.
   Future<Usuario> verificarPin(String pin, {String? usuarioId});
 
+  /// Productos por resurtir y por caducar, ya ordenados por urgencia.
+  /// [dias]: hasta cuántos días adelante se revisan las caducidades (1 a
+  /// 365, por omisión 15, como el Inicio). `dia` es hoy en la hora del negocio.
+  Future<({String dia, int dias, List<Alerta> alertas})> listarAlertas({
+    int? dias,
+  });
+
   Future<AjustesNegocio> obtenerAjustes();
 
   /// Reemplaza los campos de [cambios]; `null` borra.
@@ -685,6 +692,24 @@ class ApiHttp implements Api {
       data: {'pin': pin, 'usuarioId': ?usuarioId},
     ),
   );
+
+  @override
+  Future<({String dia, int dias, List<Alerta> alertas})> listarAlertas({
+    int? dias,
+  }) => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>(
+      '/api/v1/alertas',
+      queryParameters: {'dias': ?dias},
+    );
+    return (
+      dia: r.data!['dia'] as String,
+      dias: r.data!['dias'] as int,
+      alertas: [
+        for (final a in r.data!['alertas'] as List)
+          Alerta.fromJson((a as Map).cast()),
+      ],
+    );
+  });
 
   @override
   Future<AjustesNegocio> obtenerAjustes() => _pedir(() async {

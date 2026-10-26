@@ -13,6 +13,7 @@ import '../modelos/evento.dart';
 import '../modelos/movimiento.dart';
 import '../modelos/producto.dart';
 import '../ws/hub.dart';
+import 'servicio_alertas.dart';
 
 final _patronCodigo = RegExp(r'^[0-9A-Za-z]+$');
 
@@ -25,6 +26,7 @@ class ServicioProductos {
     required RepositorioProductos repositorio,
     required this._hub,
     this._fotos,
+    this._alertas,
     this._reloj = relojSistema,
   }) : _repo = repositorio;
 
@@ -32,6 +34,7 @@ class ServicioProductos {
   final RepositorioProductos _repo;
   final Hub _hub;
   final AlmacenFotos? _fotos;
+  final ServicioAlertas? _alertas;
   final Reloj _reloj;
 
   List<Producto> listar({String? busqueda, String? categoria}) =>
@@ -137,6 +140,7 @@ class ServicioProductos {
     final eliminado = transaccion(_db, () => _repo.eliminar(id, ahora));
     if (!eliminado) throw ErrorApi.noEncontrado('el producto');
     _hub.emitir(TiposEvento.productoEliminado, {'id': id});
+    _alertas?.olvidar(id);
   }
 
   /// Entrada de mercancía: `cajas × piezasPorCaja + piezas`.
@@ -298,10 +302,12 @@ class ServicioProductos {
   AlmacenFotos get _almacen =>
       _fotos ?? (throw StateError('El servidor no tiene carpeta de fotos'));
 
-  void _emitir(Producto producto) => _hub.emitir(
-    TiposEvento.productoActualizado,
-    {'producto': producto.toJson()},
-  );
+  void _emitir(Producto producto) {
+    _hub.emitir(TiposEvento.productoActualizado, {
+      'producto': producto.toJson(),
+    });
+    _alertas?.revisar(producto);
+  }
 
   /// Campos editables, con las mismas reglas al crear y al editar.
   _Campos _leerCampos(Validador v) {

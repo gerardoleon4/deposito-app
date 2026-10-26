@@ -12,6 +12,7 @@ export 'src/comun/fechas.dart'
 export 'src/comun/constantes.dart';
 export 'src/comun/texto.dart' show normalizarBusqueda;
 export 'src/modelos/ajustes.dart';
+export 'src/modelos/alerta.dart';
 export 'src/modelos/caja.dart';
 export 'src/modelos/envase.dart';
 export 'src/modelos/evento.dart';

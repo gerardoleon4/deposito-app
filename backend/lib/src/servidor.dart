@@ -24,6 +24,7 @@ import 'db/repositorio_productos.dart';
 import 'db/repositorio_terminales.dart';
 import 'db/repositorio_usuarios.dart';
 import 'rutas/rutas_ajustes.dart';
+import 'rutas/rutas_alertas.dart';
 import 'rutas/rutas_caja.dart';
 import 'rutas/rutas_productos.dart';
 import 'rutas/rutas_terminales.dart';
@@ -31,6 +32,7 @@ import 'rutas/rutas_usuarios.dart';
 import 'seed/datos_ejemplo.dart';
 import 'seed/fotos_ejemplo.dart';
 import 'servicios/servicio_ajustes.dart';
+import 'servicios/servicio_alertas.dart';
 import 'servicios/servicio_caja.dart';
 import 'servicios/servicio_productos.dart';
 import 'servicios/servicio_terminales.dart';
@@ -135,11 +137,18 @@ class DepositoServer {
       final repoVentas = RepositorioVentas(db);
       final repoCaja = RepositorioCaja(db);
       final idempotencia = RepositorioIdempotencia(db);
+      final alertas = ServicioAlertas(
+        repoProductos: repoProductos,
+        repoAjustes: ajustes,
+        hub: hub,
+        reloj: _reloj,
+      );
       final productos = ServicioProductos(
         db: db,
         repositorio: repoProductos,
         hub: hub,
         fotos: AlmacenFotos(_carpetaDeFotos()),
+        alertas: alertas,
         reloj: _reloj,
       );
       final terminales = ServicioTerminales(
@@ -184,6 +193,7 @@ class DepositoServer {
         idempotencia: idempotencia,
         usuarios: usuarios,
         hub: hub,
+        alertas: alertas,
         reloj: _reloj,
       );
 
@@ -230,6 +240,7 @@ class DepositoServer {
       montarRutasCaja(router, caja);
       montarRutasUsuarios(router, usuarios);
       montarRutasAjustes(router, servicioAjustes);
+      montarRutasAlertas(router, alertas);
 
       final manejador = const Pipeline()
           .addMiddleware(registrarPeticiones(bitacora))
