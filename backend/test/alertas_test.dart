@@ -169,7 +169,7 @@ void main() {
 
       final r = alertas.listar();
       expect(r['dia'], '2026-10-02');
-      expect(r['dias'], 30);
+      expect(r['dias'], 15);
       final a = (r['alertas'] as List).single as Map;
       expect(a['tipo'], 'por_caducar');
       expect(a['diasParaCaducar'], 0);

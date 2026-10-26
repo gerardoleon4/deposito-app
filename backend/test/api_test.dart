@@ -321,7 +321,7 @@ void main() {
         expect(r.statusCode, 200);
         final cuerpo = json(r);
         expect(cuerpo['dia'], hoy);
-        expect(cuerpo['dias'], 30);
+        expect(cuerpo['dias'], 15);
         final alerta = (cuerpo['alertas'] as List).single as Map;
         expect(alerta.keys, ['tipo', 'producto', 'diasParaCaducar']);
         expect(alerta['tipo'], 'agotado');

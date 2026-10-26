@@ -812,15 +812,15 @@ Productos por resurtir o por revisar su caducidad. Se calculan en cada petición
 
 #### Listar alertas
 
-`GET /api/v1/alertas?dias=30`
+`GET /api/v1/alertas?dias=15`
 
-- `dias` (opcional): cuántos días hacia adelante se revisan las caducidades, de 1 a 365. Por omisión `30`. Otro valor es `400 datos_invalidos` con `campos.dias`.
+- `dias` (opcional): cuántos días hacia adelante se revisan las caducidades, de 1 a 365. Por omisión `15`, lo que muestra el Inicio. Otro valor es `400 datos_invalidos` con `campos.dias`.
 - Respuesta `200`:
 
 ```json
 {
   "dia": "2026-10-26",
-  "dias": 30,
+  "dias": 15,
   "alertas": [
     { "tipo": "agotado", "producto": { "id": "p_3k9x2m7q1z", "existenciaPiezas": 0, "minimo": 36 }, "diasParaCaducar": null },
     { "tipo": "por_caducar", "producto": { "id": "p_8d1w5n0r4t", "caducidad": "2026-11-02" }, "diasParaCaducar": 7 }

@@ -2,7 +2,7 @@ import '../comun/fechas.dart';
 import 'producto.dart';
 
 /// Días hacia adelante que se revisan las caducidades si no se pide otro.
-const diasAlertaCaducidad = 30;
+const diasAlertaCaducidad = 15;
 
 /// Máximo de días que acepta `GET /api/v1/alertas?dias=`.
 const maxDiasAlertaCaducidad = 365;

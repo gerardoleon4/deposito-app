@@ -7,7 +7,7 @@ Formato: una sección por versión del backend (tag), con lo que se agregó y lo
 ### Alertas de existencia y caducidad
 
 #### Contrato
-- `GET /api/v1/alertas?dias=30`: productos agotados, con poco stock, caducados y por caducar, ordenados por urgencia.
+- `GET /api/v1/alertas?dias=15`: productos agotados, con poco stock, caducados y por caducar, ordenados por urgencia.
 - Evento `alerta.nueva` cuando un producto baja de su mínimo o se agota.
 
 #### Backend

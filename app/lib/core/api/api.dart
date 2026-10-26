@@ -194,7 +194,7 @@ abstract interface class Api {
 
   /// Productos por resurtir y por caducar, ya ordenados por urgencia.
   /// [dias]: hasta cuántos días adelante se revisan las caducidades (1 a
-  /// 365, por omisión 30). `dia` es hoy en la hora del negocio.
+  /// 365, por omisión 15, como el Inicio). `dia` es hoy en la hora del negocio.
   Future<({String dia, int dias, List<Alerta> alertas})> listarAlertas({
     int? dias,
   });
