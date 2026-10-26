@@ -303,6 +303,40 @@ void main() {
     });
   });
 
+  group('alertas', () {
+    test(
+      'una terminal lista las alertas con el formato del contrato',
+      () async {
+        final hoy = diaNegocio(
+          DateTime.now().toUtc(),
+          const Duration(hours: -6),
+        );
+        await s.post(
+          '/api/v1/productos',
+          productoValido({'existenciaPiezas': 0, 'minimo': 12}),
+        );
+        final clave = await s.registrarTerminal();
+
+        final r = await s.get('/api/v1/alertas', clave: clave);
+        expect(r.statusCode, 200);
+        final cuerpo = json(r);
+        expect(cuerpo['dia'], hoy);
+        expect(cuerpo['dias'], 30);
+        final alerta = (cuerpo['alertas'] as List).single as Map;
+        expect(alerta.keys, ['tipo', 'producto', 'diasParaCaducar']);
+        expect(alerta['tipo'], 'agotado');
+        expect((alerta['producto'] as Map)['codigo'], '7501064191015');
+      },
+    );
+
+    test('dias inválido es 400 datos_invalidos en dias', () async {
+      final r = await s.get('/api/v1/alertas?dias=0');
+      expect(r.statusCode, 400);
+      expect(camposError(r).keys, ['dias']);
+      expect((await s.get('/api/v1/alertas?dias=365')).statusCode, 200);
+    });
+  });
+
   group('WebSocket', () {
     Future<StreamIterator<Map<String, Object?>>> conectar(String clave) async {
       final canal = IOWebSocketChannel.connect(
@@ -354,6 +388,52 @@ void main() {
       expect(eventos.current['tipo'], 'producto.eliminado');
       expect(eventos.current['datos'], {'id': id});
     });
+
+    test(
+      'una venta que deja el producto bajo su mínimo avisa alerta.nueva',
+      () async {
+        final clave = await s.registrarTerminal();
+        final id = json(
+          await s.post(
+            '/api/v1/productos',
+            productoValido({'existenciaPiezas': 37, 'minimo': 36}),
+          ),
+        )['id'];
+        await s.abrirCaja();
+        final eventos = await conectar(clave);
+        expect(await eventos.moveNext(), isTrue); // conexion.lista
+
+        final venta = await s.post(
+          '/api/v1/ventas',
+          {
+            'metodo': 'efectivo',
+            'envModo': 'na',
+            'lineas': [
+              {'productoId': id, 'unidad': 'pieza', 'cantidad': 2},
+            ],
+          },
+          cabeceras: {cabeceraIdempotencia: 'alerta-1'},
+        );
+        expect(venta.statusCode, 201, reason: venta.body);
+
+        final tipos = <String>[];
+        Map<String, Object?>? alerta;
+        while (alerta == null && await eventos.moveNext()) {
+          tipos.add(eventos.current['tipo'] as String);
+          if (eventos.current['tipo'] == 'alerta.nueva') {
+            alerta = ((eventos.current['datos'] as Map)['alerta'] as Map)
+                .cast();
+          }
+        }
+        expect(
+          tipos.indexOf('producto.actualizado'),
+          lessThan(tipos.length - 1),
+        );
+        expect(alerta!['tipo'], 'poco_stock');
+        expect((alerta['producto'] as Map)['existenciaPiezas'], 35);
+        expect(alerta['diasParaCaducar'], isNull);
+      },
+    );
 
     test('sin clave no conecta', () async {
       final canal = IOWebSocketChannel.connect(

@@ -1178,6 +1178,30 @@ class ApiFalsa implements Api {
     return u;
   }
 
+  // --- Alertas ---
+
+  /// Día de negocio contra el que se calculan las caducidades.
+  var hoy = '2026-10-02';
+
+  @override
+  Future<({String dia, int dias, List<Alerta> alertas})> listarAlertas({
+    int? dias,
+  }) async {
+    final ventana = dias ?? diasAlertaCaducidad;
+    if (ventana < 1 || ventana > maxDiasAlertaCaducidad) {
+      throw const FalloApi(
+        'datos_invalidos',
+        'Revisa los campos marcados',
+        campos: {'dias': 'Debe ser un entero de 1 a 365'},
+      );
+    }
+    return (
+      dia: hoy,
+      dias: ventana,
+      alertas: calcularAlertas(productos, hoy: hoy, dias: ventana),
+    );
+  }
+
   // --- Ajustes y respaldo ---
 
   var ajustes = const AjustesNegocio();

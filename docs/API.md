@@ -806,6 +806,46 @@ Para el inicio de turno ("selecciona tu usuario y escribe tu PIN") y para pedir 
 
 - Respuesta `200`: `{ "usuario": <usuario> }`. `403 pin_invalido`, `429 demasiados_intentos`.
 
+### Alertas
+
+Productos por resurtir o por revisar su caducidad. Se calculan en cada petición: no se guardan ni se marcan como vistas.
+
+#### Listar alertas
+
+`GET /api/v1/alertas?dias=30`
+
+- `dias` (opcional): cuántos días hacia adelante se revisan las caducidades, de 1 a 365. Por omisión `30`. Otro valor es `400 datos_invalidos` con `campos.dias`.
+- Respuesta `200`:
+
+```json
+{
+  "dia": "2026-10-26",
+  "dias": 30,
+  "alertas": [
+    { "tipo": "agotado", "producto": { "id": "p_3k9x2m7q1z", "existenciaPiezas": 0, "minimo": 36 }, "diasParaCaducar": null },
+    { "tipo": "por_caducar", "producto": { "id": "p_8d1w5n0r4t", "caducidad": "2026-11-02" }, "diasParaCaducar": 7 }
+  ]
+}
+```
+
+(`producto` es el [objeto producto](#el-objeto-producto) completo; aquí va recortado).
+
+| `tipo` | Cuándo |
+| --- | --- |
+| `agotado` | `minimo` mayor que 0 y `existenciaPiezas` en 0 |
+| `poco_stock` | `existenciaPiezas` mayor que 0 y menor que `minimo` |
+| `caducado` | Hay existencia y la `caducidad` es anterior a hoy |
+| `por_caducar` | Hay existencia y la `caducidad` es hoy o dentro de los próximos `dias` |
+
+- Un producto con `minimo` en `0` nunca tiene alerta de existencia. Sin existencia no tiene alerta de caducidad: no hay nada que revisar en bodega.
+- Un producto puede salir dos veces: una por existencia y otra por caducidad.
+- `dia` es hoy en la hora local del negocio, el día contra el que se calculó todo.
+- `diasParaCaducar`: días de `dia` a la caducidad. `0` caduca hoy, negativo ya caducó. `null` en las alertas de existencia.
+- Orden: `agotado`, `poco_stock` (el que tiene menos existencia respecto a su mínimo primero), `caducado` (el más vencido primero) y `por_caducar` (el más próximo primero). Empates por nombre.
+- Lo pueden pedir la caja y las terminales.
+
+Para el contador de la campana, la app vuelve a pedir esta lista al recibir `alerta.nueva`, `producto.actualizado` o `producto.eliminado` y al reconectarse.
+
 ### Ajustes
 
 Datos del negocio para el ticket y la cuenta maestra.
@@ -861,8 +901,13 @@ Todos los mensajes del servidor tienen esta forma:
 | `caja.abierta` | Se abre un turno | `{ "turno": <turno> }` |
 | `caja.actualizada` | Se registra un movimiento de caja | `{ "turno": <turno> }` |
 | `caja.cerrada` | Se hace el corte | `{ "turno": <turno> }` |
+| `alerta.nueva` | Un producto baja de su mínimo o se agota (ver abajo) | `{ "alerta": <alerta> }`, con la forma de un elemento de [Listar alertas](#listar-alertas) |
 
 Los eventos `caja.*` **solo se mandan a la caja**: el `<turno>` trae montos que una terminal no puede pedir (la sección [Caja](#caja) es Solo caja). Los demás eventos llegan a todos.
+
+`alerta.nueva` se manda cuando la alerta de existencia de un producto empeora: de nada a `poco_stock` o `agotado`, o de `poco_stock` a `agotado`. Da igual la causa: venta, merma, conteo, alta del producto o un mínimo editado. Mientras siga igual no se repite; si se resurte y vuelve a bajar, se manda otra vez. Las caducidades no mandan evento porque cambian con el día, no con una operación.
+
+Se sigue mandando también `producto.actualizado`, así que una pantalla que ya escucha ese evento queda al día sin escuchar `alerta.nueva`. Sirve para la notificación.
 
 - El servidor manda ping cada 20 segundos. Si no hay respuesta, cierra la conexión.
 - Al reconectarse, la app vuelve a pedir los datos completos con `GET` en lugar de confiar en los eventos que se perdió.
@@ -872,4 +917,4 @@ Los eventos `caja.*` **solo se mandan a la caja**: el `<turno>` trae montos que 
 
 Se documentarán aquí, en este orden:
 
-- **Sprint 4:** alertas, reportes, resurtido y diagnóstico.
+- **Sprint 4:** reportes, resurtido y diagnóstico.

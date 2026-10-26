@@ -35,6 +35,27 @@ void main() {
     expect(productos.map((p) => p.nombre), contains('Victoria Mega'));
   });
 
+  test('las alertas del servidor son las que calcula la app', () async {
+    final r = await caja.listarAlertas(dias: 60);
+    expect(r.dias, 60);
+    expect(r.alertas, isNotEmpty);
+
+    final esperadas = calcularAlertas(
+      await caja.listarProductos(),
+      hoy: r.dia,
+      dias: 60,
+    );
+    expect(
+      [for (final a in r.alertas) a.toJson()],
+      [for (final a in esperadas) a.toJson()],
+    );
+
+    await expectLater(
+      caja.listarAlertas(dias: 0),
+      throwsA(isA<FalloApi>().having((f) => f.campos.keys, 'campos', ['dias'])),
+    );
+  });
+
   test(
     'la caja cobra y un reintento con la misma clave no cobra dos veces',
     () async {

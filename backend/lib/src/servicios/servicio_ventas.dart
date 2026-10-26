@@ -16,6 +16,7 @@ import '../db/repositorio_ventas.dart';
 import '../modelos/evento.dart';
 import '../modelos/producto.dart';
 import '../ws/hub.dart';
+import 'servicio_alertas.dart';
 import 'servicio_usuarios.dart';
 
 typedef _LineaPedida = ({
@@ -36,6 +37,7 @@ class ServicioVentas {
     required this._idempotencia,
     required this._usuarios,
     required this._hub,
+    this._alertas,
     this._reloj = relojSistema,
   });
 
@@ -48,6 +50,7 @@ class ServicioVentas {
   final RepositorioIdempotencia _idempotencia;
   final ServicioUsuarios _usuarios;
   final Hub _hub;
+  final ServicioAlertas? _alertas;
   final Reloj _reloj;
 
   /// Registra un cobro de la caja.
@@ -301,6 +304,7 @@ class ServicioVentas {
     // Fuera de la transacción: si la base falla no se avisa nada.
     for (final prod in productosActualizados) {
       _hub.emitir(TiposEvento.productoActualizado, {'producto': prod.toJson()});
+      _alertas?.revisar(prod);
     }
     if (cambioEnvases) _emitirBalance();
     _hub.emitir(TiposEvento.ventaRegistrada, {'venta': resultado});
@@ -767,6 +771,7 @@ class ServicioVentas {
       final p = _repoProductos.porId(id);
       if (p != null) {
         _hub.emitir(TiposEvento.productoActualizado, {'producto': p.toJson()});
+        _alertas?.revisar(p);
       }
     }
     if (efectos.envases) _emitirBalance();

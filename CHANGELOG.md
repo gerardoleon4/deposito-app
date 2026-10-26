@@ -4,6 +4,19 @@ Formato: una sección por versión del backend (tag), con lo que se agregó y lo
 
 ## Sin publicar (rumbo a v0.1.0)
 
+### Alertas de existencia y caducidad
+
+#### Contrato
+- `GET /api/v1/alertas?dias=30`: productos agotados, con poco stock, caducados y por caducar, ordenados por urgencia.
+- Evento `alerta.nueva` cuando un producto baja de su mínimo o se agota.
+
+#### Backend
+- Servicio de alertas: calcula con el día del negocio y avisa solo cuando la alerta de existencia empeora, sin repetir ni avisar de nuevo al reiniciar.
+- Modelo `Alerta` y `calcularAlertas` exportados para que la app use la misma regla.
+
+#### App
+- `Api.listarAlertas` en `ApiHttp` y `ApiFalsa`, para que la pantalla de Alertas se haga contra la interfaz.
+
 ### Caja, personal, devoluciones y envases completos
 
 #### Contrato

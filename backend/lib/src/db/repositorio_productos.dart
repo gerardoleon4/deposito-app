@@ -196,6 +196,26 @@ class RepositorioProductos {
     );
   }
 
+  /// Productos bajo su mínimo o con existencia que caduca a más tardar
+  /// [caducaHasta] (`AAAA-MM-DD`). Las reglas finas van en servicios/.
+  List<Producto> candidatosAlerta(String caducaHasta) => _db
+      .select(
+        'SELECT * FROM productos WHERE eliminado = 0 AND ('
+        'existencia_piezas < minimo OR (existencia_piezas > 0 '
+        'AND caducidad IS NOT NULL AND caducidad <= ?))',
+        [caducaHasta],
+      )
+      .map(_desdeFila)
+      .toList();
+
+  List<Producto> bajoMinimo() => _db
+      .select(
+        'SELECT * FROM productos '
+        'WHERE eliminado = 0 AND existencia_piezas < minimo',
+      )
+      .map(_desdeFila)
+      .toList();
+
   int contar() =>
       _db
               .select('SELECT COUNT(*) AS n FROM productos WHERE eliminado = 0')
