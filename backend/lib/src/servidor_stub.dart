@@ -7,6 +7,7 @@ class DepositoServer {
     dynamic direccion,
     String? claveCaja,
     this.datosEjemplo = false,
+    this.inventarioInicial = false,
     dynamic fotosEjemplo,
     dynamic bitacora,
     dynamic reloj,
@@ -15,6 +16,7 @@ class DepositoServer {
   final String rutaBaseDatos;
   final int puerto;
   final bool datosEjemplo;
+  final bool inventarioInicial;
   final String claveCaja;
 
   Future<void> iniciar() async {}

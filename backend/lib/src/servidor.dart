@@ -32,6 +32,7 @@ import 'rutas/rutas_terminales.dart';
 import 'rutas/rutas_usuarios.dart';
 import 'seed/datos_ejemplo.dart';
 import 'seed/fotos_ejemplo.dart';
+import 'seed/inventario_inicial.dart';
 import 'servicios/servicio_ajustes.dart';
 import 'servicios/servicio_alertas.dart';
 import 'servicios/servicio_caja.dart';
@@ -72,6 +73,7 @@ class DepositoServer {
     String? claveCaja,
     this.carpetaFotos,
     this.datosEjemplo = false,
+    this.inventarioInicial = false,
     this.fotosEjemplo = const {},
     Bitacora? bitacora,
     this._reloj = relojSistema,
@@ -96,6 +98,10 @@ class DepositoServer {
   /// Carga los productos del prototipo si la base está vacía y abre un turno
   /// de caja con [fondoEjemplo] si nunca hubo uno.
   final bool datosEjemplo;
+
+  /// Carga el inventario inicial real (Modelorama Oaxaca) cuando la base
+  /// arranca sin productos y [datosEjemplo] está apagado.
+  final bool inventarioInicial;
 
   /// Bytes de las fotos de ejemplo por nombre de archivo (ver
   /// [fotosDeEjemplo]). Con [datosEjemplo], se ponen a los productos de
@@ -221,6 +227,9 @@ class DepositoServer {
           reloj: _reloj,
         );
         bitacora.info('Datos de ejemplo cargados');
+      } else if (inventarioInicial && repoProductos.contar() == 0) {
+        cargarInventarioInicial(productos);
+        bitacora.info('Inventario inicial Modelorama Oaxaca cargado');
       }
       if (datosEjemplo) _ponerFotosEjemplo(productos, repoProductos);
       // En demo se puede cobrar desde el primer arranque. Solo si nunca hubo
