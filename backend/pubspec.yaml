@@ -1,6 +1,6 @@
 name: deposito_backend
 description: Servidor de Anaquel. API REST, WebSocket y SQLite, embebido en la app en modo Caja.
-version: 0.1.0
+version: 1.0.0
 publish_to: none
 
 environment:

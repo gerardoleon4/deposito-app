@@ -6,6 +6,7 @@ import '../../../../app/tema/colores.dart';
 import '../../../../core/formato/formato.dart';
 import '../../../../core/ticket/ticket_pdf.dart';
 import '../../../../core/widgets/estados.dart';
+import '../../../../core/widgets/origen_compartir.dart';
 
 /// 2.5 Ticket de cierre de turno (diseño de Pablo), con el corte real.
 class ReciboCierre extends ConsumerWidget {
@@ -247,8 +248,15 @@ class ReciboCierre extends ConsumerWidget {
                           const SizedBox(width: 16),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: () =>
-                                  _pdf(context, ref, compartirCorte),
+                              onPressed: () {
+                                final origen = origenCompartir(context);
+                                _pdf(
+                                  context,
+                                  ref,
+                                  (t, n) =>
+                                      compartirCorte(t, n, origen: origen),
+                                );
+                              },
                               icon: const Icon(
                                 Icons.picture_as_pdf_rounded,
                                 size: 20,

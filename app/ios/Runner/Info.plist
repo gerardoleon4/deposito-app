@@ -68,8 +68,14 @@
 	</array>
 	<key>NSCameraUsageDescription</key>
 	<string>Anaquel usa la cámara para escanear códigos de barras de productos y el código QR de la caja.</string>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Anaquel necesita acceso a tus fotos para asignar imágenes a los productos del catálogo.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Anaquel se comunica con la caja y las terminales por la Wi-Fi del negocio.</string>
+	<key>UIFileSharingEnabled</key>
+	<true/>
+	<key>LSSupportsOpeningDocumentsInPlace</key>
+	<true/>
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>

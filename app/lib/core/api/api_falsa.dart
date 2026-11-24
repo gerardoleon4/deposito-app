@@ -1291,6 +1291,68 @@ class ApiFalsa implements Api {
     );
   }
 
+  @override
+  Future<ReporteResurtido> obtenerResurtido({
+    int dias = 30,
+    int cobertura = 7,
+  }) async {
+    final vendidas = <String, int>{};
+    for (final v in ventas.values) {
+      final detalle = await obtenerVenta(v.id);
+      if (detalle.cancelada) continue;
+      for (final l in detalle.lineas) {
+        final netas = l.cantidad - l.devueltas;
+        if (netas <= 0) continue;
+        final ppc = l.cantidad > 0 ? l.piezas ~/ l.cantidad : 1;
+        vendidas[l.productoId] =
+            (vendidas[l.productoId] ?? 0) + (netas * ppc).toInt();
+      }
+    }
+    final sugerencias = <SugerenciaResurtido>[];
+    for (final p in productos) {
+      final v = vendidas[p.id] ?? 0;
+      final demanda = v == 0 ? 0 : (v * cobertura + dias - 1) ~/ dias;
+      final objetivo = demanda > p.minimo ? demanda : p.minimo;
+      if (p.existenciaPiezas < objetivo || p.bajoMinimo) {
+        final faltante = objetivo > p.existenciaPiezas
+            ? objetivo - p.existenciaPiezas
+            : 1;
+        final ppc = p.piezasPorCaja ?? 0;
+        final cajas = ppc > 1 ? (faltante + ppc - 1) ~/ ppc : 0;
+        final urgencia = p.existenciaPiezas <= 0
+            ? UrgenciaResurtido.agotado
+            : (p.bajoMinimo
+                  ? UrgenciaResurtido.bajoMinimo
+                  : UrgenciaResurtido.porCubrir);
+        sugerencias.add(
+          SugerenciaResurtido(
+            producto: p,
+            vendidasPeriodo: v,
+            sugeridoPiezas: faltante,
+            sugeridoCajas: cajas,
+            urgencia: urgencia,
+          ),
+        );
+      }
+    }
+    sugerencias.sort((a, b) {
+      int peso(String u) => switch (u) {
+        UrgenciaResurtido.agotado => 0,
+        UrgenciaResurtido.bajoMinimo => 1,
+        _ => 2,
+      };
+      final c1 = peso(a.urgencia).compareTo(peso(b.urgencia));
+      if (c1 != 0) return c1;
+      return b.vendidasPeriodo.compareTo(a.vendidasPeriodo);
+    });
+    return ReporteResurtido(
+      dia: hoy,
+      dias: dias,
+      cobertura: cobertura,
+      sugerencias: sugerencias,
+    );
+  }
+
   // --- Pedidos ---
 
   @override

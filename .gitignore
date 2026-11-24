@@ -2,3 +2,11 @@
 .idea/
 Thumbs.db
 *.iml
+
+# FVM Version Cache
+.fvm/
+
+# Firmas y claves de release (nunca subir al repo)
+key.properties
+*.jks
+*.keystore

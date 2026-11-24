@@ -9,6 +9,7 @@ import '../../../../core/api/proveedores.dart';
 import '../../../../core/formato/formato.dart';
 import '../../../../core/ticket/ticket_pdf.dart';
 import '../../../../core/widgets/estados.dart';
+import '../../../../core/widgets/origen_compartir.dart';
 import 'comun.dart';
 import 'vista_ticket_pdf.dart';
 
@@ -78,7 +79,10 @@ class _VentaExitosaState extends ConsumerState<VentaExitosa>
   );
 
   /// La hoja de compartir del sistema, donde está WhatsApp.
-  void _whatsApp() => _conTicket(compartirTicket);
+  void _whatsApp() {
+    final origen = origenCompartir(context);
+    _conTicket((d, n) => compartirTicket(d, n, origen: origen));
+  }
 
   @override
   Widget build(BuildContext context) {

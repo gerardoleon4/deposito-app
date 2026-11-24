@@ -2,6 +2,19 @@
 
 Formato: una sección por versión del backend (tag), con lo que se agregó y lo que cambió en el contrato de la API.
 
+## v1.0.0 (Lanzamiento a producción)
+
+### Contrato y Backend
+- `GET /api/v1/reportes/resurtido?dias=30&cobertura=7` (`Solo caja`): cálculo de sugerencias de compra por urgencia (`agotado`, `bajo_minimo`, `por_cubrir`) según ventas netas del periodo y mínimos.
+- Inventario inicial real de Modelorama Oaxaca (68 productos) cargado automáticamente al iniciar con base vacía.
+- Diagnóstico del servidor y descarga de bitácora.
+
+### App (iPad Caja y Terminales Android/iOS)
+- Módulo completo de **Resurtido** con ajuste de cantidades, generación de pedido en PDF e impresión/envío por WhatsApp.
+- Correcciones de estabilidad para iPadOS e iOS: permiso de galería (`NSPhotoLibraryUsageDescription`), acceso a respaldos desde Archivos (`UIFileSharingEnabled`), `sharePositionOrigin` en todas las hojas de compartir, pantalla siempre encendida en modo Caja (`com.anaquel/pantalla`) y recuperación automática del servidor embebido al volver de segundo plano.
+- Íconos nativos y pantalla de carga (Splash) de Anaquel en iOS/iPadOS y Android.
+- Firma de release configurada en Android (`key.properties`) y eliminación de plataformas no objetivo (`web/` y `macos/`).
+
 ## Sin publicar (rumbo a v0.1.0)
 
 ### Alertas de existencia y caducidad

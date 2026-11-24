@@ -5,7 +5,7 @@ import '../../alertas/pantallas/pantalla_alertas.dart';
 import '../../catalogo/pantallas/pantalla_catalogo.dart';
 import '../../envases/pantallas/dashboard_envases.dart';
 import '../../pdv/pantallas/punto_venta.dart';
-import '../../proximamente/proximamente.dart';
+import '../../resurtido/pantallas/pantalla_resurtido.dart';
 import '../../ventas/pantallas/lista_transacciones.dart';
 import 'inicio_caja.dart';
 import 'seccion_corte.dart';
@@ -83,13 +83,7 @@ final seccionesCaja = <SeccionCaja>[
     'Resurtido',
     Icons.local_shipping_outlined,
     Icons.local_shipping_rounded,
-    () => const Proximamente(
-      icono: Icons.local_shipping_outlined,
-      titulo: 'Resurtido',
-      descripcion: 'Cuánto comprar según lo vendido, con pedido al proveedor por WhatsApp.',
-      sprint: 4,
-      responsable: 'Luis',
-    ),
+    PantallaResurtido.new,
   ),
   SeccionCaja(
     'ajustes',

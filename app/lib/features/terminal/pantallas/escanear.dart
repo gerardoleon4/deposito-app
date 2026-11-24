@@ -88,11 +88,11 @@ class _PantallaEscanearState extends ConsumerState<PantallaEscanear> {
             Expanded(
               child: TextField(
                 controller: _codigo,
-                keyboardType: TextInputType.number,
+                textCapitalization: TextCapitalization.characters,
                 textInputAction: TextInputAction.search,
                 onSubmitted: _buscar,
                 decoration: const InputDecoration(
-                  hintText: 'O escribe el código',
+                  hintText: 'O escribe el código (ej. MOD001)',
                 ),
               ),
             ),

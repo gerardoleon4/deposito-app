@@ -1,4 +1,5 @@
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,11 +124,15 @@ Future<void> imprimirTicket(DetalleVenta v, AjustesNegocio negocio) =>
     );
 
 /// Abre la hoja de compartir del sistema con el PDF (WhatsApp, AirDrop...).
-Future<void> compartirTicket(DetalleVenta v, AjustesNegocio negocio) async =>
-    Printing.sharePdf(
-      bytes: await ticketPdf(v, negocio),
-      filename: nombreTicket(v),
-    );
+Future<void> compartirTicket(
+  DetalleVenta v,
+  AjustesNegocio negocio, {
+  Rect? origen,
+}) async => Printing.sharePdf(
+  bytes: await ticketPdf(v, negocio),
+  filename: nombreTicket(v),
+  bounds: origen,
+);
 
 /// Comprobante del corte de caja en PDF, del ancho de un rollo de 80 mm.
 Future<Uint8List> cortePdf(Turno t, AjustesNegocio negocio) async {
@@ -217,8 +222,12 @@ Future<void> imprimirCorte(Turno t, AjustesNegocio negocio) =>
       onLayout: (_) => cortePdf(t, negocio),
     );
 
-Future<void> compartirCorte(Turno t, AjustesNegocio negocio) async =>
-    Printing.sharePdf(
-      bytes: await cortePdf(t, negocio),
-      filename: 'corte-${t.diaNegocio}.pdf',
-    );
+Future<void> compartirCorte(
+  Turno t,
+  AjustesNegocio negocio, {
+  Rect? origen,
+}) async => Printing.sharePdf(
+  bytes: await cortePdf(t, negocio),
+  filename: 'corte-${t.diaNegocio}.pdf',
+  bounds: origen,
+);

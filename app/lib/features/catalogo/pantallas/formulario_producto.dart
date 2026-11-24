@@ -378,7 +378,6 @@ class _FormularioProductoState extends ConsumerState<FormularioProducto> {
                       'codigo',
                       'Código de barras',
                       _codigo,
-                      teclado: TextInputType.number,
                       alCambiar: (_) => setState(() {}),
                     ),
                     campo('nombre', 'Nombre', _nombre),

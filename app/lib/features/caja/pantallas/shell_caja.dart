@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:io';
+
 import 'package:deposito_backend/deposito_backend.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +11,7 @@ import '../../../app/tema/colores.dart';
 import '../../../core/api/fallo_api.dart';
 import '../../../core/config/configuracion.dart';
 import '../../../core/formato/formato.dart';
+import '../../../core/servidor/pantalla_activa.dart';
 import '../../../core/servidor/servidor_embebido.dart';
 import '../../../core/textos.dart';
 import '../../../core/widgets/estados.dart';
@@ -24,18 +29,66 @@ import 'secciones_caja.dart';
 /// - 1000 px o más (iPad horizontal): menú completo.
 /// - 640 a 1000 px (iPad vertical): menú de íconos.
 /// - Menos: menú en cajón (para probar en teléfono).
-class ShellCaja extends ConsumerWidget {
+class ShellCaja extends ConsumerStatefulWidget {
   const ShellCaja({super.key, required this.seccion, required this.child});
 
   final String seccion;
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ShellCaja> createState() => _ShellCajaState();
+}
+
+class _ShellCajaState extends ConsumerState<ShellCaja>
+    with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(PantallaActiva.mantenerEncendida(true));
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    unawaited(PantallaActiva.mantenerEncendida(false));
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      unawaited(_verificarServidorVivo());
+    }
+  }
+
+  Future<void> _verificarServidorVivo() async {
+    if (kIsWeb) return;
+    if (!ref.read(servidorEmbebidoProvider).hasValue) return;
+    final cliente = HttpClient()
+      ..connectionTimeout = const Duration(seconds: 2);
+    try {
+      final peticion = await cliente
+          .get('127.0.0.1', puertoServidor, '/salud')
+          .timeout(const Duration(seconds: 2));
+      final resp = await peticion.close().timeout(const Duration(seconds: 2));
+      await resp.drain<void>();
+      if (resp.statusCode != 200 && mounted) {
+        ref.invalidate(servidorEmbebidoProvider);
+      }
+    } catch (_) {
+      if (mounted) ref.invalidate(servidorEmbebidoProvider);
+    } finally {
+      cliente.close(force: true);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final servidor = ref.watch(servidorEmbebidoProvider);
     return switch (servidor) {
       AsyncData() => _ConPersonal(
-        child: _Marco(seccion: seccion, child: child),
+        child: _Marco(seccion: widget.seccion, child: widget.child),
       ),
       AsyncError(:final error) => Scaffold(
         appBar: AppBar(

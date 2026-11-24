@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/api/fallo_api.dart';
 import '../../../core/widgets/estados.dart';
+import '../../../core/widgets/origen_compartir.dart';
 import '../datos/csv_inventario.dart';
 import '../estado/productos.dart';
 import 'acciones_producto.dart';
@@ -31,13 +32,14 @@ class PantallaCatalogo extends ConsumerWidget {
   }
 
   Future<void> _exportar(BuildContext context, WidgetRef ref) async {
+    final origen = origenCompartir(context);
     final productos = ref.read(productosProvider).value;
     if (productos == null || productos.isEmpty) {
       avisar(context, 'El catálogo está vacío');
       return;
     }
     try {
-      final guardado = await exportarInventario(productos);
+      final guardado = await exportarInventario(productos, origen: origen);
       if (guardado && context.mounted) avisar(context, 'Inventario exportado');
     } on Object catch (e) {
       if (context.mounted) {
