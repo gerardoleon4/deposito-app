@@ -10,6 +10,10 @@ import 'package:path_provider/path_provider.dart';
 /// entrega al cliente (Sprint 5), cuando se cargue su inventario real.
 const cargarDatosEjemplo = false;
 
+/// Carga el inventario real de Modelorama Oaxaca la primera vez que arranca
+/// el dispositivo con la base vacía.
+const cargarInventarioInicial = true;
+
 const puertoServidor = 8080;
 
 /// El servidor que corre dentro de la app en modo Caja.
@@ -22,6 +26,7 @@ final servidorEmbebidoProvider = FutureProvider<DepositoServer>((ref) async {
       rutaBaseDatos: ':memory:',
       puerto: puertoServidor,
       datosEjemplo: cargarDatosEjemplo,
+      inventarioInicial: cargarInventarioInicial,
       fotosEjemplo: await _leerFotosEjemplo(),
     );
     await servidor.iniciar();
@@ -34,6 +39,7 @@ final servidorEmbebidoProvider = FutureProvider<DepositoServer>((ref) async {
     rutaBaseDatos: rutaBaseDatosCaja(carpeta),
     puerto: puertoServidor,
     datosEjemplo: cargarDatosEjemplo,
+    inventarioInicial: cargarInventarioInicial,
     fotosEjemplo: await _leerFotosEjemplo(),
     bitacora: Bitacora(rutaArchivo: '${carpeta.path}/anaquel.log'),
   );

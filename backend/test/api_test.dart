@@ -624,4 +624,36 @@ void main() {
       expect(foto.bodyBytes, fotos['victoria.webp']);
     },
   );
+
+  test(
+    'con inventarioInicial arranca con los 68 productos de Modelorama Oaxaca',
+    () async {
+      final server = DepositoServer(
+        rutaBaseDatos: enMemoria,
+        puerto: 0,
+        direccion: InternetAddress.loopbackIPv4,
+        inventarioInicial: true,
+        bitacora: Bitacora.silenciosa(),
+      );
+      await server.iniciar();
+      addTearDown(server.detener);
+
+      final client = HttpClient();
+      addTearDown(client.close);
+      final req = await client.getUrl(
+        Uri.parse('http://127.0.0.1:${server.puertoActual}/api/v1/productos'),
+      );
+      req.headers.set('X-Clave-Terminal', server.claveCaja);
+      final res = await req.close();
+      expect(res.statusCode, 200);
+      final body = await utf8.decodeStream(res);
+      final productos = (jsonDecode(body) as Map)['productos'] as List<dynamic>;
+      expect(productos, hasLength(68));
+      final totalPiezas = productos.fold<int>(
+        0,
+        (sum, p) => sum + ((p as Map)['existenciaPiezas'] as int),
+      );
+      expect(totalPiezas, 13816);
+    },
+  );
 }

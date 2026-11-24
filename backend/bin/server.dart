@@ -12,20 +12,25 @@ import 'package:path/path.dart' as p;
 ///   PUERTO          8080 por omisión.
 ///   BASE_DATOS      datos/anaquel.db por omisión (ignorado por git).
 ///   CLAVE_CAJA      fija la clave de caja; si no, se genera una por arranque.
-///   SIN_EJEMPLOS=1  no carga los productos del prototipo.
+///   SIN_EJEMPLOS=1  no carga inventario inicial ni productos de ejemplo.
+///   CON_EJEMPLOS=1  carga los 12 productos de ejemplo del prototipo en vez
+///                   del inventario real (solo si la base está vacía).
 ///
 /// Las fotos de ejemplo se leen de `../app/assets/productos/`.
 Future<void> main() async {
   final entorno = Platform.environment;
   final rutaBase = entorno['BASE_DATOS'] ?? p.join('datos', 'anaquel.db');
   Directory(p.dirname(rutaBase)).createSync(recursive: true);
+  final conEjemplos = entorno['CON_EJEMPLOS'] == '1';
+  final sinDatos = entorno['SIN_EJEMPLOS'] == '1';
 
   final servidor = DepositoServer(
     rutaBaseDatos: rutaBase,
     puerto: int.tryParse(entorno['PUERTO'] ?? '') ?? 8080,
     claveCaja: entorno['CLAVE_CAJA'],
-    datosEjemplo: entorno['SIN_EJEMPLOS'] != '1',
-    fotosEjemplo: _leerFotosEjemplo(),
+    datosEjemplo: !sinDatos && conEjemplos,
+    inventarioInicial: !sinDatos && !conEjemplos,
+    fotosEjemplo: conEjemplos ? _leerFotosEjemplo() : const {},
     bitacora: Bitacora(rutaArchivo: p.join(p.dirname(rutaBase), 'anaquel.log')),
   );
   await servidor.iniciar();
