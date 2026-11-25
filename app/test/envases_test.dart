@@ -182,4 +182,31 @@ void main() {
     expect(find.text('492'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets('los precios de depósito de envases se ajustan desde Ajustes', (
+    tester,
+  ) async {
+    final api = ApiFalsa();
+    await montarApp(tester, api: api, preferencias: prefsCaja);
+    await tester.tap(find.text('Ajustes'));
+    await tester.pumpAndSettle();
+
+    final boton = find.text('Guardar precios');
+    await tester.scrollUntilVisible(
+      boton,
+      300,
+      scrollable: find.byType(Scrollable).last,
+    );
+    expect(find.text('Depósito de envases'), findsOneWidget);
+
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Mega 1.2 L'),
+      '10.50',
+    );
+    await tester.tap(boton);
+    await tester.pumpAndSettle();
+
+    expect(api.envases['mega']!.precio, 1050);
+    expect(find.text('Precios de depósito actualizados'), findsOneWidget);
+  });
 }

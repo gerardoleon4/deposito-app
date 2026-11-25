@@ -85,6 +85,7 @@ class _RestaurarRespaldoState extends ConsumerState<RestaurarRespaldo> {
   }
 
   void _validarPin() {
+    if (_pin.length < 4 || _restaurando) return;
     if (verificarRespaldo(_ruta!, pin: _pin) == EstadoRespaldo.valido) {
       _restaurar(_ruta!);
     } else {
@@ -139,6 +140,7 @@ class _RestaurarRespaldoState extends ConsumerState<RestaurarRespaldo> {
                     errorPin: _errorPin,
                     alTeclear: _teclear,
                     alBorrar: _borrar,
+                    alConfirmar: _validarPin,
                   ),
           ),
         ),
@@ -216,12 +218,14 @@ class _ConstruirPaso2 extends StatelessWidget {
     required this.errorPin,
     required this.alTeclear,
     required this.alBorrar,
+    required this.alConfirmar,
   });
   final ColoresAnaquel c;
   final String pin;
   final bool errorPin;
   final void Function(String) alTeclear;
   final VoidCallback alBorrar;
+  final VoidCallback alConfirmar;
 
   @override
   Widget build(BuildContext context) {
@@ -242,7 +246,7 @@ class _ConstruirPaso2 extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Ingresa el PIN Maestro del dueño de este respaldo',
+                'Ingresa el PIN Maestro del dueño de este respaldo (4 a 6 dígitos)',
                 style: TextStyle(fontSize: 16, color: c.tinta2),
                 textAlign: TextAlign.center,
               ),
@@ -261,7 +265,29 @@ class _ConstruirPaso2 extends StatelessWidget {
           ),
         ),
         TecladoNumerico(alPresionarTecla: alTeclear, alBorrar: alBorrar),
-        const SizedBox(height: 32),
+        const SizedBox(height: 16),
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          child: ElevatedButton(
+            onPressed: pin.length >= 4 ? alConfirmar : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: c.azul,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: c.linea,
+              disabledForegroundColor: c.tinta2,
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14),
+              ),
+              elevation: 0,
+            ),
+            child: const Text(
+              'Confirmar PIN',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+        const SizedBox(height: 24),
       ],
     );
   }

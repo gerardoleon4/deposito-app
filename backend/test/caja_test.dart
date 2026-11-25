@@ -146,6 +146,10 @@ void main() {
         (await cobrar(pid, metodo: 'tarjeta', cantidad: 2)).statusCode,
         201,
       ); // 8400
+      await s.post('/api/v1/envases/entrada', {
+        'formato': 'mega',
+        'cantidad': 10,
+      });
       final vacios = await s.post('/api/v1/envases/venta-vacios', {
         'formato': 'mega',
         'cantidad': 2,
@@ -426,6 +430,10 @@ void main() {
             .cast();
 
     test('parcial y después el resto', () async {
+      await s.post('/api/v1/envases/entrada', {
+        'formato': 'mega',
+        'cantidad': 20,
+      });
       final id = await prestar(10);
       final antes = await mega();
 

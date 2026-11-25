@@ -699,6 +699,23 @@ class ApiFalsa implements Api {
       Map.of(envases);
 
   @override
+  Future<Map<String, BalanceEnvase>> actualizarPreciosEnvases(
+    Map<String, int> precios,
+  ) async {
+    for (final e in precios.entries) {
+      final actual = envases[e.key];
+      if (actual == null) continue;
+      envases[e.key] = BalanceEnvase(
+        formato: actual.formato,
+        bodega: actual.bodega,
+        prestados: actual.prestados,
+        precio: e.value,
+      );
+    }
+    return Map.of(envases);
+  }
+
+  @override
   Future<List<PrestamoEnvase>> listarPrestamos() async => List.of(prestamos);
 
   /// Bitácora de envases de esta API falsa, del más nuevo al más viejo.

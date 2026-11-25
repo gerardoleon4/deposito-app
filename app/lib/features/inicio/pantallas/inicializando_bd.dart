@@ -23,12 +23,10 @@ class _InicializandoBDState extends State<InicializandoBD> {
   }
 
   Future<void> _simularCarga() async {
-    // Simula el tiempo que toma crear las tablas de SQLite
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(milliseconds: 900));
     if (mounted) {
       setState(() => _terminado = true);
-      // Simula 1 segundo de mostrar el "Check" antes de avanzar
-      await Future.delayed(const Duration(seconds: 1));
+      await Future.delayed(const Duration(milliseconds: 600));
       if (mounted) {
         widget.alTerminar();
       }

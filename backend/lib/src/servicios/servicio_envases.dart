@@ -33,6 +33,33 @@ class ServicioEnvases {
 
   Map<String, Map<String, int>> balance() => _repo.obtenerBalance();
 
+  /// Actualiza el precio de depósito (centavos) de uno o más formatos.
+  Map<String, Map<String, int>> actualizarPrecios(Map<String, Object?> datos) {
+    final v = Validador(datos);
+    final cambios = <String, int>{};
+    var alguno = false;
+    for (final formato in formatosEnvase) {
+      if (!datos.containsKey(formato)) continue;
+      alguno = true;
+      final precio = v.entero(formato, min: 1);
+      if (precio != null) cambios[formato] = precio;
+    }
+    if (!alguno) {
+      v.error('precios', 'Indica al menos un formato de envase');
+    }
+    v.comprobar();
+
+    transaccion(_db, () {
+      for (final e in cambios.entries) {
+        _repo.actualizarPrecio(e.key, e.value);
+      }
+    });
+
+    final actualizado = balance();
+    _emitirBalance();
+    return actualizado;
+  }
+
   List<Map<String, Object?>> prestamos() => _repo.listarPrestamosActivos();
 
   List<Map<String, Object?>> movimientos(Map<String, Object?> filtros) {

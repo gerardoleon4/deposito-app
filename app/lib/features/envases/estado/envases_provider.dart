@@ -94,6 +94,13 @@ class EnvasesNotifier extends AsyncNotifier<EstadoEnvases> {
     await refrescar();
   }
 
+  /// Actualiza los precios de depósito (centavos) por formato (`mega`, `media`, `cuarto`).
+  Future<void> actualizarPrecios(Map<String, int> precios) async {
+    final api = await ref.read(apiProvider.future);
+    await api.actualizarPreciosEnvases(precios);
+    await refrescar();
+  }
+
   Future<void> sacarVacios({
     required FormatoEnvase formato,
     required int cantidad,

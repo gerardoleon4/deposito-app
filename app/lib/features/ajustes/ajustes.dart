@@ -6,10 +6,13 @@ import '../../app/tema/colores.dart';
 import '../../core/api/fallo_api.dart';
 import '../../core/api/proveedores.dart';
 import '../../core/config/configuracion.dart';
+import '../../core/formato/formato.dart';
 import '../../core/servidor/servidor_embebido.dart';
 import '../../core/textos.dart';
 import '../../core/ticket/ticket_pdf.dart';
 import '../../core/widgets/estados.dart';
+import '../envases/datos/modelos_envases.dart';
+import '../envases/estado/envases_provider.dart';
 import '../personal/estado/personal_provider.dart';
 import '../personal/pantallas/gestion_personal.dart';
 import '../personal/pantallas/seguridad_respaldo.dart';
@@ -194,6 +197,10 @@ class PantallaAjustes extends ConsumerWidget {
                       ),
                     ],
                   ),
+                  const _Grupo(
+                    titulo: 'Depósito de envases',
+                    children: [_PreciosEnvases()],
+                  ),
                 ],
               ],
             ),
@@ -335,6 +342,112 @@ class _DatosNegocioState extends ConsumerState<_DatosNegocio> {
             onPressed: _guardando ? null : _guardar,
             icon: const Icon(Icons.save_outlined),
             label: const Text(Textos.guardar),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Precios de depósito por formato de envase (`PUT /envases/precios`).
+class _PreciosEnvases extends ConsumerStatefulWidget {
+  const _PreciosEnvases();
+
+  @override
+  ConsumerState<_PreciosEnvases> createState() => _PreciosEnvasesState();
+}
+
+class _PreciosEnvasesState extends ConsumerState<_PreciosEnvases> {
+  final _campos = {
+    for (final f in FormatoEnvase.values) f: TextEditingController(),
+  };
+  bool _cargado = false;
+  bool _guardando = false;
+
+  @override
+  void dispose() {
+    for (final c in _campos.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _guardar() async {
+    final precios = <String, int>{};
+    for (final entry in _campos.entries) {
+      final centavos = centavosDesdeTexto(entry.value.text);
+      if (centavos == null || centavos <= 0) {
+        avisar(
+          context,
+          'Escribe un precio válido mayor a \$0 para ${entry.key.etiqueta}',
+        );
+        return;
+      }
+      precios[entry.key.clave] = centavos;
+    }
+
+    setState(() => _guardando = true);
+    try {
+      await ref.read(envasesProvider.notifier).actualizarPrecios(precios);
+      if (mounted) avisar(context, 'Precios de depósito actualizados');
+    } on FalloApi catch (e) {
+      if (mounted) {
+        avisar(context, e.campos.values.firstOrNull ?? mensajeDeError(e));
+      }
+    } finally {
+      if (mounted) setState(() => _guardando = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final estado = ref.watch(envasesProvider).value;
+    if (estado != null && !_cargado) {
+      _cargado = true;
+      for (final f in FormatoEnvase.values) {
+        final precio = estado.precio(f);
+        if (precio > 0) _campos[f]!.text = pesosEditables(precio);
+      }
+    }
+    final c = context.colores;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      spacing: 12,
+      children: [
+        Text(
+          'Monto que se cobra al cliente si no trae envase retornable o al vender vacíos.',
+          style: TextStyle(color: c.tinta2, height: 1.4),
+        ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final campos = [
+              for (final f in FormatoEnvase.values)
+                TextField(
+                  controller: _campos[f],
+                  keyboardType: const TextInputType.numberWithOptions(
+                    decimal: true,
+                  ),
+                  decoration: InputDecoration(
+                    labelText: f.etiqueta,
+                    prefixText: '\$ ',
+                  ),
+                ),
+            ];
+            if (constraints.maxWidth < 460) {
+              return Column(spacing: 10, children: campos);
+            }
+            return Row(
+              spacing: 12,
+              children: [for (final campo in campos) Expanded(child: campo)],
+            );
+          },
+        ),
+        Align(
+          alignment: Alignment.centerRight,
+          child: FilledButton.icon(
+            onPressed: _guardando ? null : _guardar,
+            icon: const Icon(Icons.save_outlined),
+            label: const Text('Guardar precios'),
           ),
         ),
       ],

@@ -472,6 +472,10 @@ void main() {
 
   group('envases', () {
     test('prestar saca de bodega y guarda el teléfono', () async {
+      await s.post('/api/v1/envases/entrada', {
+        'formato': 'mega',
+        'cantidad': 20,
+      });
       final antes = await balance('mega');
       final r = await s.post('/api/v1/envases/prestamos', {
         'cliente': 'Don Pedro',
@@ -500,6 +504,10 @@ void main() {
     });
 
     test('sacar vacíos de bodega', () async {
+      await s.post('/api/v1/envases/entrada', {
+        'formato': 'cuarto',
+        'cantidad': 30,
+      });
       final antes = await balance('cuarto');
       final r = await s.post('/api/v1/envases/salida', {
         'formato': 'cuarto',
@@ -573,7 +581,7 @@ void main() {
       )['id'];
       await s.post('/api/v1/envases/prestamos/$pre/devolver', {'cantidad': 1});
       await s.post('/api/v1/envases/salida', {
-        'formato': 'media',
+        'formato': 'mega',
         'cantidad': 2,
         'motivo': 'Rotos',
       });
@@ -602,6 +610,32 @@ void main() {
       expect(uno, hasLength(1));
       final mal = await s.get('/api/v1/envases/movimientos?limite=0');
       expect(camposError(mal).keys, ['limite']);
+    });
+
+    test('actualizar precios de depósito (solo caja)', () async {
+      final claveTerminal = await s.registrarTerminal();
+      final prohibido = await s.put('/api/v1/envases/precios', {
+        'mega': 1000,
+      }, clave: claveTerminal);
+      expect(prohibido.statusCode, 403);
+
+      final vacio = await s.put('/api/v1/envases/precios', {});
+      expect(vacio.statusCode, 400);
+      expect(camposError(vacio).keys, ['precios']);
+
+      final invalido = await s.put('/api/v1/envases/precios', {'mega': 0});
+      expect(invalido.statusCode, 400);
+      expect(camposError(invalido).keys, ['mega']);
+
+      final ok = await s.put('/api/v1/envases/precios', {
+        'mega': 1000,
+        'media': 450,
+      });
+      expect(ok.statusCode, 200);
+      final bal = (json(ok)['balance'] as Map).cast<String, Object?>();
+      expect((bal['mega'] as Map)['precio'], 1000);
+      expect((bal['media'] as Map)['precio'], 450);
+      expect((bal['cuarto'] as Map)['precio'], 300);
     });
   });
 

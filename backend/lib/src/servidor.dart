@@ -235,6 +235,11 @@ class DepositoServer {
           zonaHoraria: ajustes.zonaHoraria,
           reloj: _reloj,
         );
+        if (repoEnvases.movimientos(1).isEmpty) {
+          repoEnvases.actualizarBodega('mega', 84);
+          repoEnvases.actualizarBodega('media', 240);
+          repoEnvases.actualizarBodega('cuarto', 168);
+        }
         bitacora.info('Datos de ejemplo cargados');
       } else if (inventarioInicial && repoProductos.contar() == 0) {
         cargarInventarioInicial(productos);

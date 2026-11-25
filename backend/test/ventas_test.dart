@@ -278,6 +278,11 @@ void main() {
       expect(balance.statusCode, 200);
       expect(json(balance)['balance'], contains('mega'));
 
+      await s.post('/api/v1/envases/entrada', {
+        'formato': 'mega',
+        'cantidad': 20,
+      });
+
       final r = await s.post('/api/v1/envases/prestamos', {
         'cliente': 'Don Pedro',
         'formato': 'mega',
@@ -312,6 +317,13 @@ void main() {
     });
 
     group('vender vacíos', () {
+      setUp(() async {
+        await s.post('/api/v1/envases/entrada', {
+          'formato': 'mega',
+          'cantidad': 20,
+        });
+      });
+
       Future<http.Response> venderVacios(
         Map<String, Object?> cuerpo, {
         String? clave,
@@ -395,6 +407,10 @@ void main() {
     });
 
     test('balance y préstamos se leen con los modelos compartidos', () async {
+      await s.post('/api/v1/envases/entrada', {
+        'formato': 'mega',
+        'cantidad': 10,
+      });
       await s.post('/api/v1/envases/prestamos', {
         'cliente': 'Don Pedro',
         'formato': 'mega',

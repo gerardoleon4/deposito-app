@@ -223,7 +223,7 @@ class _CrearCuentaMaestraState extends State<CrearCuentaMaestra> {
                         TextField(
                           controller: _negocioCtrl,
                           decoration: InputDecoration(
-                            hintText: 'Ej. Café Central',
+                            hintText: 'Ej. Modelorama Oaxaca',
                             hintStyle: TextStyle(
                               color: c.tinta2.withValues(alpha: 0.5),
                             ),
