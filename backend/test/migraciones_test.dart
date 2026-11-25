@@ -85,4 +85,27 @@ void main() {
       );
     },
   );
+
+  test(
+    'una base nueva arranca con envases en 0 y precios de depósito por omisión',
+    () {
+      final db = abrirBaseDatos(enMemoria);
+      addTearDown(db.close);
+      aplicarMigraciones(db);
+      final filas = db.select(
+        'SELECT formato, bodega, prestados, precio FROM balance_envases',
+      );
+      final porFormato = {
+        for (final f in filas)
+          f['formato'] as String: (
+            bodega: f['bodega'] as int,
+            prestados: f['prestados'] as int,
+            precio: f['precio'] as int,
+          ),
+      };
+      expect(porFormato['mega'], (bodega: 0, prestados: 0, precio: 800));
+      expect(porFormato['media'], (bodega: 0, prestados: 0, precio: 300));
+      expect(porFormato['cuarto'], (bodega: 0, prestados: 0, precio: 300));
+    },
+  );
 }

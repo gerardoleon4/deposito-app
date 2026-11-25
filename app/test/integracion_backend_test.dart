@@ -376,6 +376,13 @@ void main() {
     });
     expect(ajustes.nombreNegocio, 'Depósito Don Beto');
     expect((await caja.obtenerAjustes()).nombreNegocio, 'Depósito Don Beto');
+    final precios = await caja.actualizarPreciosEnvases({
+      'mega': 1000,
+      'media': 400,
+    });
+    expect(precios['mega']!.precio, 1000);
+    expect(precios['media']!.precio, 400);
+    expect(precios['cuarto']!.precio, 300);
     final respaldo = await caja.descargarRespaldo();
     expect(String.fromCharCodes(respaldo.bytes.take(15)), 'SQLite format 3');
     expect(respaldo.nombre, startsWith('anaquel-'));

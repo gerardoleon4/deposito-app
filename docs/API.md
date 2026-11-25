@@ -811,6 +811,20 @@ Lleva el encabezado obligatorio `X-Clave-Idempotencia`, igual que [Registrar ven
 - Respuesta `201`: la venta, con la misma forma que en Registrar venta. Emite `envases.actualizado` y `venta.registrada`.
 - `400 datos_invalidos`, `409 envases_insuficientes`, `409 caja_cerrada`.
 
+#### Actualizar precios de depósito
+
+`PUT /api/v1/envases/precios` · Solo caja
+
+Cambia el precio de depósito (en centavos) de uno o más formatos de envase (`mega`, `media`, `cuarto`). Los precios anteriores ya registrados en ventas pasadas no se modifican.
+
+```json
+{ "mega": 1000, "media": 400, "cuarto": 300 }
+```
+
+- Cada formato es opcional, pero debe venir al menos uno. Cada precio debe ser un entero mayor que 0 (en centavos).
+- Respuesta `200`: `{ "balance": { "mega": ..., "media": ..., "cuarto": ... } }`. Emite `envases.actualizado`.
+- `400 datos_invalidos`, `403 solo_caja`.
+
 ### Usuarios
 
 Personal del depósito con PIN. El primero es el dueño (la "cuenta maestra"). Todo es **Solo caja**.

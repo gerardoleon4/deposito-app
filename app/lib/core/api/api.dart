@@ -97,6 +97,11 @@ abstract interface class Api {
   /// Existencias por formato: `mega`, `media`, `cuarto`.
   Future<Map<String, BalanceEnvase>> obtenerBalanceEnvases();
 
+  /// Actualiza los precios de depósito (centavos) de uno o más formatos.
+  Future<Map<String, BalanceEnvase>> actualizarPreciosEnvases(
+    Map<String, int> precios,
+  );
+
   /// Préstamos sin devolver, del más nuevo al más viejo.
   Future<List<PrestamoEnvase>> listarPrestamos();
 
@@ -497,6 +502,17 @@ class ApiHttp implements Api {
         final r = await _dio.get<Map<String, Object?>>('/api/v1/envases');
         return BalanceEnvase.deJson((r.data!['balance'] as Map).cast());
       });
+
+  @override
+  Future<Map<String, BalanceEnvase>> actualizarPreciosEnvases(
+    Map<String, int> precios,
+  ) => _pedir(() async {
+    final r = await _dio.put<Map<String, Object?>>(
+      '/api/v1/envases/precios',
+      data: precios,
+    );
+    return BalanceEnvase.deJson((r.data!['balance'] as Map).cast());
+  });
 
   @override
   Future<List<PrestamoEnvase>> listarPrestamos() => _pedir(() async {

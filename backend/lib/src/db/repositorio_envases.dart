@@ -32,6 +32,13 @@ class RepositorioEnvases {
     );
   }
 
+  void actualizarPrecio(String formato, int precio) {
+    _db.execute('UPDATE balance_envases SET precio = ? WHERE formato = ?', [
+      precio,
+      formato,
+    ]);
+  }
+
   void registrarPrestamo({
     required String id,
     required String cliente,

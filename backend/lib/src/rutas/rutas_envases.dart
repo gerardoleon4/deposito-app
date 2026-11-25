@@ -16,6 +16,12 @@ void montarRutasEnvases(
     return respuestaJson({'balance': envases.balance()});
   });
 
+  r.put('/api/v1/envases/precios', (Request p) async {
+    exigirCaja(p);
+    final balance = envases.actualizarPrecios(await leerObjetoJson(p));
+    return respuestaJson({'balance': balance});
+  });
+
   r.get('/api/v1/envases/prestamos', (Request _) {
     return respuestaJson({'prestamos': envases.prestamos()});
   });
