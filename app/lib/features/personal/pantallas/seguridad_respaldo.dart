@@ -8,6 +8,7 @@ import '../../../../core/api/proveedores.dart';
 import '../../../../core/formato/formato.dart';
 import '../../../../core/respaldo/respaldos.dart';
 import '../../../../core/widgets/estados.dart';
+import '../../../../core/widgets/origen_compartir.dart';
 import '../../../core/textos.dart';
 
 /// Seguridad y respaldo (diseño de Pablo): copia completa de la base para
@@ -57,11 +58,12 @@ class _SeguridadRespaldoState extends ConsumerState<SeguridadRespaldo> {
   }
 
   Future<void> _compartir(BuildContext context) async {
+    final origen = origenCompartir(context);
     Navigator.pop(context);
     final archivo = _ultimo;
     if (archivo == null) return;
     try {
-      await compartirRespaldo(archivo);
+      await compartirRespaldo(archivo, origen: origen);
     } catch (e) {
       if (mounted) avisar(this.context, 'No se pudo compartir: $e');
     }

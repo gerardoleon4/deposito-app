@@ -209,6 +209,9 @@ abstract interface class Api {
     int? dias,
   });
 
+  /// Sugerencias de resurtido basadas en mínimos y ventas del periodo.
+  Future<ReporteResurtido> obtenerResurtido({int dias = 30, int cobertura = 7});
+
   /// Arma el pedido del cliente desde una terminal y lo manda a la caja.
   /// No revisa existencias: se revisan al cobrar.
   Future<Pedido> crearPedido({required List<LineaPedido> lineas, String? nota});
@@ -747,6 +750,18 @@ class ApiHttp implements Api {
           Alerta.fromJson((a as Map).cast()),
       ],
     );
+  });
+
+  @override
+  Future<ReporteResurtido> obtenerResurtido({
+    int dias = 30,
+    int cobertura = 7,
+  }) => _pedir(() async {
+    final r = await _dio.get<Map<String, Object?>>(
+      '/api/v1/reportes/resurtido',
+      queryParameters: {'dias': dias, 'cobertura': cobertura},
+    );
+    return ReporteResurtido.fromJson(r.data!);
   });
 
   @override

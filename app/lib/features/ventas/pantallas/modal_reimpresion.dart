@@ -7,6 +7,7 @@ import '../../../core/formato/formato.dart';
 import '../../../core/textos.dart';
 import '../../../core/ticket/ticket_pdf.dart';
 import '../../../core/widgets/estados.dart';
+import '../../../core/widgets/origen_compartir.dart';
 
 /// 6.3 Re-impresión (diseño de Pablo): panel inferior para imprimir el
 /// recibo o compartirlo en PDF (WhatsApp, AirDrop...).
@@ -181,7 +182,14 @@ class ModalReimpresion extends ConsumerWidget {
               color: const Color(0xFF16A34A),
               titulo: 'Compartir PDF / WhatsApp',
               detalle: 'Comprobante digital para enviar al cliente',
-              alTocar: () => _accion(context, ref, compartirTicket),
+              alTocar: () {
+                final origen = origenCompartir(context);
+                _accion(
+                  context,
+                  ref,
+                  (v, n) => compartirTicket(v, n, origen: origen),
+                );
+              },
             ),
             const SizedBox(height: 14),
             TextButton(

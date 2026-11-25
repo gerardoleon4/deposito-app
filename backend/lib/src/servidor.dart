@@ -21,6 +21,7 @@ import 'db/repositorio_ajustes.dart';
 import 'db/repositorio_caja.dart';
 import 'db/repositorio_idempotencia.dart';
 import 'db/repositorio_productos.dart';
+import 'db/repositorio_resurtido.dart';
 import 'db/repositorio_terminales.dart';
 import 'db/repositorio_usuarios.dart';
 import 'rutas/rutas_ajustes.dart';
@@ -28,6 +29,7 @@ import 'rutas/rutas_alertas.dart';
 import 'rutas/rutas_caja.dart';
 import 'rutas/rutas_diagnostico.dart';
 import 'rutas/rutas_productos.dart';
+import 'rutas/rutas_reportes.dart';
 import 'rutas/rutas_terminales.dart';
 import 'rutas/rutas_usuarios.dart';
 import 'seed/datos_ejemplo.dart';
@@ -38,6 +40,7 @@ import 'servicios/servicio_alertas.dart';
 import 'servicios/servicio_caja.dart';
 import 'servicios/servicio_diagnostico.dart';
 import 'servicios/servicio_productos.dart';
+import 'servicios/servicio_resurtido.dart';
 import 'servicios/servicio_terminales.dart';
 import 'servicios/servicio_usuarios.dart';
 import 'ws/hub.dart';
@@ -54,7 +57,7 @@ import 'servicios/servicio_pedidos.dart';
 const fondoEjemplo = 50000;
 
 /// Versión del servidor; se manda en `conexion.lista`.
-const versionServidor = '0.1.0';
+const versionServidor = '1.0.0';
 
 /// El servidor de Anaquel. La app lo arranca dentro de sí misma en modo Caja;
 /// en desarrollo lo arranca `bin/server.dart`.
@@ -219,6 +222,12 @@ class DepositoServer {
         hub: hub,
         reloj: _reloj,
       );
+      final resurtido = ServicioResurtido(
+        repoProductos: repoProductos,
+        repoResurtido: RepositorioResurtido(db),
+        repoAjustes: ajustes,
+        reloj: _reloj,
+      );
 
       if (datosEjemplo && repoProductos.contar() == 0) {
         cargarDatosEjemplo(
@@ -260,6 +269,7 @@ class DepositoServer {
       montarRutasUsuarios(router, usuarios);
       montarRutasAjustes(router, servicioAjustes);
       montarRutasAlertas(router, alertas);
+      montarRutasReportes(router, resurtido);
       montarRutasDiagnostico(router, diagnostico);
 
       final manejador = const Pipeline()

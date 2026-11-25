@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:ui';
 
 import 'package:share_plus/share_plus.dart';
 
@@ -40,9 +41,11 @@ Future<File> guardarRespaldo(Api api) async {
 }
 
 /// Hoja de compartir del sistema (AirDrop, Guardar en Archivos, WhatsApp...).
-Future<void> compartirRespaldo(File archivo) => SharePlus.instance.share(
-  ShareParams(
-    files: [XFile(archivo.path, mimeType: 'application/vnd.sqlite3')],
-    subject: Textos.respaldoDeAnaquel,
-  ),
-);
+Future<void> compartirRespaldo(File archivo, {Rect? origen}) =>
+    SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(archivo.path, mimeType: 'application/vnd.sqlite3')],
+        subject: Textos.respaldoDeAnaquel,
+        sharePositionOrigin: origen,
+      ),
+    );

@@ -6,6 +6,7 @@ import '../../../../core/formato/formato.dart';
 import '../../../../core/textos.dart';
 import '../../../../core/ticket/ticket_pdf.dart';
 import '../../../../core/widgets/estados.dart';
+import '../../../../core/widgets/origen_compartir.dart';
 import 'comun.dart';
 
 // ============================================================================
@@ -66,7 +67,13 @@ class VistaTicketPdf extends StatelessWidget {
                           _AccionFlotante(
                             icono: Icons.share_rounded,
                             etiqueta: 'Compartir',
-                            alTocar: () => _accion(context, compartirTicket),
+                            alTocar: () {
+                              final origen = origenCompartir(context);
+                              _accion(
+                                context,
+                                (v, n) => compartirTicket(v, n, origen: origen),
+                              );
+                            },
                           ),
                           const SizedBox(height: 24),
                           FloatingActionButton(
@@ -102,7 +109,13 @@ class VistaTicketPdf extends StatelessWidget {
                             ),
                           ),
                           ElevatedButton.icon(
-                            onPressed: () => _accion(context, compartirTicket),
+                            onPressed: () {
+                              final origen = origenCompartir(context);
+                              _accion(
+                                context,
+                                (v, n) => compartirTicket(v, n, origen: origen),
+                              );
+                            },
                             icon: const Icon(Icons.share_rounded, size: 18),
                             label: const Text('Compartir'),
                             style: ElevatedButton.styleFrom(

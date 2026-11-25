@@ -12,6 +12,7 @@ import '../../../core/api/proveedores.dart';
 import '../../../core/formato/formato.dart';
 import '../../../core/servidor/servidor_embebido.dart';
 import '../../../core/widgets/estados.dart';
+import '../../../core/widgets/origen_compartir.dart';
 import '../estado/diagnostico_provider.dart';
 
 /// Estado del servidor para dar soporte sin estar en el depósito
@@ -20,6 +21,7 @@ class PantallaDiagnostico extends ConsumerWidget {
   const PantallaDiagnostico({super.key});
 
   Future<void> _descargarBitacora(BuildContext context, WidgetRef ref) async {
+    final origen = origenCompartir(context);
     try {
       final api = await ref.read(apiProvider.future);
       final log = await api.descargarBitacora();
@@ -43,6 +45,7 @@ class PantallaDiagnostico extends ConsumerWidget {
         ShareParams(
           files: [XFile(archivo.path, mimeType: 'text/plain')],
           subject: 'Bitácora de Anaquel',
+          sharePositionOrigin: origen,
         ),
       );
     } on Object catch (e) {

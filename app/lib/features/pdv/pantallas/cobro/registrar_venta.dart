@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../core/api/fallo_api.dart';
 import '../../../../core/api/proveedores.dart';
@@ -55,7 +56,8 @@ Future<void> registrarVenta(
     navegador.pop();
     if (!context.mounted) return;
     final sinConexion = e is FalloApi && e.sinConexion;
-    final reintentar = await showDialog<bool>(
+    final cajaCerrada = e is FalloApi && e.codigo == 'caja_cerrada';
+    final accion = await showDialog<String>(
       context: context,
       builder: (contexto) => AlertDialog(
         title: const Text('No se registró el cobro'),
@@ -66,19 +68,28 @@ Future<void> registrarVenta(
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(contexto, false),
+            onPressed: () => Navigator.pop(contexto, 'cerrar'),
             child: const Text(Textos.cerrar),
           ),
+          if (cajaCerrada)
+            FilledButton(
+              onPressed: () => Navigator.pop(contexto, 'abrir_caja'),
+              child: const Text('Ir a abrir caja'),
+            ),
           if (sinConexion)
             FilledButton(
-              onPressed: () => Navigator.pop(contexto, true),
+              onPressed: () => Navigator.pop(contexto, 'reintentar'),
               child: const Text(Textos.reintentar),
             ),
         ],
       ),
     );
-    if (reintentar == true && context.mounted) {
+    if (!context.mounted) return;
+    if (accion == 'reintentar') {
       await registrarVenta(context, ref, metodo: metodo, recibido: recibido);
+    } else if (accion == 'abrir_caja') {
+      navegador.popUntil((r) => r.isFirst);
+      context.go('/caja/corte');
     }
   }
 }

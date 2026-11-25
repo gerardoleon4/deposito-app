@@ -427,7 +427,7 @@ class _PanelMetricas extends StatelessWidget {
       detalle: bajoMinimo == 0 ? 'Inventario en orden' : 'Requiere resurtido',
       alerta: bajoMinimo > 0,
       colorAlerta: c.alerta,
-      alTocar: () => context.go('/caja/catalogo'),
+      alTocar: () => context.go('/caja/alertas'),
     );
 
     final item3 = _ElementoMetrica(
@@ -438,7 +438,7 @@ class _PanelMetricas extends StatelessWidget {
       detalle: porCaducar == 0 ? 'Sin fechas críticas' : 'Próximos 15 días',
       alerta: porCaducar > 0,
       colorAlerta: const Color(0xFFD97706),
-      alTocar: () => context.go('/caja/catalogo'),
+      alTocar: () => context.go('/caja/alertas'),
     );
 
     final item4 = _ElementoMetrica(

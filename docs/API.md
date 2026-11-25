@@ -1003,8 +1003,32 @@ Se sigue mandando también `producto.actualizado`, así que una pantalla que ya 
 - Al reconectarse, la app vuelve a pedir los datos completos con `GET` en lugar de confiar en los eventos que se perdió.
 - El cliente no manda mensajes por ahora.
 
-## Pendientes
+### Reportes y Resurtido
 
-Se documentarán aquí, en este orden:
+#### Sugerencias de resurtido
 
-- **Sprint 4:** reportes y resurtido.
+`GET /api/v1/reportes/resurtido?dias=30&cobertura=7` · Solo caja
+
+Calcula qué productos conviene pedir al proveedor según sus existencias actuales, su stock mínimo y las piezas netas vendidas en los últimos `dias` (`1..90`, por omisión `30`) para cubrir `cobertura` días de venta (`1..30`, por omisión `7`).
+
+- Respuesta `200`:
+
+```json
+{
+  "dia": "2026-11-24",
+  "dias": 30,
+  "cobertura": 7,
+  "sugerencias": [
+    {
+      "producto": { "id": "p_1", "nombre": "Corona Mega", "..." : "..." },
+      "vendidasPeriodo": 120,
+      "sugeridoPiezas": 28,
+      "sugeridoCajas": 3,
+      "urgencia": "bajo_minimo"
+    }
+  ]
+}
+```
+
+- `urgencia`: `agotado` (`existenciaPiezas <= 0`), `bajo_minimo` (`existenciaPiezas <= minimo`), o `por_cubrir` (tiene mínimo o superavit bajo respecto a la demanda de `cobertura` días).
+- Se ordenan por urgencia (`agotado`, `bajo_minimo`, `por_cubrir`), luego por mayor `vendidasPeriodo` y finalmente alfabéticamente.

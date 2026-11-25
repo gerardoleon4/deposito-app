@@ -66,10 +66,16 @@ class _VincularTerminalState extends ConsumerState<VincularTerminal> {
   }
 
   Future<void> _vincular() async {
-    final puerto = int.tryParse(_puerto.text);
-    if (_host.text.trim().isEmpty ||
-        puerto == null ||
-        _codigo.text.length != 6) {
+    final hostLimpio = _host.text
+        .trim()
+        .replaceFirst(RegExp(r'^https?://'), '')
+        .split('/')
+        .first
+        .split(':')
+        .first;
+    final puerto = int.tryParse(_puerto.text.trim());
+    final codigo = _codigo.text.trim();
+    if (hostLimpio.isEmpty || puerto == null || codigo.length != 6) {
       setState(
         () => _error =
             'Escribe la IP de la caja, el puerto y el código de 6 dígitos.',
@@ -81,17 +87,16 @@ class _VincularTerminalState extends ConsumerState<VincularTerminal> {
       _error = null;
     });
     try {
-      final host = _host.text.trim();
       final registro = await ApiHttp.registrarTerminal(
-        base: Uri(scheme: 'http', host: host, port: puerto),
+        base: Uri(scheme: 'http', host: hostLimpio, port: puerto),
         nombre: _nombre.text.trim().isEmpty ? 'Terminal' : _nombre.text.trim(),
-        codigo: _codigo.text,
+        codigo: codigo,
       );
       await ref
           .read(configuracionProvider.notifier)
           .guardarConexion(
             ConexionTerminal(
-              host: host,
+              host: hostLimpio,
               puerto: puerto,
               clave: registro.clave,
               nombre: registro.terminal.nombre,
@@ -101,9 +106,18 @@ class _VincularTerminalState extends ConsumerState<VincularTerminal> {
       if (mounted) {
         setState(() {
           _conectando = false;
+          _manual = true;
           _error = e.codigo == 'codigo_invalido'
               ? 'El código es incorrecto o ya venció. Genera otro en la caja.'
               : e.mensaje;
+        });
+      }
+    } on Object catch (e) {
+      if (mounted) {
+        setState(() {
+          _conectando = false;
+          _manual = true;
+          _error = mensajeDeError(e);
         });
       }
     }

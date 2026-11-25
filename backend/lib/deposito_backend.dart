@@ -20,6 +20,7 @@ export 'src/modelos/evento.dart';
 export 'src/modelos/importacion.dart';
 export 'src/modelos/movimiento.dart';
 export 'src/modelos/producto.dart';
+export 'src/modelos/resurtido.dart';
 export 'src/modelos/terminal.dart';
 export 'src/modelos/usuario.dart';
 export 'src/modelos/venta.dart';

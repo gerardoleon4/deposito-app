@@ -1,69 +1,69 @@
 codigo,nombre,categoria,presentacion,precio,precioCaja,piezasPorCaja,existencia,minimo,envase
-MOD001,Barrilito Laton,cerveza,Laton 473 ml,19,456,24,0,0,
-MOD002,Barrilito Media,cerveza,Media 355 ml,16,384,24,80,0,
-MOD003,Corona Cero Bote 355,cerveza,Bote 355 ml,17,408,24,127,0,
-MOD004,Corona Cero Cuarto,cerveza,Cuarto 210 ml,10,240,24,54,0,cuarto
-MOD005,Corona Extra Bote 355,cerveza,Bote 355 ml,20,480,24,148,0,
-MOD006,Corona Extra Bote 710,cerveza,Bote 710 ml,40,480,12,130,0,
-MOD007,Corona Extra Cuarto,cerveza,Cuarto 210 ml,12,255,24,2120,0,cuarto
-MOD008,Corona Extra Familiar,cerveza,Familiar 940 ml,45,540,12,94,0,mega
-MOD009,Corona Extra Laton,cerveza,Laton 473 ml,24,576,24,380,0,
-MOD010,Corona Extra Media,cerveza,Media 355 ml,18,432,24,308,0,media
-MOD011,Corona Extra Mega,cerveza,Mega 1.2 L,47,564,12,219,0,mega
-MOD012,Corona Light Bote 355,cerveza,Bote 355 ml,19,456,24,60,0,
-MOD013,Corona Light Mega,cerveza,Mega 1.2 L,46,552,12,59,0,mega
-MOD014,Michelob Bote 355,cerveza,Bote 355 ml,22,528,24,160,0,
-MOD015,Michelob Bote 710,cerveza,Bote 710 ml,45,540,12,34,0,
-MOD016,Michelob Laton,cerveza,Laton 473 ml,29,696,24,29,0,
-MOD017,Michelob Media,cerveza,Media 355 ml,23,552,24,240,0,
-MOD018,Michelob Mega 1L,cerveza,Mega 1 L,42,504,12,58,0,mega
-MOD019,Michelob Zero Bote 355,cerveza,Bote 355 ml,21,504,24,132,0,
-MOD020,Modelo Dorada Cero Bote 355,cerveza,Bote 355 ml,22,528,24,61,0,
-MOD021,Modelo Dorada Cero Media,cerveza,Media 355 ml,21,252,12,48,0,media
-MOD022,Modelo Especial Bote 355,cerveza,Bote 355 ml,24,576,24,270,0,
-MOD023,Modelo Especial Bote 710,cerveza,Bote 710 ml,45,540,12,147,0,
-MOD024,Modelo Especial Cuarto,cerveza,Cuarto 210 ml,14,336,24,198,0,cuarto
-MOD025,Modelo Especial Laton,cerveza,Laton 473 ml,29,696,24,139,0,
-MOD026,Modelo Especial Media,cerveza,Media 355 ml,22,264,12,60,0,media
-MOD027,Modelo Especial Mega 1L,cerveza,Mega 1 L,46,552,12,192,0,mega
-MOD028,Modelo Pura Malta Laton,cerveza,Laton 473 ml,33,792,24,82,0,
-MOD029,Modelo Pura Malta Media,cerveza,Media 355 ml,23,276,12,132,0,media
-MOD030,Modelo Pura Malta Mega 1L,cerveza,Mega 1 L,42,504,12,118,0,mega
-MOD031,Montejo Bote 355,cerveza,Bote 355 ml,18,432,24,132,0,
-MOD032,Montejo Mega,cerveza,Mega 1.2 L,44,528,12,168,0,mega
-MOD033,Negra Modelo Bote 355,cerveza,Bote 355 ml,26,624,24,12,0,
-MOD034,Negra Modelo Laton,cerveza,Laton 473 ml,30,720,24,61,0,
-MOD035,Negra Modelo Media,cerveza,Media 355 ml,23,276,12,120,0,media
-MOD036,Negra Modelo Mega 1L,cerveza,Mega 1 L,46,552,12,202,0,mega
-MOD037,Negra Modelo Cero Bote 355,cerveza,Bote 355 ml,22,528,24,38,0,
-MOD038,Negra Modelo Cero Media,cerveza,Media 355 ml,21,252,12,48,0,media
-MOD039,Negra Modelo Chocolate Bote 355,cerveza,Bote 355 ml,23,552,24,132,0,
-MOD040,Negra Modelo Chocolate Media,cerveza,Media 355 ml,22,264,12,0,0,media
-MOD041,Pacifico Bote 355,cerveza,Bote 355 ml,23,552,24,252,0,
-MOD042,Pacifico Bote 710,cerveza,Bote 710 ml,44,528,12,132,0,
-MOD043,Pacifico Laton,cerveza,Laton 473 ml,28,672,24,128,0,
-MOD044,Pacifico Media,cerveza,Media 355 ml,20,480,24,120,0,media
-MOD045,Pacifico Mega,cerveza,Mega 1.2 L,48,576,12,82,0,mega
-MOD046,Pacifico Mega 1L,cerveza,Mega 1 L,42,504,12,108,0,mega
-MOD047,Pacifico Suave Bote 355,cerveza,Bote 355 ml,22,528,24,224,0,
-MOD048,Pacifico Suave Bote 710,cerveza,Bote 710 ml,44,528,12,0,0,
-MOD049,Pacifico Suave Laton,cerveza,Laton 473 ml,28,672,24,56,0,
-MOD050,Pacifico Suave Media,cerveza,Media 355 ml,19,456,24,0,0,media
-MOD051,Pacifico Suave Mega 1L,cerveza,Mega 1 L,39,468,12,70,0,mega
-MOD052,Stella Artois Bote 355,cerveza,Bote 355 ml,26,624,24,58,0,
-MOD053,Stella Artois Laton,cerveza,Laton 330 ml,36,864,24,130,0,
-MOD054,Stella Artois Media,cerveza,Media 355 ml,25,600,24,300,0,
-MOD055,Victoria Bote 355,cerveza,Bote 355 ml,20,480,24,138,0,
-MOD056,Victoria Bote 710,cerveza,Bote 710 ml,40,480,12,162,0,
-MOD057,Victoria Cuarto,cerveza,Cuarto 210 ml,12,255,24,3270,0,cuarto
-MOD058,Victoria Familiar,cerveza,Familiar 940 ml,45,540,12,106,0,mega
-MOD059,Victoria Laton,cerveza,Laton 473 ml,24,576,24,264,0,
-MOD060,Victoria Media,cerveza,Media 355 ml,18,432,24,384,0,media
-MOD061,Victoria Mega,cerveza,Mega 1.2 L,47,564,12,438,0,mega
-MOD062,Victoria Chamoy Laton,cerveza,Laton 473 ml,24,576,24,54,0,
-MOD063,Victoria Chelada Laton,cerveza,Laton 473 ml,24,576,24,64,0,
-MOD064,Victoria Gomichela Laton,cerveza,Laton 473 ml,24,576,24,108,0,
-MOD065,Victoria Limon y Sal Laton,cerveza,Laton 473 ml,24,576,24,204,0,
-MOD066,Victoria Mango Laton,cerveza,Laton 473 ml,24,576,24,74,0,
-MOD067,Victoria Piña Laton,cerveza,Laton 473 ml,24,576,24,12,0,
-MOD068,Victoria Tajin Laton,cerveza,Laton 473 ml,24,576,24,86,0,
+MOD001,Barrilito Laton,cerveza,Laton 473 ml,19,456,24,0,24,
+MOD002,Barrilito Media,cerveza,Media 355 ml,16,384,24,80,24,
+MOD003,Corona Cero Bote 355,cerveza,Bote 355 ml,17,408,24,127,24,
+MOD004,Corona Cero Cuarto,cerveza,Cuarto 210 ml,10,240,24,54,24,cuarto
+MOD005,Corona Extra Bote 355,cerveza,Bote 355 ml,20,480,24,148,24,
+MOD006,Corona Extra Bote 710,cerveza,Bote 710 ml,40,480,12,130,24,
+MOD007,Corona Extra Cuarto,cerveza,Cuarto 210 ml,12,255,24,2120,24,cuarto
+MOD008,Corona Extra Familiar,cerveza,Familiar 940 ml,45,540,12,94,24,mega
+MOD009,Corona Extra Laton,cerveza,Laton 473 ml,24,576,24,380,24,
+MOD010,Corona Extra Media,cerveza,Media 355 ml,18,432,24,308,24,media
+MOD011,Corona Extra Mega,cerveza,Mega 1.2 L,47,564,12,219,24,mega
+MOD012,Corona Light Bote 355,cerveza,Bote 355 ml,19,456,24,60,24,
+MOD013,Corona Light Mega,cerveza,Mega 1.2 L,46,552,12,59,24,mega
+MOD014,Michelob Bote 355,cerveza,Bote 355 ml,22,528,24,160,24,
+MOD015,Michelob Bote 710,cerveza,Bote 710 ml,45,540,12,34,24,
+MOD016,Michelob Laton,cerveza,Laton 473 ml,29,696,24,29,24,
+MOD017,Michelob Media,cerveza,Media 355 ml,23,552,24,240,24,
+MOD018,Michelob Mega 1L,cerveza,Mega 1 L,42,504,12,58,24,mega
+MOD019,Michelob Zero Bote 355,cerveza,Bote 355 ml,21,504,24,132,24,
+MOD020,Modelo Dorada Cero Bote 355,cerveza,Bote 355 ml,22,528,24,61,24,
+MOD021,Modelo Dorada Cero Media,cerveza,Media 355 ml,21,252,12,48,24,media
+MOD022,Modelo Especial Bote 355,cerveza,Bote 355 ml,24,576,24,270,24,
+MOD023,Modelo Especial Bote 710,cerveza,Bote 710 ml,45,540,12,147,24,
+MOD024,Modelo Especial Cuarto,cerveza,Cuarto 210 ml,14,336,24,198,24,cuarto
+MOD025,Modelo Especial Laton,cerveza,Laton 473 ml,29,696,24,139,24,
+MOD026,Modelo Especial Media,cerveza,Media 355 ml,22,264,12,60,24,media
+MOD027,Modelo Especial Mega 1L,cerveza,Mega 1 L,46,552,12,192,24,mega
+MOD028,Modelo Pura Malta Laton,cerveza,Laton 473 ml,33,792,24,82,24,
+MOD029,Modelo Pura Malta Media,cerveza,Media 355 ml,23,276,12,132,24,media
+MOD030,Modelo Pura Malta Mega 1L,cerveza,Mega 1 L,42,504,12,118,24,mega
+MOD031,Montejo Bote 355,cerveza,Bote 355 ml,18,432,24,132,24,
+MOD032,Montejo Mega,cerveza,Mega 1.2 L,44,528,12,168,24,mega
+MOD033,Negra Modelo Bote 355,cerveza,Bote 355 ml,26,624,24,12,24,
+MOD034,Negra Modelo Laton,cerveza,Laton 473 ml,30,720,24,61,24,
+MOD035,Negra Modelo Media,cerveza,Media 355 ml,23,276,12,120,24,media
+MOD036,Negra Modelo Mega 1L,cerveza,Mega 1 L,46,552,12,202,24,mega
+MOD037,Negra Modelo Cero Bote 355,cerveza,Bote 355 ml,22,528,24,38,24,
+MOD038,Negra Modelo Cero Media,cerveza,Media 355 ml,21,252,12,48,24,media
+MOD039,Negra Modelo Chocolate Bote 355,cerveza,Bote 355 ml,23,552,24,132,24,
+MOD040,Negra Modelo Chocolate Media,cerveza,Media 355 ml,22,264,12,0,24,media
+MOD041,Pacifico Bote 355,cerveza,Bote 355 ml,23,552,24,252,24,
+MOD042,Pacifico Bote 710,cerveza,Bote 710 ml,44,528,12,132,24,
+MOD043,Pacifico Laton,cerveza,Laton 473 ml,28,672,24,128,24,
+MOD044,Pacifico Media,cerveza,Media 355 ml,20,480,24,120,24,media
+MOD045,Pacifico Mega,cerveza,Mega 1.2 L,48,576,12,82,24,mega
+MOD046,Pacifico Mega 1L,cerveza,Mega 1 L,42,504,12,108,24,mega
+MOD047,Pacifico Suave Bote 355,cerveza,Bote 355 ml,22,528,24,224,24,
+MOD048,Pacifico Suave Bote 710,cerveza,Bote 710 ml,44,528,12,0,24,
+MOD049,Pacifico Suave Laton,cerveza,Laton 473 ml,28,672,24,56,24,
+MOD050,Pacifico Suave Media,cerveza,Media 355 ml,19,456,24,0,24,media
+MOD051,Pacifico Suave Mega 1L,cerveza,Mega 1 L,39,468,12,70,24,mega
+MOD052,Stella Artois Bote 355,cerveza,Bote 355 ml,26,624,24,58,24,
+MOD053,Stella Artois Laton,cerveza,Laton 330 ml,36,864,24,130,24,
+MOD054,Stella Artois Media,cerveza,Media 355 ml,25,600,24,300,24,
+MOD055,Victoria Bote 355,cerveza,Bote 355 ml,20,480,24,138,24,
+MOD056,Victoria Bote 710,cerveza,Bote 710 ml,40,480,12,162,24,
+MOD057,Victoria Cuarto,cerveza,Cuarto 210 ml,12,255,24,3270,24,cuarto
+MOD058,Victoria Familiar,cerveza,Familiar 940 ml,45,540,12,106,24,mega
+MOD059,Victoria Laton,cerveza,Laton 473 ml,24,576,24,264,24,
+MOD060,Victoria Media,cerveza,Media 355 ml,18,432,24,384,24,media
+MOD061,Victoria Mega,cerveza,Mega 1.2 L,47,564,12,438,24,mega
+MOD062,Victoria Chamoy Laton,cerveza,Laton 473 ml,24,576,24,54,24,
+MOD063,Victoria Chelada Laton,cerveza,Laton 473 ml,24,576,24,64,24,
+MOD064,Victoria Gomichela Laton,cerveza,Laton 473 ml,24,576,24,108,24,
+MOD065,Victoria Limon y Sal Laton,cerveza,Laton 473 ml,24,576,24,204,24,
+MOD066,Victoria Mango Laton,cerveza,Laton 473 ml,24,576,24,74,24,
+MOD067,Victoria Piña Laton,cerveza,Laton 473 ml,24,576,24,12,24,
+MOD068,Victoria Tajin Laton,cerveza,Laton 473 ml,24,576,24,86,24,

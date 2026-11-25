@@ -1,8 +1,12 @@
 import 'dart:convert';
+import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:deposito_backend/deposito_backend.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../../../core/formato/formato.dart';
 
@@ -50,16 +54,37 @@ String _celda(Object? valor) {
   return '"${texto.replaceAll('"', '""')}"';
 }
 
-/// Pide dónde guardar el CSV del inventario. Regresa `false` si se canceló.
-Future<bool> exportarInventario(List<Producto> productos) async {
+/// Pide dónde guardar el CSV del inventario. En móvil/iPad, si el selector
+/// de archivos falla, abre la hoja nativa de compartir.
+Future<bool> exportarInventario(
+  List<Producto> productos, {
+  Rect? origen,
+}) async {
   final hoy = DateTime.now();
   final fecha =
       '${hoy.year}-${hoy.month.toString().padLeft(2, '0')}'
       '-${hoy.day.toString().padLeft(2, '0')}';
-  final destino = await FilePicker.saveFile(
-    fileName: 'inventario-$fecha.csv',
-    bytes: Uint8List.fromList(utf8.encode(csvInventario(productos))),
-    mimeType: 'text/csv',
-  );
-  return destino != null;
+  final nombre = 'inventario-$fecha.csv';
+  final contenido = csvInventario(productos);
+  final bytes = Uint8List.fromList(utf8.encode(contenido));
+  try {
+    final destino = await FilePicker.saveFile(
+      fileName: nombre,
+      bytes: bytes,
+      mimeType: 'text/csv',
+    );
+    return destino != null;
+  } catch (_) {
+    final dir = await getTemporaryDirectory();
+    final archivo = File('${dir.path}/$nombre')
+      ..writeAsBytesSync(bytes, flush: true);
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile(archivo.path, mimeType: 'text/csv')],
+        subject: 'Inventario de Anaquel ($fecha)',
+        sharePositionOrigin: origen,
+      ),
+    );
+    return true;
+  }
 }
